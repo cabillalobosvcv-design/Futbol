@@ -1,0 +1,576 @@
+{
+  "entities": {
+    "Organization": {
+      "title": "Organization",
+      "description": "Organización o liga deportiva administradora en SIGD.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "shortName": { "type": "string", "minLength": 2, "maxLength": 24 },
+        "city": { "type": "string", "maxLength": 80 },
+        "logoUrl": { "type": "string", "maxLength": 500 },
+        "active": { "type": "boolean" },
+        "createdBy": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "shortName", "active", "createdBy", "createdAt", "updatedAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Perfil de usuario y rol RBAC en SIGD.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 160 },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "role": {
+          "type": "string",
+          "enum": ["admin_general", "admin_deportivo", "coordinador", "arbitro", "representante", "publico"]
+        },
+        "assignedCategoryIds": { "type": "array", "description": "Máximo 20 categorías asignadas." },
+        "assignedTeamId": { "type": "string", "maxLength": 128 },
+        "refereeId": { "type": "string", "maxLength": 128 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "role", "active", "createdAt", "updatedAt"]
+    },
+    "Sport": {
+      "title": "Sport",
+      "description": "Disciplina deportiva del catálogo extensible multideporte.",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "pattern": "^[a-z0-9_\\-]+$", "maxLength": 40 },
+        "name": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "engineType": { "type": "string", "enum": ["football", "basketball", "volleyball", "baseball", "athletics", "racquet", "generic"] },
+        "periodsCount": { "type": "integer" },
+        "periodLabel": { "type": "string", "maxLength": 40 },
+        "allowDraws": { "type": "boolean" },
+        "statSchema": { "type": "array" },
+        "active": { "type": "boolean" },
+        "isPrimary": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["key", "name", "engineType", "periodsCount", "allowDraws", "active", "createdAt", "updatedAt"]
+    },
+    "SportRule": {
+      "title": "SportRule",
+      "description": "Reglamento configurable por deporte o torneo.",
+      "type": "object",
+      "properties": {
+        "sportId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "winPoints": { "type": "integer" },
+        "drawPoints": { "type": "integer" },
+        "lossPoints": { "type": "integer" },
+        "tiebreakers": { "type": "array" },
+        "minRestHours": { "type": "integer" },
+        "matchDurationMinutes": { "type": "integer" },
+        "maxPlayersOnField": { "type": "integer" },
+        "yellowCardsSuspensionLimit": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sportId", "name", "winPoints", "drawPoints", "lossPoints", "tiebreakers", "minRestHours", "updatedAt"]
+    },
+    "Season": {
+      "title": "Season",
+      "description": "Temporada deportiva histórica o vigente.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "year": { "type": "integer" },
+        "startDate": { "type": "string", "maxLength": 20 },
+        "endDate": { "type": "string", "maxLength": 20 },
+        "status": { "type": "string", "enum": ["planificada", "activa", "finalizada"] },
+        "createdBy": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "year", "startDate", "endDate", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Tournament": {
+      "title": "Tournament",
+      "description": "Torneo competitivo independiente dentro de una temporada.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "sportId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "seasonId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "format": { "type": "string", "enum": ["round_robin", "knockout", "groups", "mixed"] },
+        "doubleRound": { "type": "boolean" },
+        "teamsPerGroup": { "type": "integer" },
+        "qualifiersPerGroup": { "type": "integer" },
+        "winPoints": { "type": "integer" },
+        "drawPoints": { "type": "integer" },
+        "lossPoints": { "type": "integer" },
+        "tiebreakers": { "type": "array" },
+        "minRestHours": { "type": "integer" },
+        "schedulePublished": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["borrador", "inscripciones", "en_curso", "finalizado", "suspendido"] },
+        "championTeamId": { "type": "string", "maxLength": 128 },
+        "championTeamName": { "type": "string", "maxLength": 120 },
+        "startDate": { "type": "string", "maxLength": 20 },
+        "endDate": { "type": "string", "maxLength": 20 },
+        "createdBy": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "sportId", "seasonId", "format", "winPoints", "drawPoints", "lossPoints", "tiebreakers", "schedulePublished", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Branch": {
+      "title": "Branch",
+      "description": "Rama competitiva (Varonil, Femenil, Mixta).",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "code": { "type": "string", "maxLength": 16 }
+      },
+      "required": ["name", "code"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Categoría competitiva dentro de un torneo.",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "branchId": { "type": "string", "maxLength": 128 },
+        "branchName": { "type": "string", "maxLength": 60 },
+        "name": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "minAge": { "type": "integer" },
+        "maxAge": { "type": "integer" },
+        "coordinatorUid": { "type": "string", "maxLength": 128 },
+        "schedulePublished": { "type": "boolean" },
+        "championTeamId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "name", "schedulePublished", "createdAt", "updatedAt"]
+    },
+    "Team": {
+      "title": "Team",
+      "description": "Equipo inscrito en un torneo y categoría.",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "categoryId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "name": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "shortCode": { "type": "string", "minLength": 2, "maxLength": 6 },
+        "primaryColor": { "type": "string", "maxLength": 20 },
+        "secondaryColor": { "type": "string", "maxLength": 20 },
+        "crestUrl": { "type": "string", "maxLength": 500 },
+        "coachId": { "type": "string", "maxLength": 128 },
+        "coachName": { "type": "string", "maxLength": 100 },
+        "representativeUid": { "type": "string", "maxLength": 128 },
+        "groupId": { "type": "string", "maxLength": 128 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "categoryId", "name", "shortCode", "primaryColor", "active", "createdAt", "updatedAt"]
+    },
+    "Player": {
+      "title": "Player",
+      "description": "Jugador registrado en un equipo.",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "categoryId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "teamId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "fullName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "jerseyNumber": { "type": "integer" },
+        "position": { "type": "string", "enum": ["Portero", "Defensa", "Mediocampista", "Delantero"] },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "birthYear": { "type": "integer" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "categoryId", "teamId", "fullName", "jerseyNumber", "position", "active", "createdAt", "updatedAt"]
+    },
+    "Coach": {
+      "title": "Coach",
+      "description": "Director técnico registrado.",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "licenseCode": { "type": "string", "maxLength": 40 },
+        "teamId": { "type": "string", "maxLength": 128 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fullName", "active", "createdAt"]
+    },
+    "Referee": {
+      "title": "Referee",
+      "description": "Árbitro registrado (perfil operativo sin PII sensible).",
+      "type": "object",
+      "properties": {
+        "userUid": { "type": "string", "maxLength": 128 },
+        "fullName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "authorizedCategories": { "type": "array" },
+        "availabilitySlots": { "type": "array" },
+        "status": { "type": "string", "enum": ["activo", "inactivo", "suspendido"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fullName", "authorizedCategories", "availabilitySlots", "status", "createdAt", "updatedAt"]
+    },
+    "RefereeContactPrivate": {
+      "title": "RefereeContactPrivate",
+      "description": "Información de contacto PII aislada del árbitro.",
+      "type": "object",
+      "properties": {
+        "phone": { "type": "string", "maxLength": 30 },
+        "email": { "type": "string", "format": "email", "maxLength": 160 }
+      },
+      "required": ["phone", "email"]
+    },
+    "Venue": {
+      "title": "Venue",
+      "description": "Instalación o complejo deportivo.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "address": { "type": "string", "maxLength": 220 },
+        "facilityType": { "type": "string", "maxLength": 60 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "address", "facilityType", "active", "createdAt", "updatedAt"]
+    },
+    "Field": {
+      "title": "Field",
+      "description": "Cancha perteneciente a una instalación deportiva.",
+      "type": "object",
+      "properties": {
+        "venueId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "surfaceType": { "type": "string", "maxLength": 60 },
+        "capacity": { "type": "integer" },
+        "availableDays": { "type": "array" },
+        "openTime": { "type": "string", "maxLength": 10 },
+        "closeTime": { "type": "string", "maxLength": 10 },
+        "slotDurationMinutes": { "type": "integer" },
+        "status": { "type": "string", "enum": ["disponible", "mantenimiento", "inactiva"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["venueId", "name", "capacity", "availableDays", "openTime", "closeTime", "status", "createdAt", "updatedAt"]
+    },
+    "Round": {
+      "title": "Round",
+      "description": "Jornada o ronda de un torneo y categoría.",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "categoryId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "roundNumber": { "type": "integer" },
+        "name": { "type": "string", "maxLength": 80 },
+        "stage": { "type": "string", "enum": ["regular", "grupos", "octavos", "cuartos", "semifinal", "final"] },
+        "startDate": { "type": "string", "maxLength": 20 }
+      },
+      "required": ["tournamentId", "categoryId", "roundNumber", "name", "stage"]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "Grupo clasificatorio dentro de una categoría.",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "categoryId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 40 },
+        "teamIds": { "type": "array" }
+      },
+      "required": ["tournamentId", "categoryId", "name", "teamIds"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Encuentro deportivo programado.",
+      "type": "object",
+      "properties": {
+        "matchNumber": { "type": "integer" },
+        "tournamentId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "categoryId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "roundId": { "type": "string", "maxLength": 128 },
+        "roundNumber": { "type": "integer" },
+        "groupId": { "type": "string", "maxLength": 128 },
+        "stage": { "type": "string", "enum": ["regular", "grupos", "octavos", "cuartos", "semifinal", "final"] },
+        "bracketSlot": { "type": "string", "maxLength": 40 },
+        "date": { "type": "string", "maxLength": 20 },
+        "time": { "type": "string", "maxLength": 10 },
+        "venueId": { "type": "string", "maxLength": 128 },
+        "fieldId": { "type": "string", "maxLength": 128 },
+        "homeTeamId": { "type": "string", "maxLength": 128 },
+        "awayTeamId": { "type": "string", "maxLength": 128 },
+        "refereeId": { "type": "string", "maxLength": 128 },
+        "status": {
+          "type": "string",
+          "enum": ["Programado", "En juego", "Finalizado", "Suspendido", "Reprogramado", "Cancelado", "Pendiente de validación"]
+        },
+        "homeScore": { "type": "integer" },
+        "awayScore": { "type": "integer" },
+        "published": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["matchNumber", "tournamentId", "categoryId", "roundNumber", "stage", "date", "time", "homeTeamId", "awayTeamId", "status", "published", "createdAt", "updatedAt"]
+    },
+    "MatchResult": {
+      "title": "MatchResult",
+      "description": "Acta digital oficial del encuentro con flujo de validación.",
+      "type": "object",
+      "properties": {
+        "matchId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "tournamentId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "categoryId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "homeTeamId": { "type": "string", "maxLength": 128 },
+        "awayTeamId": { "type": "string", "maxLength": 128 },
+        "homeScore": { "type": "integer" },
+        "awayScore": { "type": "integer" },
+        "periodScores": { "type": "array" },
+        "observations": { "type": "string", "maxLength": 2000 },
+        "refereeId": { "type": "string", "maxLength": 128 },
+        "submittedByUid": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "validationStatus": { "type": "string", "enum": ["borrador", "pendiente", "aprobado", "rechazado"] },
+        "approvedByUid": { "type": "string", "maxLength": 128 },
+        "correctionHistory": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["matchId", "tournamentId", "categoryId", "homeScore", "awayScore", "validationStatus", "submittedByUid", "createdAt", "updatedAt"]
+    },
+    "MatchEvent": {
+      "title": "MatchEvent",
+      "description": "Evento individual dentro de un acta digital (gol, asistencia, tarjeta, sustitución, participación).",
+      "type": "object",
+      "properties": {
+        "matchId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "tournamentId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "categoryId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "teamId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "playerId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "eventType": { "type": "string", "enum": ["gol", "penal", "autogol", "asistencia", "amarilla", "roja", "sustitucion", "participacion"] },
+        "goalType": { "type": "string", "maxLength": 40 },
+        "minute": { "type": "integer" },
+        "assistPlayerId": { "type": "string", "maxLength": 128 },
+        "subOutPlayerId": { "type": "string", "maxLength": 128 },
+        "isStarter": { "type": "boolean" },
+        "minutesPlayed": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["matchId", "tournamentId", "categoryId", "teamId", "playerId", "eventType", "minute", "createdAt"]
+    },
+    "TeamStatistic": {
+      "title": "TeamStatistic",
+      "description": "Indicadores estadísticos acumulados de un equipo en una categoría.",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "categoryId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "teamId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "played": { "type": "integer" },
+        "wins": { "type": "integer" },
+        "draws": { "type": "integer" },
+        "losses": { "type": "integer" },
+        "goalsFor": { "type": "integer" },
+        "goalsAgainst": { "type": "integer" },
+        "goalDifference": { "type": "integer" },
+        "points": { "type": "integer" },
+        "winRate": { "type": "number" },
+        "effectivenessRate": { "type": "number" },
+        "avgGoalsFor": { "type": "number" },
+        "avgGoalsAgainst": { "type": "number" },
+        "cleanSheets": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "categoryId", "teamId", "played", "wins", "draws", "losses", "goalsFor", "goalsAgainst", "goalDifference", "points", "updatedAt"]
+    },
+    "PlayerStatistic": {
+      "title": "PlayerStatistic",
+      "description": "Estadísticas individuales acumuladas de un jugador.",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "categoryId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "teamId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "playerId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "matchesPlayed": { "type": "integer" },
+        "goals": { "type": "integer" },
+        "assists": { "type": "integer" },
+        "yellowCards": { "type": "integer" },
+        "redCards": { "type": "integer" },
+        "minutesPlayed": { "type": "integer" },
+        "starts": { "type": "integer" },
+        "subs": { "type": "integer" },
+        "cleanSheetsGoalkeeper": { "type": "integer" },
+        "goalsConcededGoalkeeper": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "categoryId", "teamId", "playerId", "matchesPlayed", "goals", "assists", "yellowCards", "redCards", "minutesPlayed", "updatedAt"]
+    },
+    "Standing": {
+      "title": "Standing",
+      "description": "Tabla oficial de posiciones por torneo y categoría.",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "categoryId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "groupId": { "type": "string", "maxLength": 128 },
+        "teamId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "position": { "type": "integer" },
+        "played": { "type": "integer" },
+        "wins": { "type": "integer" },
+        "draws": { "type": "integer" },
+        "losses": { "type": "integer" },
+        "goalsFor": { "type": "integer" },
+        "goalsAgainst": { "type": "integer" },
+        "goalDifference": { "type": "integer" },
+        "points": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "categoryId", "teamId", "position", "played", "wins", "draws", "losses", "goalsFor", "goalsAgainst", "goalDifference", "points", "updatedAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Notificación en tiempo real para usuarios registrados.",
+      "type": "object",
+      "properties": {
+        "recipientUid": { "type": "string", "maxLength": 128 },
+        "isBroadcast": { "type": "boolean" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "type": { "type": "string", "enum": ["info", "success", "warning", "alert"] },
+        "entityType": { "type": "string", "maxLength": 40 },
+        "entityId": { "type": "string", "maxLength": 128 },
+        "readBy": { "type": "array" },
+        "createdByUid": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["isBroadcast", "title", "message", "type", "readBy", "createdByUid", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Registro inmutable de auditoría de operaciones del sistema.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "actorName": { "type": "string", "maxLength": 120 },
+        "action": { "type": "string", "maxLength": 80 },
+        "entity": { "type": "string", "maxLength": 60 },
+        "entityId": { "type": "string", "maxLength": 128 },
+        "summary": { "type": "string", "maxLength": 400 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "action", "entity", "entityId", "summary", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/organizations/{orgId}": {
+      "schema": { "$ref": "#/entities/Organization" },
+      "description": "Organizaciones deportivas administradas en SIGD."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Perfiles de usuarios registrados y roles RBAC."
+    },
+    "/sports/{sportId}": {
+      "schema": { "$ref": "#/entities/Sport" },
+      "description": "Catálogo extensible de disciplinas deportivas."
+    },
+    "/sportRules/{ruleId}": {
+      "schema": { "$ref": "#/entities/SportRule" },
+      "description": "Reglamentos configurables por disciplina."
+    },
+    "/seasons/{seasonId}": {
+      "schema": { "$ref": "#/entities/Season" },
+      "description": "Temporadas deportivas."
+    },
+    "/tournaments/{tournamentId}": {
+      "schema": { "$ref": "#/entities/Tournament" },
+      "description": "Torneos competitivos."
+    },
+    "/branches/{branchId}": {
+      "schema": { "$ref": "#/entities/Branch" },
+      "description": "Ramas deportivas."
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Categorías de los torneos."
+    },
+    "/teams/{teamId}": {
+      "schema": { "$ref": "#/entities/Team" },
+      "description": "Equipos inscritos."
+    },
+    "/players/{playerId}": {
+      "schema": { "$ref": "#/entities/Player" },
+      "description": "Jugadores registrados."
+    },
+    "/coaches/{coachId}": {
+      "schema": { "$ref": "#/entities/Coach" },
+      "description": "Directores técnicos."
+    },
+    "/referees/{refereeId}": {
+      "schema": { "$ref": "#/entities/Referee" },
+      "description": "Directorio operativo de árbitros."
+    },
+    "/referees/{refereeId}/private/{contactDoc}": {
+      "schema": { "$ref": "#/entities/RefereeContactPrivate" },
+      "description": "Contacto PII privado del árbitro."
+    },
+    "/venues/{venueId}": {
+      "schema": { "$ref": "#/entities/Venue" },
+      "description": "Instalaciones deportivas."
+    },
+    "/fields/{fieldId}": {
+      "schema": { "$ref": "#/entities/Field" },
+      "description": "Canchas de juego."
+    },
+    "/rounds/{roundId}": {
+      "schema": { "$ref": "#/entities/Round" },
+      "description": "Jornadas y rondas."
+    },
+    "/groups/{groupId}": {
+      "schema": { "$ref": "#/entities/Group" },
+      "description": "Grupos de torneo."
+    },
+    "/matches/{matchId}": {
+      "schema": { "$ref": "#/entities/Match" },
+      "description": "Encuentros programados."
+    },
+    "/matchResults/{resultId}": {
+      "schema": { "$ref": "#/entities/MatchResult" },
+      "description": "Actas digitales de partidos."
+    },
+    "/matchEvents/{eventId}": {
+      "schema": { "$ref": "#/entities/MatchEvent" },
+      "description": "Eventos individuales por acta."
+    },
+    "/teamStatistics/{statId}": {
+      "schema": { "$ref": "#/entities/TeamStatistic" },
+      "description": "Estadísticas acumuladas por equipo."
+    },
+    "/playerStatistics/{statId}": {
+      "schema": { "$ref": "#/entities/PlayerStatistic" },
+      "description": "Estadísticas acumuladas por jugador."
+    },
+    "/standings/{standingId}": {
+      "schema": { "$ref": "#/entities/Standing" },
+      "description": "Tabla oficial de posiciones."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Notificaciones en tiempo real."
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Bitácora inmutable de auditoría."
+    }
+  }
+}

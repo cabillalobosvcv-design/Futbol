@@ -1,0 +1,753 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Global Security & Validation Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerified() && request.auth.token.email == 'cabillalobosv.cv@gmail.com';
+    }
+
+    function hasUserProfile() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return hasUserProfile() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : 'publico';
+    }
+
+    function isAdminGeneral() {
+      return isVerified() && (isBootstrappedAdmin() || userRole() == 'admin_general');
+    }
+
+    function isAdminDeportivo() {
+      return isVerified() && (isAdminGeneral() || userRole() == 'admin_deportivo');
+    }
+
+    function isCoordinator() {
+      return isVerified() && (isAdminDeportivo() || userRole() == 'coordinador');
+    }
+
+    function isReferee() {
+      return isVerified() && (isCoordinator() || userRole() == 'arbitro');
+    }
+
+    function isRepresentative() {
+      return isVerified() && (isCoordinator() || userRole() == 'representante');
+    }
+
+    function isOptionalString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isOptionalInt(data, key) {
+      return !(key in data) || (data[key] is int);
+    }
+
+    // 3. Entity Validation Blueprints
+    function isValidOrganization(data) {
+      return data.keys().hasAll(['name', 'shortName', 'active', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'shortName', 'city', 'logoUrl', 'active', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
+        && data.shortName is string && data.shortName.size() >= 2 && data.shortName.size() <= 24
+        && isOptionalString(data, 'city', 80)
+        && isOptionalString(data, 'logoUrl', 500)
+        && data.active is bool
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'role', 'active', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'photoUrl', 'role', 'assignedCategoryIds', 'assignedTeamId', 'refereeId', 'active', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && isOptionalString(data, 'photoUrl', 500)
+        && data.role in ['admin_general', 'admin_deportivo', 'coordinador', 'arbitro', 'representante', 'publico']
+        && (!('assignedCategoryIds' in data) || (data.assignedCategoryIds is list && data.assignedCategoryIds.size() <= 20))
+        && isOptionalString(data, 'assignedTeamId', 128)
+        && isOptionalString(data, 'refereeId', 128)
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSport(data) {
+      return data.keys().hasAll(['key', 'name', 'engineType', 'periodsCount', 'allowDraws', 'active', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['key', 'name', 'engineType', 'periodsCount', 'periodLabel', 'allowDraws', 'statSchema', 'active', 'isPrimary', 'createdAt', 'updatedAt'])
+        && data.key is string && data.key.size() >= 2 && data.key.size() <= 40 && data.key.matches('^[a-z0-9_\\-]+$')
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 80
+        && data.engineType in ['football', 'basketball', 'volleyball', 'baseball', 'athletics', 'racquet', 'generic']
+        && data.periodsCount is int && data.periodsCount >= 1 && data.periodsCount <= 12
+        && isOptionalString(data, 'periodLabel', 40)
+        && data.allowDraws is bool
+        && (!('statSchema' in data) || (data.statSchema is list && data.statSchema.size() <= 30))
+        && data.active is bool
+        && (!('isPrimary' in data) || data.isPrimary is bool)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSportRule(data) {
+      return data.keys().hasAll(['sportId', 'name', 'winPoints', 'drawPoints', 'lossPoints', 'tiebreakers', 'minRestHours', 'updatedAt'])
+        && data.keys().hasOnly(['sportId', 'name', 'winPoints', 'drawPoints', 'lossPoints', 'tiebreakers', 'minRestHours', 'matchDurationMinutes', 'maxPlayersOnField', 'yellowCardsSuspensionLimit', 'updatedAt'])
+        && isValidId(data.sportId)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
+        && data.winPoints is int && data.winPoints >= 0 && data.winPoints <= 10
+        && data.drawPoints is int && data.drawPoints >= 0 && data.drawPoints <= 10
+        && data.lossPoints is int && data.lossPoints >= 0 && data.lossPoints <= 10
+        && data.tiebreakers is list && data.tiebreakers.size() >= 1 && data.tiebreakers.size() <= 10
+        && data.minRestHours is int && data.minRestHours >= 0 && data.minRestHours <= 240
+        && isOptionalInt(data, 'matchDurationMinutes')
+        && isOptionalInt(data, 'maxPlayersOnField')
+        && isOptionalInt(data, 'yellowCardsSuspensionLimit')
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSeason(data) {
+      return data.keys().hasAll(['name', 'year', 'startDate', 'endDate', 'status', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'year', 'startDate', 'endDate', 'status', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && data.year is int && data.year >= 2000 && data.year <= 2100
+        && data.startDate is string && data.startDate.size() <= 20
+        && data.endDate is string && data.endDate.size() <= 20
+        && data.status in ['planificada', 'activa', 'finalizada']
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTournament(data) {
+      return data.keys().hasAll(['name', 'sportId', 'seasonId', 'format', 'winPoints', 'drawPoints', 'lossPoints', 'tiebreakers', 'schedulePublished', 'status', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'sportId', 'seasonId', 'organizationId', 'format', 'doubleRound', 'teamsPerGroup', 'qualifiersPerGroup', 'winPoints', 'drawPoints', 'lossPoints', 'tiebreakers', 'minRestHours', 'schedulePublished', 'status', 'championTeamId', 'championTeamName', 'startDate', 'endDate', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 140
+        && isValidId(data.sportId)
+        && isValidId(data.seasonId)
+        && isOptionalString(data, 'organizationId', 128)
+        && data.format in ['round_robin', 'knockout', 'groups', 'mixed']
+        && (!('doubleRound' in data) || data.doubleRound is bool)
+        && isOptionalInt(data, 'teamsPerGroup')
+        && isOptionalInt(data, 'qualifiersPerGroup')
+        && data.winPoints is int && data.winPoints >= 0 && data.winPoints <= 10
+        && data.drawPoints is int && data.drawPoints >= 0 && data.drawPoints <= 10
+        && data.lossPoints is int && data.lossPoints >= 0 && data.lossPoints <= 10
+        && data.tiebreakers is list && data.tiebreakers.size() >= 1 && data.tiebreakers.size() <= 10
+        && isOptionalInt(data, 'minRestHours')
+        && data.schedulePublished is bool
+        && data.status in ['borrador', 'inscripciones', 'en_curso', 'finalizado', 'suspendido']
+        && isOptionalString(data, 'championTeamId', 128)
+        && isOptionalString(data, 'championTeamName', 120)
+        && isOptionalString(data, 'startDate', 20)
+        && isOptionalString(data, 'endDate', 20)
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBranch(data) {
+      return data.keys().hasAll(['name', 'code'])
+        && data.keys().hasOnly(['name', 'code'])
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 60
+        && data.code is string && data.code.size() >= 1 && data.code.size() <= 16;
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['tournamentId', 'name', 'schedulePublished', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['tournamentId', 'branchId', 'branchName', 'name', 'minAge', 'maxAge', 'coordinatorUid', 'schedulePublished', 'championTeamId', 'createdAt', 'updatedAt'])
+        && isValidId(data.tournamentId)
+        && isOptionalString(data, 'branchId', 128)
+        && isOptionalString(data, 'branchName', 60)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && isOptionalInt(data, 'minAge')
+        && isOptionalInt(data, 'maxAge')
+        && isOptionalString(data, 'coordinatorUid', 128)
+        && data.schedulePublished is bool
+        && isOptionalString(data, 'championTeamId', 128)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTeam(data) {
+      return data.keys().hasAll(['tournamentId', 'categoryId', 'name', 'shortCode', 'primaryColor', 'active', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['tournamentId', 'categoryId', 'name', 'shortCode', 'primaryColor', 'secondaryColor', 'crestUrl', 'coachId', 'coachName', 'representativeUid', 'groupId', 'active', 'createdAt', 'updatedAt'])
+        && isValidId(data.tournamentId)
+        && isValidId(data.categoryId)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && data.shortCode is string && data.shortCode.size() >= 2 && data.shortCode.size() <= 6
+        && data.primaryColor is string && data.primaryColor.size() <= 20
+        && isOptionalString(data, 'secondaryColor', 20)
+        && isOptionalString(data, 'crestUrl', 500)
+        && isOptionalString(data, 'coachId', 128)
+        && isOptionalString(data, 'coachName', 100)
+        && isOptionalString(data, 'representativeUid', 128)
+        && isOptionalString(data, 'groupId', 128)
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPlayer(data) {
+      return data.keys().hasAll(['tournamentId', 'categoryId', 'teamId', 'fullName', 'jerseyNumber', 'position', 'active', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['tournamentId', 'categoryId', 'teamId', 'fullName', 'jerseyNumber', 'position', 'photoUrl', 'birthYear', 'active', 'createdAt', 'updatedAt'])
+        && isValidId(data.tournamentId)
+        && isValidId(data.categoryId)
+        && isValidId(data.teamId)
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 120
+        && data.jerseyNumber is int && data.jerseyNumber >= 0 && data.jerseyNumber <= 99
+        && data.position in ['Portero', 'Defensa', 'Mediocampista', 'Delantero']
+        && isOptionalString(data, 'photoUrl', 500)
+        && isOptionalInt(data, 'birthYear')
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCoach(data) {
+      return data.keys().hasAll(['fullName', 'active', 'createdAt'])
+        && data.keys().hasOnly(['fullName', 'licenseCode', 'teamId', 'active', 'createdAt'])
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 120
+        && isOptionalString(data, 'licenseCode', 40)
+        && isOptionalString(data, 'teamId', 128)
+        && data.active is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidReferee(data) {
+      return data.keys().hasAll(['fullName', 'authorizedCategories', 'availabilitySlots', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userUid', 'fullName', 'photoUrl', 'authorizedCategories', 'availabilitySlots', 'status', 'createdAt', 'updatedAt'])
+        && isOptionalString(data, 'userUid', 128)
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 120
+        && isOptionalString(data, 'photoUrl', 500)
+        && data.authorizedCategories is list && data.authorizedCategories.size() <= 30
+        && data.availabilitySlots is list && data.availabilitySlots.size() <= 40
+        && data.status in ['activo', 'inactivo', 'suspendido']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRefereePrivate(data) {
+      return data.keys().hasAll(['phone', 'email'])
+        && data.keys().hasOnly(['phone', 'email'])
+        && data.phone is string && data.phone.size() <= 30
+        && data.email is string && data.email.size() <= 160;
+    }
+
+    function isValidVenue(data) {
+      return data.keys().hasAll(['name', 'address', 'facilityType', 'active', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'address', 'facilityType', 'active', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
+        && data.address is string && data.address.size() <= 220
+        && data.facilityType is string && data.facilityType.size() <= 60
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidField(data) {
+      return data.keys().hasAll(['venueId', 'name', 'capacity', 'availableDays', 'openTime', 'closeTime', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['venueId', 'name', 'surfaceType', 'capacity', 'availableDays', 'openTime', 'closeTime', 'slotDurationMinutes', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.venueId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && isOptionalString(data, 'surfaceType', 60)
+        && data.capacity is int && data.capacity >= 0 && data.capacity <= 200000
+        && data.availableDays is list && data.availableDays.size() <= 7
+        && data.openTime is string && data.openTime.size() <= 10
+        && data.closeTime is string && data.closeTime.size() <= 10
+        && isOptionalInt(data, 'slotDurationMinutes')
+        && data.status in ['disponible', 'mantenimiento', 'inactiva']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRound(data) {
+      return data.keys().hasAll(['tournamentId', 'categoryId', 'roundNumber', 'name', 'stage'])
+        && data.keys().hasOnly(['tournamentId', 'categoryId', 'roundNumber', 'name', 'stage', 'startDate'])
+        && isValidId(data.tournamentId)
+        && isValidId(data.categoryId)
+        && data.roundNumber is int && data.roundNumber >= 1 && data.roundNumber <= 100
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && data.stage in ['regular', 'grupos', 'octavos', 'cuartos', 'semifinal', 'final']
+        && isOptionalString(data, 'startDate', 20);
+    }
+
+    function isValidGroup(data) {
+      return data.keys().hasAll(['tournamentId', 'categoryId', 'name', 'teamIds'])
+        && data.keys().hasOnly(['tournamentId', 'categoryId', 'name', 'teamIds'])
+        && isValidId(data.tournamentId)
+        && isValidId(data.categoryId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 40
+        && data.teamIds is list && data.teamIds.size() <= 32;
+    }
+
+    function isValidMatch(data) {
+      return data.keys().hasAll(['matchNumber', 'tournamentId', 'categoryId', 'roundNumber', 'stage', 'date', 'time', 'homeTeamId', 'awayTeamId', 'status', 'published', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['matchNumber', 'tournamentId', 'categoryId', 'roundId', 'roundNumber', 'groupId', 'stage', 'bracketSlot', 'date', 'time', 'venueId', 'fieldId', 'homeTeamId', 'awayTeamId', 'refereeId', 'status', 'homeScore', 'awayScore', 'published', 'createdAt', 'updatedAt'])
+        && data.matchNumber is int && data.matchNumber >= 1 && data.matchNumber <= 10000
+        && isValidId(data.tournamentId)
+        && isValidId(data.categoryId)
+        && isOptionalString(data, 'roundId', 128)
+        && data.roundNumber is int && data.roundNumber >= 1 && data.roundNumber <= 100
+        && isOptionalString(data, 'groupId', 128)
+        && data.stage in ['regular', 'grupos', 'octavos', 'cuartos', 'semifinal', 'final']
+        && isOptionalString(data, 'bracketSlot', 40)
+        && data.date is string && data.date.size() <= 20
+        && data.time is string && data.time.size() <= 10
+        && isOptionalString(data, 'venueId', 128)
+        && isOptionalString(data, 'fieldId', 128)
+        && data.homeTeamId is string && data.homeTeamId.size() <= 128
+        && data.awayTeamId is string && data.awayTeamId.size() <= 128
+        && isOptionalString(data, 'refereeId', 128)
+        && data.status in ['Programado', 'En juego', 'Finalizado', 'Suspendido', 'Reprogramado', 'Cancelado', 'Pendiente de validación']
+        && isOptionalInt(data, 'homeScore')
+        && isOptionalInt(data, 'awayScore')
+        && data.published is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMatchResult(data) {
+      return data.keys().hasAll(['matchId', 'tournamentId', 'categoryId', 'homeScore', 'awayScore', 'validationStatus', 'submittedByUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['matchId', 'tournamentId', 'categoryId', 'homeTeamId', 'awayTeamId', 'homeScore', 'awayScore', 'periodScores', 'observations', 'refereeId', 'submittedByUid', 'validationStatus', 'approvedByUid', 'correctionHistory', 'createdAt', 'updatedAt'])
+        && isValidId(data.matchId)
+        && isValidId(data.tournamentId)
+        && isValidId(data.categoryId)
+        && isOptionalString(data, 'homeTeamId', 128)
+        && isOptionalString(data, 'awayTeamId', 128)
+        && data.homeScore is int && data.homeScore >= 0 && data.homeScore <= 99
+        && data.awayScore is int && data.awayScore >= 0 && data.awayScore <= 99
+        && (!('periodScores' in data) || (data.periodScores is list && data.periodScores.size() <= 10))
+        && isOptionalString(data, 'observations', 2000)
+        && isOptionalString(data, 'refereeId', 128)
+        && isValidId(data.submittedByUid)
+        && data.validationStatus in ['borrador', 'pendiente', 'aprobado', 'rechazado']
+        && isOptionalString(data, 'approvedByUid', 128)
+        && (!('correctionHistory' in data) || (data.correctionHistory is list && data.correctionHistory.size() <= 50))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMatchEvent(data) {
+      return data.keys().hasAll(['matchId', 'tournamentId', 'categoryId', 'teamId', 'playerId', 'eventType', 'minute', 'createdAt'])
+        && data.keys().hasOnly(['matchId', 'tournamentId', 'categoryId', 'teamId', 'playerId', 'eventType', 'goalType', 'minute', 'assistPlayerId', 'subOutPlayerId', 'isStarter', 'minutesPlayed', 'createdAt'])
+        && isValidId(data.matchId)
+        && isValidId(data.tournamentId)
+        && isValidId(data.categoryId)
+        && isValidId(data.teamId)
+        && isValidId(data.playerId)
+        && data.eventType in ['gol', 'penal', 'autogol', 'asistencia', 'amarilla', 'roja', 'sustitucion', 'participacion']
+        && isOptionalString(data, 'goalType', 40)
+        && data.minute is int && data.minute >= 0 && data.minute <= 150
+        && isOptionalString(data, 'assistPlayerId', 128)
+        && isOptionalString(data, 'subOutPlayerId', 128)
+        && (!('isStarter' in data) || data.isStarter is bool)
+        && isOptionalInt(data, 'minutesPlayed')
+        && data.createdAt is timestamp;
+    }
+
+    function isValidTeamStatistic(data) {
+      return data.keys().hasAll(['tournamentId', 'categoryId', 'teamId', 'played', 'wins', 'draws', 'losses', 'goalsFor', 'goalsAgainst', 'goalDifference', 'points', 'updatedAt'])
+        && data.keys().hasOnly(['tournamentId', 'categoryId', 'teamId', 'played', 'wins', 'draws', 'losses', 'goalsFor', 'goalsAgainst', 'goalDifference', 'points', 'winRate', 'effectivenessRate', 'avgGoalsFor', 'avgGoalsAgainst', 'cleanSheets', 'updatedAt'])
+        && isValidId(data.tournamentId)
+        && isValidId(data.categoryId)
+        && isValidId(data.teamId)
+        && data.played is int && data.wins is int && data.draws is int && data.losses is int
+        && data.goalsFor is int && data.goalsAgainst is int && data.goalDifference is int && data.points is int
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPlayerStatistic(data) {
+      return data.keys().hasAll(['tournamentId', 'categoryId', 'teamId', 'playerId', 'matchesPlayed', 'goals', 'assists', 'yellowCards', 'redCards', 'minutesPlayed', 'updatedAt'])
+        && data.keys().hasOnly(['tournamentId', 'categoryId', 'teamId', 'playerId', 'matchesPlayed', 'goals', 'assists', 'yellowCards', 'redCards', 'minutesPlayed', 'starts', 'subs', 'cleanSheetsGoalkeeper', 'goalsConcededGoalkeeper', 'updatedAt'])
+        && isValidId(data.tournamentId)
+        && isValidId(data.categoryId)
+        && isValidId(data.teamId)
+        && isValidId(data.playerId)
+        && data.matchesPlayed is int && data.goals is int && data.assists is int
+        && data.yellowCards is int && data.redCards is int && data.minutesPlayed is int
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStanding(data) {
+      return data.keys().hasAll(['tournamentId', 'categoryId', 'teamId', 'position', 'played', 'wins', 'draws', 'losses', 'goalsFor', 'goalsAgainst', 'goalDifference', 'points', 'updatedAt'])
+        && data.keys().hasOnly(['tournamentId', 'categoryId', 'groupId', 'teamId', 'position', 'played', 'wins', 'draws', 'losses', 'goalsFor', 'goalsAgainst', 'goalDifference', 'points', 'updatedAt'])
+        && isValidId(data.tournamentId)
+        && isValidId(data.categoryId)
+        && isOptionalString(data, 'groupId', 128)
+        && isValidId(data.teamId)
+        && data.position is int && data.played is int && data.wins is int && data.draws is int && data.losses is int
+        && data.goalsFor is int && data.goalsAgainst is int && data.goalDifference is int && data.points is int
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['isBroadcast', 'title', 'message', 'type', 'readBy', 'createdByUid', 'createdAt'])
+        && data.keys().hasOnly(['recipientUid', 'isBroadcast', 'title', 'message', 'type', 'entityType', 'entityId', 'readBy', 'createdByUid', 'createdAt'])
+        && isOptionalString(data, 'recipientUid', 128)
+        && data.isBroadcast is bool
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 140
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 500
+        && data.type in ['info', 'success', 'warning', 'alert']
+        && isOptionalString(data, 'entityType', 40)
+        && isOptionalString(data, 'entityId', 128)
+        && data.readBy is list && data.readBy.size() <= 500
+        && isValidId(data.createdByUid)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['actorUid', 'action', 'entity', 'entityId', 'summary', 'createdAt'])
+        && data.keys().hasOnly(['actorUid', 'actorName', 'action', 'entity', 'entityId', 'summary', 'createdAt'])
+        && isValidId(data.actorUid)
+        && isOptionalString(data, 'actorName', 120)
+        && data.action is string && data.action.size() >= 1 && data.action.size() <= 80
+        && data.entity is string && data.entity.size() >= 1 && data.entity.size() <= 60
+        && data.entityId is string && data.entityId.size() >= 1 && data.entityId.size() <= 128
+        && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 400
+        && data.createdAt is timestamp;
+    }
+
+    // 4. Collection Match Blocks
+
+    // Organizations
+    match /organizations/{orgId} {
+      allow get: if isValidId(orgId);
+      allow list: if true;
+      allow create: if isVerified() && isValidId(orgId) && isValidOrganization(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && isAdminGeneral();
+      allow update: if isVerified() && isValidId(orgId) && isValidOrganization(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isAdminGeneral();
+      allow delete: if isAdminGeneral() && isValidId(orgId);
+    }
+
+    // Users (PII isolated: owner or admin only)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdminGeneral() || isAdminDeportivo());
+      allow list: if isSignedIn() && (isBootstrappedAdmin() || resource.data.uid == request.auth.uid);
+      allow create: if isVerified() && isValidId(userId) && isValidUserProfile(incoming())
+        && incoming().uid == userId
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && (
+          (request.auth.uid == userId && (incoming().role == 'publico' || (isBootstrappedAdmin() && incoming().role == 'admin_general')))
+          || isAdminGeneral()
+        );
+      allow update: if isVerified() && isValidId(userId) && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdminGeneral()
+          || (request.auth.uid == userId
+            && incoming().role == existing().role
+            && incoming().active == existing().active
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoUrl', 'updatedAt']))
+        );
+      allow delete: if isAdminGeneral() && isValidId(userId);
+    }
+
+    // Sports & Rules (Public read, Admin General write)
+    match /sports/{sportId} {
+      allow get: if isValidId(sportId);
+      allow list: if true;
+      allow create: if isAdminGeneral() && isValidId(sportId) && isValidSport(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isAdminGeneral() && isValidId(sportId) && isValidSport(incoming())
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isAdminGeneral() && isValidId(sportId);
+    }
+
+    match /sportRules/{ruleId} {
+      allow get: if isValidId(ruleId);
+      allow list: if true;
+      allow create: if isAdminGeneral() && isValidId(ruleId) && isValidSportRule(incoming())
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/sports/$(incoming().sportId));
+      allow update: if isAdminGeneral() && isValidId(ruleId) && isValidSportRule(incoming())
+        && incoming().sportId == existing().sportId
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdminGeneral() && isValidId(ruleId);
+    }
+
+    // Seasons & Tournaments (Public read, Admin write)
+    match /seasons/{seasonId} {
+      allow get: if isValidId(seasonId);
+      allow list: if true;
+      allow create: if isAdminDeportivo() && isValidId(seasonId) && isValidSeason(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isAdminDeportivo() && isValidId(seasonId) && isValidSeason(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdminGeneral() && isValidId(seasonId);
+    }
+
+    match /tournaments/{tournamentId} {
+      allow get: if isValidId(tournamentId);
+      allow list: if true;
+      allow create: if isAdminDeportivo() && isValidId(tournamentId) && isValidTournament(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/sports/$(incoming().sportId))
+        && exists(/databases/$(database)/documents/seasons/$(incoming().seasonId));
+      allow update: if isAdminDeportivo() && isValidId(tournamentId) && isValidTournament(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdminGeneral() && isValidId(tournamentId);
+    }
+
+    // Branches & Categories
+    match /branches/{branchId} {
+      allow get: if isValidId(branchId);
+      allow list: if true;
+      allow create, update: if isAdminDeportivo() && isValidId(branchId) && isValidBranch(incoming());
+      allow delete: if isAdminGeneral() && isValidId(branchId);
+    }
+
+    match /categories/{categoryId} {
+      allow get: if isValidId(categoryId);
+      allow list: if true;
+      allow create: if isAdminDeportivo() && isValidId(categoryId) && isValidCategory(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/tournaments/$(incoming().tournamentId));
+      allow update: if isCoordinator() && isValidId(categoryId) && isValidCategory(incoming())
+        && incoming().tournamentId == existing().tournamentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdminDeportivo() && isValidId(categoryId);
+    }
+
+    // Teams, Players, Coaches
+    match /teams/{teamId} {
+      allow get: if isValidId(teamId);
+      allow list: if true;
+      allow create: if isAdminDeportivo() && isValidId(teamId) && isValidTeam(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/tournaments/$(incoming().tournamentId))
+        && exists(/databases/$(database)/documents/categories/$(incoming().categoryId));
+      allow update: if isCoordinator() && isValidId(teamId) && isValidTeam(incoming())
+        && incoming().tournamentId == existing().tournamentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdminDeportivo() && isValidId(teamId);
+    }
+
+    match /players/{playerId} {
+      allow get: if isValidId(playerId);
+      allow list: if true;
+      allow create: if isCoordinator() && isValidId(playerId) && isValidPlayer(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/teams/$(incoming().teamId));
+      allow update: if isCoordinator() && isValidId(playerId) && isValidPlayer(incoming())
+        && incoming().tournamentId == existing().tournamentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdminDeportivo() && isValidId(playerId);
+    }
+
+    match /coaches/{coachId} {
+      allow get: if isValidId(coachId);
+      allow list: if true;
+      allow create, update: if isAdminDeportivo() && isValidId(coachId) && isValidCoach(incoming());
+      allow delete: if isAdminDeportivo() && isValidId(coachId);
+    }
+
+    // Referees (Operational profile readable by public/staff, PII isolated in private subcollection)
+    match /referees/{refereeId} {
+      allow get: if isValidId(refereeId);
+      allow list: if true;
+      allow create: if isAdminDeportivo() && isValidId(refereeId) && isValidReferee(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isCoordinator() && isValidId(refereeId) && isValidReferee(incoming())
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isAdminDeportivo() && isValidId(refereeId);
+
+      match /private/{contactDoc} {
+        allow get: if isVerified() && isValidId(refereeId) && isValidId(contactDoc) && (isCoordinator() || (exists(/databases/$(database)/documents/referees/$(refereeId)) && get(/databases/$(database)/documents/referees/$(refereeId)).data.userUid == request.auth.uid));
+        allow list: if false;
+        allow create, update: if isCoordinator() && isValidId(refereeId) && isValidId(contactDoc) && isValidRefereePrivate(incoming());
+        allow delete: if isAdminDeportivo() && isValidId(refereeId) && isValidId(contactDoc);
+      }
+    }
+
+    // Venues & Fields
+    match /venues/{venueId} {
+      allow get: if isValidId(venueId);
+      allow list: if true;
+      allow create: if isAdminDeportivo() && isValidId(venueId) && isValidVenue(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isAdminDeportivo() && isValidId(venueId) && isValidVenue(incoming())
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isAdminGeneral() && isValidId(venueId);
+    }
+
+    match /fields/{fieldId} {
+      allow get: if isValidId(fieldId);
+      allow list: if true;
+      allow create: if isAdminDeportivo() && isValidId(fieldId) && isValidField(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/venues/$(incoming().venueId));
+      allow update: if isCoordinator() && isValidId(fieldId) && isValidField(incoming())
+        && incoming().venueId == existing().venueId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdminDeportivo() && isValidId(fieldId);
+    }
+
+    // Rounds & Groups
+    match /rounds/{roundId} {
+      allow get: if isValidId(roundId);
+      allow list: if true;
+      allow create, update: if isCoordinator() && isValidId(roundId) && isValidRound(incoming());
+      allow delete: if isCoordinator() && isValidId(roundId);
+    }
+
+    match /groups/{groupId} {
+      allow get: if isValidId(groupId);
+      allow list: if true;
+      allow create, update: if isCoordinator() && isValidId(groupId) && isValidGroup(incoming());
+      allow delete: if isCoordinator() && isValidId(groupId);
+    }
+
+    // Matches
+    match /matches/{matchId} {
+      allow get: if isValidId(matchId);
+      allow list: if true;
+      allow create: if isCoordinator() && isValidId(matchId) && isValidMatch(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(matchId) && isValidMatch(incoming())
+        && incoming().tournamentId == existing().tournamentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isCoordinator()
+          || (isReferee() && incoming().status in ['En juego', 'Pendiente de validación']
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'homeScore', 'awayScore', 'updatedAt']))
+        );
+      allow delete: if isCoordinator() && isValidId(matchId);
+    }
+
+    // Match Results (Digital Match Sheet & Validation Workflow)
+    match /matchResults/{resultId} {
+      allow get: if isValidId(resultId);
+      allow list: if true;
+      allow create: if isVerified() && isValidId(resultId) && isValidMatchResult(incoming())
+        && incoming().submittedByUid == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/matches/$(incoming().matchId))
+        && (
+          isCoordinator()
+          || (isReferee() && incoming().validationStatus in ['borrador', 'pendiente'])
+        );
+      allow update: if isVerified() && isValidId(resultId) && isValidMatchResult(incoming())
+        && incoming().matchId == existing().matchId
+        && incoming().tournamentId == existing().tournamentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isCoordinator()
+          || (isReferee() && existing().validationStatus != 'aprobado'
+            && incoming().validationStatus in ['borrador', 'pendiente']
+            && incoming().diff(existing()).affectedKeys().hasOnly(['homeScore', 'awayScore', 'periodScores', 'observations', 'validationStatus', 'updatedAt']))
+        );
+      allow delete: if isAdminGeneral() && isValidId(resultId);
+    }
+
+    // Match Events
+    match /matchEvents/{eventId} {
+      allow get: if isValidId(eventId);
+      allow list: if true;
+      allow create: if isReferee() && isValidId(eventId) && isValidMatchEvent(incoming())
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/matches/$(incoming().matchId));
+      allow update: if isCoordinator() && isValidId(eventId) && isValidMatchEvent(incoming())
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if isReferee() && isValidId(eventId);
+    }
+
+    // Team Statistics, Player Statistics, Standings (Official calculated data: Staff write only)
+    match /teamStatistics/{statId} {
+      allow get: if isValidId(statId);
+      allow list: if true;
+      allow create, update: if isCoordinator() && isValidId(statId) && isValidTeamStatistic(incoming())
+        && incoming().updatedAt == request.time;
+      allow delete: if isCoordinator() && isValidId(statId);
+    }
+
+    match /playerStatistics/{statId} {
+      allow get: if isValidId(statId);
+      allow list: if true;
+      allow create, update: if isCoordinator() && isValidId(statId) && isValidPlayerStatistic(incoming())
+        && incoming().updatedAt == request.time;
+      allow delete: if isCoordinator() && isValidId(statId);
+    }
+
+    match /standings/{standingId} {
+      allow get: if isValidId(standingId);
+      allow list: if true;
+      allow create, update: if isCoordinator() && isValidId(standingId) && isValidStanding(incoming())
+        && incoming().updatedAt == request.time;
+      allow delete: if isCoordinator() && isValidId(standingId);
+    }
+
+    // Real-Time Notifications (Scoped to recipient or broadcast)
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && isValidId(notificationId) && (
+        existing().recipientUid == request.auth.uid || existing().isBroadcast == true || isCoordinator()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.recipientUid == request.auth.uid || resource.data.isBroadcast == true
+      );
+      allow create: if isReferee() && isValidId(notificationId) && isValidNotification(incoming())
+        && incoming().createdByUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if isVerified() && isValidId(notificationId) && isValidNotification(incoming())
+        && incoming().createdByUid == existing().createdByUid
+        && incoming().createdAt == existing().createdAt
+        && (existing().recipientUid == request.auth.uid || existing().isBroadcast == true || isCoordinator())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['readBy']);
+      allow delete: if isAdminGeneral() && isValidId(notificationId);
+    }
+
+    // Immutable Audit Logs
+    match /auditLogs/{logId} {
+      allow get: if isCoordinator() && isValidId(logId);
+      allow list: if isSignedIn() && (isBootstrappedAdmin() || resource.data.actorUid == request.auth.uid);
+      allow create: if isReferee() && isValidId(logId) && isValidAuditLog(incoming())
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+  }
+}

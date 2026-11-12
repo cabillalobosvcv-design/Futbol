@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-navy-950: #06101f;
+  --color-navy-900: #0a192f;
+  --color-navy-800: #112545;
+  --color-navy-700: #1a3663;
+  --color-electric-500: #2563eb;
+  --color-electric-600: #1d4ed8;
+  --color-pitch-500: #16a34a;
+  --color-pitch-600: #15803d;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background-color: #f8fafc;
+    color: #0f172a;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Interactive tactical football pitch background on white/light surfaces */
+.bg-pitch-canvas {
+  background-color: #f8fafc;
+  background-image:
+    radial-gradient(circle at 12% 10%, rgba(37, 99, 235, 0.045) 0%, transparent 42%),
+    radial-gradient(circle at 88% 85%, rgba(22, 163, 74, 0.05) 0%, transparent 40%),
+    linear-gradient(to right, rgba(15, 35, 66, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 35, 66, 0.03) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+}
+
+.bg-pitch-stripes {
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(22, 163, 74, 0.04) 0px,
+    rgba(22, 163, 74, 0.04) 36px,
+    rgba(255, 255, 255, 0.0) 36px,
+    rgba(255, 255, 255, 0.0) 72px
+  );
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+  }
+}

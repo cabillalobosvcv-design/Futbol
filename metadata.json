@@ -1,0 +1,6 @@
+{
+  "name": "SIGD — Sistema Integral de Gestión Deportiva",
+  "description": "Plataforma profesional de administración deportiva multideporte con enfoque en fútbol: torneos, generador automático de roles, actas digitales, estadísticas, portal público y reportes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
