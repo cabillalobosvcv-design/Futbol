@@ -644,9 +644,15 @@ export async function submitMatchSheetForValidation(params: {
   periodScores: { period: string; home: number; away: number }[];
   observations: string;
   events: Omit<MatchEvent, 'id' | 'createdAt'>[];
+  mode?: 'en_juego' | 'borrador' | 'pendiente';
   actorUid: string;
   actorName: string;
 }): Promise<void> {
+  const mode = params.mode || 'pendiente';
+  const targetValidationStatus = mode === 'pendiente' ? 'pendiente' : 'borrador';
+  const targetMatchStatus =
+    mode === 'pendiente' ? 'Pendiente de validación' : 'En juego';
+
   const resultId = params.existingResult?.id || `res_${params.match.id}`;
   const path = `matchResults/${resultId}`;
   try {
@@ -672,40 +678,55 @@ export async function submitMatchSheetForValidation(params: {
       ? [...params.existingResult.correctionHistory]
       : [];
 
-    if (params.existingResult) {
+    if (params.existingResult && mode === 'pendiente') {
       correctionHistory.push({
         correctedAt: new Date().toISOString(),
         correctedByUid: params.actorUid,
         correctedByName: params.actorName,
         previousScore: `${params.existingResult.homeScore}-${params.existingResult.awayScore}`,
         newScore: `${params.homeScore}-${params.awayScore}`,
-        reason: 'Actualización de acta enviada para validación',
+        reason: 'Acta enviada/actualizada para validación oficial',
       });
     }
 
-    const resultPayload = cleanPayload({
-      matchId: params.match.id,
-      tournamentId: params.match.tournamentId,
-      categoryId: params.match.categoryId,
-      homeTeamId: params.match.homeTeamId,
-      awayTeamId: params.match.awayTeamId,
-      homeScore: params.homeScore,
-      awayScore: params.awayScore,
-      periodScores: params.periodScores,
-      observations: params.observations.slice(0, 2000),
-      refereeId: params.match.refereeId,
-      submittedByUid: params.existingResult?.submittedByUid || params.actorUid,
-      validationStatus: 'pendiente',
-      correctionHistory,
-      ...(params.existingResult ? {} : { createdAt: serverTimestamp() }),
-      updatedAt: serverTimestamp(),
-    });
-
-    if (params.existingResult) batch.update(doc(db, 'matchResults', resultId), resultPayload);
-    else batch.set(doc(db, 'matchResults', resultId), resultPayload);
+    if (params.existingResult) {
+      batch.update(
+        doc(db, 'matchResults', resultId),
+        cleanPayload({
+          homeScore: params.homeScore,
+          awayScore: params.awayScore,
+          periodScores: params.periodScores,
+          observations: params.observations.slice(0, 2000),
+          validationStatus: targetValidationStatus,
+          correctionHistory,
+          updatedAt: serverTimestamp(),
+        })
+      );
+    } else {
+      batch.set(
+        doc(db, 'matchResults', resultId),
+        cleanPayload({
+          matchId: params.match.id,
+          tournamentId: params.match.tournamentId,
+          categoryId: params.match.categoryId,
+          homeTeamId: params.match.homeTeamId,
+          awayTeamId: params.match.awayTeamId,
+          homeScore: params.homeScore,
+          awayScore: params.awayScore,
+          periodScores: params.periodScores,
+          observations: params.observations.slice(0, 2000),
+          refereeId: params.match.refereeId,
+          submittedByUid: params.actorUid,
+          validationStatus: targetValidationStatus,
+          correctionHistory,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
+    }
 
     batch.update(doc(db, 'matches', params.match.id), {
-      status: 'Pendiente de validación',
+      status: targetMatchStatus,
       homeScore: params.homeScore,
       awayScore: params.awayScore,
       updatedAt: serverTimestamp(),
@@ -713,23 +734,35 @@ export async function submitMatchSheetForValidation(params: {
 
     await batch.commit();
 
-    await sendNotification({
-      isBroadcast: true,
-      title: `Acta pendiente de validación · Partido #${params.match.matchNumber}`,
-      message: `Marcador capturado (${params.homeScore}-${params.awayScore}) por ${params.actorName}. Requiere aprobación oficial.`,
-      type: 'warning',
-      entityType: 'matches',
-      entityId: params.match.id,
-      createdByUid: params.actorUid,
-    });
+    if (mode === 'pendiente') {
+      await sendNotification({
+        isBroadcast: true,
+        title: `Acta pendiente de validación · Partido #${params.match.matchNumber}`,
+        message: `Marcador capturado (${params.homeScore}-${params.awayScore}) por ${params.actorName}. Requiere aprobación oficial.`,
+        type: 'warning',
+        entityType: 'matches',
+        entityId: params.match.id,
+        createdByUid: params.actorUid,
+      });
+    }
 
     await createAuditLog({
       actorUid: params.actorUid,
       actorName: params.actorName,
-      action: 'SUBMIT_MATCH_RESULT',
+      action:
+        mode === 'pendiente'
+          ? 'SUBMIT_MATCH_RESULT'
+          : mode === 'en_juego'
+            ? 'UPDATE_LIVE_MATCH'
+            : 'SAVE_MATCH_DRAFT',
       entity: 'matchResults',
       entityId: resultId,
-      summary: `Acta #${params.match.matchNumber} enviada a validación (${params.homeScore}-${params.awayScore}).`,
+      summary:
+        mode === 'pendiente'
+          ? `Acta #${params.match.matchNumber} enviada a validación (${params.homeScore}-${params.awayScore}).`
+          : mode === 'en_juego'
+            ? `Marcador en vivo guardado para partido #${params.match.matchNumber} (${params.homeScore}-${params.awayScore}).`
+            : `Borrador arbitral guardado para partido #${params.match.matchNumber} (${params.homeScore}-${params.awayScore}).`,
     });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);

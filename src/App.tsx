@@ -12,6 +12,7 @@ import { FacilitiesRefereesPage } from './pages/FacilitiesRefereesPage';
 import { MatchResultsPage } from './pages/MatchResultsPage';
 import { OrganizationConfigPage } from './pages/OrganizationConfigPage';
 import { PublicPortalPage } from './pages/PublicPortalPage';
+import { RefereeCapturePage } from './pages/RefereeCapturePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { RulesConfigPage } from './pages/RulesConfigPage';
 import { ScheduleGeneratorPage } from './pages/ScheduleGeneratorPage';
@@ -21,16 +22,16 @@ import { TournamentsPage } from './pages/TournamentsPage';
 import { UsersPermissionsPage } from './pages/UsersPermissionsPage';
 
 function SigdAppRouter() {
-  const { firebaseUser, authReady } = useAuth();
+  const { firebaseUser, role, authReady } = useAuth();
   const [activePage, setActivePage] = useState<PageId>('public_portal');
 
   useEffect(() => {
     if (authReady && firebaseUser && activePage === 'public_portal') {
-      setActivePage('dashboard');
+      setActivePage(role === 'arbitro' ? 'referee_capture' : 'dashboard');
     } else if (authReady && !firebaseUser && activePage !== 'public_portal') {
       setActivePage('public_portal');
     }
-  }, [authReady, firebaseUser]);
+  }, [authReady, firebaseUser, role]);
 
   if (!authReady) {
     return (
@@ -51,6 +52,7 @@ function SigdAppRouter() {
       {activePage === 'teams' && <TeamsPlayersPage />}
       {activePage === 'facilities' && <FacilitiesRefereesPage />}
       {activePage === 'schedule' && <ScheduleGeneratorPage />}
+      {activePage === 'referee_capture' && <RefereeCapturePage />}
       {activePage === 'results' && <MatchResultsPage />}
       {activePage === 'stats' && <StatisticsStandingsPage />}
       {activePage === 'reports' && <ReportsPage />}

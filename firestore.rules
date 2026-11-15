@@ -727,7 +727,8 @@ service cloud.firestore {
         && incoming().updatedAt == request.time
         && (
           isCoordinator()
-          || (isReferee() && incoming().status in ['En juego', 'Pendiente de validación']
+          || (isReferee() && existing().status != 'Finalizado'
+            && incoming().status in ['En juego', 'Pendiente de validación']
             && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'homeScore', 'awayScore', 'updatedAt']))
         );
       allow delete: if isCoordinator() && isValidId(matchId);
@@ -754,7 +755,7 @@ service cloud.firestore {
           isCoordinator()
           || (isReferee() && existing().validationStatus != 'aprobado'
             && incoming().validationStatus in ['borrador', 'pendiente']
-            && incoming().diff(existing()).affectedKeys().hasOnly(['homeScore', 'awayScore', 'periodScores', 'observations', 'validationStatus', 'updatedAt']))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['homeScore', 'awayScore', 'periodScores', 'observations', 'validationStatus', 'correctionHistory', 'updatedAt']))
         );
       allow delete: if isAdminGeneral() && isValidId(resultId);
     }

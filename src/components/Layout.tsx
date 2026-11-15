@@ -7,6 +7,7 @@ import {
   CheckCheck,
   ClipboardCheck,
   FileSpreadsheet,
+  Flag,
   Globe,
   History,
   LayoutDashboard,
@@ -35,6 +36,7 @@ export type PageId =
   | 'teams'
   | 'facilities'
   | 'schedule'
+  | 'referee_capture'
   | 'results'
   | 'stats'
   | 'reports'
@@ -107,6 +109,12 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
       label: 'Generador de Roles',
       icon: CalendarDays,
       visible: Boolean(firebaseUser) && ROLE_PERMISSIONS.canGenerateSchedule(role),
+    },
+    {
+      id: 'referee_capture',
+      label: 'Captura Arbitral',
+      icon: Flag,
+      visible: Boolean(firebaseUser) && ROLE_PERMISSIONS.canSubmitMatchSheet(role),
     },
     {
       id: 'results',

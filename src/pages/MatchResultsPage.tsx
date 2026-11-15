@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  AlertCircle,
   CheckCircle2,
   ClipboardCheck,
   FileDown,
@@ -76,6 +77,7 @@ export function MatchResultsPage() {
   const [correctionReason, setCorrectionReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const canSubmit = ROLE_PERMISSIONS.canSubmitMatchSheet(role);
   const canValidate = ROLE_PERMISSIONS.canValidateResults(role);
@@ -136,6 +138,11 @@ export function MatchResultsPage() {
     setEvTeamId(m.homeTeamId);
   };
 
+  useEffect(() => {
+    if (!activeMatch) return;
+    loadMatchIntoForm(activeMatch);
+  }, [activeMatch?.id]);
+
   const matchTeamPlayers = useMemo(() => {
     const tid = evTeamId || activeMatch?.homeTeamId;
     return players.filter((p) => p.teamId === tid);
@@ -169,6 +176,7 @@ export function MatchResultsPage() {
     if (!profile || !activeMatch) return;
     setBusy(true);
     setFeedback(null);
+    setErrorMsg(null);
     try {
       const payloadEvents: Omit<MatchEvent, 'id' | 'createdAt'>[] = draftEvents.map((ev) => ({
         matchId: activeMatch.id,
@@ -197,6 +205,8 @@ export function MatchResultsPage() {
       });
 
       setFeedback('Acta digital enviada a validación oficial.');
+    } catch {
+      setErrorMsg('No se pudo guardar el acta en Firestore. Verifica tus permisos e intenta nuevamente.');
     } finally {
       setBusy(false);
     }
@@ -210,6 +220,7 @@ export function MatchResultsPage() {
 
     setBusy(true);
     setFeedback(null);
+    setErrorMsg(null);
     try {
       await approveOrRejectMatchResult({
         approve,
@@ -232,6 +243,8 @@ export function MatchResultsPage() {
           ? 'Resultado aprobado oficialmente. Tablas de posiciones y estadísticas recalculadas.'
           : 'Acta devuelta para corrección.'
       );
+    } catch {
+      setErrorMsg('No se pudo validar el resultado. Verifica tus permisos e intenta nuevamente.');
     } finally {
       setBusy(false);
     }
@@ -296,6 +309,13 @@ export function MatchResultsPage() {
         <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{feedback}</span>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{errorMsg}</span>
         </div>
       )}
 

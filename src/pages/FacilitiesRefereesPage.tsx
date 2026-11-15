@@ -14,7 +14,7 @@ const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado
 
 export function FacilitiesRefereesPage() {
   const { profile, role } = useAuth();
-  const { venues, fields, referees, categories } = useSigdData();
+  const { venues, fields, referees, categories, users } = useSigdData();
 
   const [tab, setTab] = useState<'facilities' | 'referees'>('facilities');
   const [msg, setMsg] = useState<string | null>(null);
@@ -38,6 +38,7 @@ export function FacilitiesRefereesPage() {
 
   // Referee form
   const [rName, setRName] = useState('');
+  const [rUserUid, setRUserUid] = useState('');
   const [rPhone, setRPhone] = useState('');
   const [rEmail, setREmail] = useState('');
   const [rAuthCats, setRAuthCats] = useState<string[]>(['TODAS']);
@@ -116,6 +117,7 @@ export function FacilitiesRefereesPage() {
         refereeId: id,
         isNew: true,
         refereeData: {
+          ...(rUserUid ? { userUid: rUserUid } : {}),
           fullName: rName.trim(),
           authorizedCategories: rAuthCats,
           availabilitySlots: rSlots,
@@ -133,6 +135,7 @@ export function FacilitiesRefereesPage() {
         summary: `Árbitro registrado: ${rName.trim()}`,
       });
       setRName('');
+      setRUserUid('');
       setRPhone('');
       setREmail('');
       setMsg('Árbitro registrado (contacto PII aislado en subcolección segura).');
@@ -427,6 +430,23 @@ export function FacilitiesRefereesPage() {
                 placeholder="Nombre completo"
                 className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
               />
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Cuenta de usuario vinculada (opcional)
+                </label>
+                <select
+                  value={rUserUid}
+                  onChange={(e) => setRUserUid(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                >
+                  <option value="">Sin vincular cuenta</option>
+                  {users.map((u) => (
+                    <option key={u.uid} value={u.uid}>
+                      {u.displayName} ({u.email}) · {u.role}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <input
                 type="tel"
                 value={rPhone}
