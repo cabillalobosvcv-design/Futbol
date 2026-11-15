@@ -79,6 +79,7 @@ export function ReportsPage() {
   const seasonMap = useMemo(() => new Map(seasons.map((s) => [s.id, s])), [seasons]);
 
   const orgName = organizations[0]?.name || 'SIGD — Sistema Integral de Gestión Deportiva';
+  const orgLogoUrl = organizations[0]?.logoUrl || '';
 
   const currentPayload: ExportTablePayload = useMemo(() => {
     const tName = activeTournament?.name || 'Todos los torneos';
@@ -101,6 +102,7 @@ export function ReportsPage() {
               : `Calendario General — ${tName}`,
           subtitle: tName,
           organizationName: orgName,
+          organizationLogoUrl: orgLogoUrl,
           fileName: `${reportType}_${cName}`.replace(/\s+/g, '_'),
           headers: ['#', 'Jornada', 'Fecha', 'Hora', 'Local', 'Visitante', 'Cancha', 'Estado'],
           rows: list.map((m) => [
@@ -124,6 +126,7 @@ export function ReportsPage() {
           title: `Calendario por Equipo — ${activeTeam?.name || 'Equipo'}`,
           subtitle: tName,
           organizationName: orgName,
+          organizationLogoUrl: orgLogoUrl,
           fileName: `Calendario_${activeTeam?.shortCode || 'EQ'}`,
           headers: ['#', 'Jornada', 'Fecha', 'Hora', 'Local', 'Visitante', 'Marcador', 'Estado'],
           rows: list.map((m) => [
@@ -149,6 +152,7 @@ export function ReportsPage() {
           title: `Resultados Oficiales por Jornada — ${tName}`,
           subtitle: cName,
           organizationName: orgName,
+          organizationLogoUrl: orgLogoUrl,
           fileName: `Resultados_${tName}`.replace(/\s+/g, '_'),
           headers: ['Jornada', 'Fecha', 'Categoría', 'Local', 'Marcador', 'Visitante'],
           rows: list.map((m) => [
@@ -170,6 +174,7 @@ export function ReportsPage() {
           title: `Tabla de Posiciones — ${cName}`,
           subtitle: tName,
           organizationName: orgName,
+          organizationLogoUrl: orgLogoUrl,
           fileName: `Posiciones_${cName}`.replace(/\s+/g, '_'),
           headers: ['POS', 'EQUIPO', 'PJ', 'PG', 'PE', 'PP', 'GF', 'GC', 'DG', 'PTS'],
           rows: list.map((s) => [
@@ -195,6 +200,7 @@ export function ReportsPage() {
           title: `Estadísticas Colectivas — ${cName}`,
           subtitle: tName,
           organizationName: orgName,
+          organizationLogoUrl: orgLogoUrl,
           fileName: `Stats_Equipos_${cName}`.replace(/\s+/g, '_'),
           headers: ['Equipo', 'PJ', 'PTS', '% Vic.', '% Efect.', 'Prom. GF', 'Prom. GC', 'Vallas Inv.'],
           rows: list.map((ts) => [
@@ -218,6 +224,7 @@ export function ReportsPage() {
           title: `Estadísticas Individuales — ${cName}`,
           subtitle: tName,
           organizationName: orgName,
+          organizationLogoUrl: orgLogoUrl,
           fileName: `Stats_Jugadores_${cName}`.replace(/\s+/g, '_'),
           headers: ['Jugador', 'Equipo', 'PJ', 'Goles', 'Asist.', 'TA', 'TR', 'Tit.', 'Min.'],
           rows: list.map((ps) => [
@@ -242,6 +249,7 @@ export function ReportsPage() {
           title: `Tabla de Goleadores — ${cName}`,
           subtitle: tName,
           organizationName: orgName,
+          organizationLogoUrl: orgLogoUrl,
           fileName: `Goleadores_${cName}`.replace(/\s+/g, '_'),
           headers: ['Pos', 'Jugador', 'Equipo', 'Categoría', 'PJ', 'Goles', 'Promedio'],
           rows: list.map((ps, idx) => [
@@ -262,6 +270,7 @@ export function ReportsPage() {
           title: 'Historial Oficial de Campeones',
           subtitle: orgName,
           organizationName: orgName,
+          organizationLogoUrl: orgLogoUrl,
           fileName: 'Historial_Campeones_SIGD',
           headers: ['Temporada', 'Año', 'Torneo', 'Campeón', 'Estado'],
           rows: champs.map((t) => [
@@ -280,6 +289,7 @@ export function ReportsPage() {
           title: `Reporte General del Torneo — ${tName}`,
           subtitle: orgName,
           organizationName: orgName,
+          organizationLogoUrl: orgLogoUrl,
           fileName: `Reporte_General_${tName}`.replace(/\s+/g, '_'),
           headers: ['Categoría', 'Equipos', 'Partidos Prog.', 'Finalizados', 'Actas Aprobadas'],
           rows: tournamentCats.map((cat) => {
@@ -308,6 +318,7 @@ export function ReportsPage() {
     teams,
     matchResults,
     orgName,
+    orgLogoUrl,
     teamMap,
     fieldMap,
     catMap,
@@ -341,6 +352,8 @@ export function ReportsPage() {
       refereeName: m.refereeId ? refMap.get(m.refereeId)?.fullName || '-' : '-',
       playerNames,
       teamNames,
+      organizationName: orgName,
+      organizationLogoUrl: orgLogoUrl,
     });
   };
 
@@ -499,14 +512,25 @@ export function ReportsPage() {
 
           {/* Live Print/Report Preview */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-colors">
-            <div className="px-5 py-4 bg-navy-900 dark:bg-slate-950 text-white flex items-center justify-between border-b border-transparent dark:border-slate-800">
-              <div>
-                <p className="text-xs text-blue-300">{orgName}</p>
-                <h2 className="font-display font-bold text-base mt-0.5">
-                  {currentPayload.title}
-                </h2>
+            <div className="px-5 py-4 bg-navy-900 dark:bg-slate-950 text-white flex items-center justify-between gap-4 border-b border-transparent dark:border-slate-800">
+              <div className="flex items-center gap-3 min-w-0">
+                {orgLogoUrl && (
+                  <div className="w-10 h-10 rounded-lg bg-white p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                    <img
+                      src={orgLogoUrl}
+                      alt={orgName}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs text-blue-300 truncate">{orgName}</p>
+                  <h2 className="font-display font-bold text-base mt-0.5 truncate">
+                    {currentPayload.title}
+                  </h2>
+                </div>
               </div>
-              <span className="text-xs font-mono text-slate-300">
+              <span className="text-xs font-mono text-slate-300 shrink-0">
                 {new Date().toLocaleDateString('es-MX')}
               </span>
             </div>

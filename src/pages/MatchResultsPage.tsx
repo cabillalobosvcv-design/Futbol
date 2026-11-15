@@ -38,6 +38,7 @@ interface DraftEvent {
 export function MatchResultsPage() {
   const { profile, role } = useAuth();
   const {
+    organizations,
     sports,
     tournaments,
     categories,
@@ -261,6 +262,8 @@ export function MatchResultsPage() {
         : 'N/A',
       playerNames,
       teamNames,
+      organizationName: organizations[0]?.name || 'SIGD — Sistema Integral de Gestión Deportiva',
+      organizationLogoUrl: organizations[0]?.logoUrl || '',
     });
   };
 

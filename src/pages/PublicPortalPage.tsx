@@ -19,6 +19,7 @@ type PublicTab = 'resumen' | 'calendario' | 'resultados' | 'posiciones' | 'golea
 
 export function PublicPortalPage() {
   const {
+    organizations,
     sports,
     seasons,
     tournaments,
@@ -32,6 +33,8 @@ export function PublicPortalPage() {
     teamStatistics,
     fields,
   } = useSigdData();
+
+  const activeOrg = organizations[0];
 
   const [activeTab, setActiveTab] = useState<PublicTab>('resumen');
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>('all');
@@ -179,10 +182,34 @@ export function PublicPortalPage() {
         />
         <div className="absolute inset-0 bg-gradient-to-r from-navy-950/95 via-navy-900/80 to-navy-900/40" />
         <div className="relative z-10 p-6 sm:p-8 lg:p-10 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-          <div className="max-w-2xl space-y-2.5">
-            <p className="text-xs font-medium tracking-wide text-emerald-400">
-              Portal Oficial de Consulta Pública · Acceso Libre
-            </p>
+          <div className="max-w-2xl space-y-3">
+            <div className="flex items-center gap-3.5">
+              {activeOrg?.logoUrl ? (
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white p-1.5 border border-white/20 shadow-sm flex items-center justify-center shrink-0 overflow-hidden">
+                  <img
+                    src={activeOrg.logoUrl}
+                    alt={activeOrg.name || 'Logotipo oficial'}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-emerald-600/90 border border-white/20 flex items-center justify-center font-display font-extrabold text-sm text-white shrink-0">
+                  {activeOrg?.shortName || 'SIGD'}
+                </div>
+              )}
+              <div className="min-w-0">
+                {activeOrg?.name && (
+                  <p className="text-sm sm:text-base font-display font-bold text-white truncate">
+                    {activeOrg.name}
+                    {activeOrg.city ? ` · ${activeOrg.city}` : ''}
+                  </p>
+                )}
+                <p className="text-xs font-medium tracking-wide text-emerald-400">
+                  Portal Oficial de Consulta Pública · Acceso Libre
+                </p>
+              </div>
+            </div>
             <h1 className="text-2xl sm:text-4xl font-display font-bold tracking-tight text-balance text-white">
               Torneos, Calendarios, Resultados y Estadísticas Oficiales
             </h1>

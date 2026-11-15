@@ -75,7 +75,7 @@ service cloud.firestore {
         && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
         && data.shortName is string && data.shortName.size() >= 2 && data.shortName.size() <= 24
         && isOptionalString(data, 'city', 80)
-        && isOptionalString(data, 'logoUrl', 500)
+        && isOptionalString(data, 'logoUrl', 1000)
         && data.active is bool
         && isValidId(data.createdBy)
         && data.createdAt is timestamp

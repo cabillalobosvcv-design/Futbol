@@ -11,7 +11,8 @@ import {
   writeBatch,
   arrayUnion,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase/config';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { db, handleFirestoreError, OperationType, storage } from '../firebase/config';
 import { DEFAULT_SPORTS_CATALOG } from '../engines/sportsCatalog';
 import { computeFootballCategoryMetrics } from '../engines/footballStatsEngine';
 import type {
@@ -1005,5 +1006,67 @@ export async function deleteTournamentSportRule(params: {
     });
   } catch (err) {
     handleFirestoreError(err, OperationType.DELETE, path);
+  }
+}
+
+export async function uploadOrganizationLogo(orgId: string, file: File): Promise<string> {
+  const safeOrgId = orgId.replace(/[^a-zA-Z0-9_-]/g, '') || 'org_sigd_principal';
+  const extRaw = file.name.split('.').pop()?.toLowerCase() || 'png';
+  const ext = ['png', 'jpg', 'jpeg', 'webp', 'svg'].includes(extRaw) ? extRaw : 'png';
+  const storagePath = `organizations/${safeOrgId}/logo_${Date.now()}.${ext}`;
+  const storageRef = ref(storage, storagePath);
+  await uploadBytes(storageRef, file, {
+    contentType: file.type || 'image/png',
+    cacheControl: 'public, max-age=31536000',
+  });
+  return getDownloadURL(storageRef);
+}
+
+export async function saveOrganizationConfig(params: {
+  orgId: string;
+  isNew: boolean;
+  name: string;
+  shortName: string;
+  city?: string;
+  logoUrl?: string;
+  active: boolean;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `organizations/${params.orgId}`;
+  try {
+    const payload = cleanPayload({
+      name: params.name.trim().slice(0, 120),
+      shortName: params.shortName.trim().slice(0, 24),
+      city: (params.city || '').trim().slice(0, 80),
+      logoUrl: (params.logoUrl || '').trim().slice(0, 1000),
+      active: params.active,
+      ...(params.isNew
+        ? {
+            createdBy: params.actorUid,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          }
+        : {
+            updatedAt: serverTimestamp(),
+          }),
+    });
+
+    if (params.isNew) {
+      await setDoc(doc(db, 'organizations', params.orgId), payload);
+    } else {
+      await updateDoc(doc(db, 'organizations', params.orgId), payload);
+    }
+
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'SAVE_ORGANIZATION_CONFIG',
+      entity: 'organizations',
+      entityId: params.orgId,
+      summary: `Configuración institucional actualizada: ${params.name.trim()} (${params.shortName.trim()})${params.logoUrl ? ' con logotipo oficial' : ''}.`,
+    });
+  } catch (err) {
+    handleFirestoreError(err, params.isNew ? OperationType.CREATE : OperationType.UPDATE, path);
   }
 }

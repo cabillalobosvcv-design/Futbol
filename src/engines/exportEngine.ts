@@ -7,9 +7,72 @@ export interface ExportTablePayload {
   title: string;
   subtitle?: string;
   organizationName?: string;
+  organizationLogoUrl?: string;
   fileName: string;
   headers: string[];
   rows: (string | number)[][];
+}
+
+async function loadImageAsPngDataUrl(url?: string): Promise<string | null> {
+  const cleanUrl = url?.trim();
+  if (!cleanUrl) return null;
+
+  const renderImgToPng = (src: string, useCors: boolean): Promise<string | null> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      if (useCors) img.crossOrigin = 'anonymous';
+      const timer = window.setTimeout(() => resolve(null), 5000);
+
+      img.onload = () => {
+        window.clearTimeout(timer);
+        try {
+          const w = img.naturalWidth || img.width || 160;
+          const h = img.naturalHeight || img.height || 160;
+          const maxDim = 200;
+          const scale = Math.min(maxDim / w, maxDim / h, 1);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(w * scale));
+          canvas.height = Math.max(1, Math.round(h * scale));
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(null);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/png'));
+        } catch {
+          resolve(null);
+        }
+      };
+
+      img.onerror = () => {
+        window.clearTimeout(timer);
+        resolve(null);
+      };
+
+      img.src = src;
+    });
+
+  try {
+    if (cleanUrl.startsWith('data:image/')) {
+      return await renderImgToPng(cleanUrl, false);
+    }
+
+    const direct = await renderImgToPng(cleanUrl, true);
+    if (direct) return direct;
+
+    const resp = await fetch(cleanUrl, { mode: 'cors' });
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    const objUrl = URL.createObjectURL(blob);
+    try {
+      return await renderImgToPng(objUrl, false);
+    } finally {
+      URL.revokeObjectURL(objUrl);
+    }
+  } catch {
+    return null;
+  }
 }
 
 export function exportToExcel(payload: ExportTablePayload): void {
@@ -28,9 +91,10 @@ export function exportToExcel(payload: ExportTablePayload): void {
   XLSX.writeFile(wb, `${payload.fileName}.xlsx`);
 }
 
-export function exportToPdf(payload: ExportTablePayload): void {
+export async function exportToPdf(payload: ExportTablePayload): Promise<void> {
   const doc = new jsPDF({ orientation: payload.headers.length > 7 ? 'landscape' : 'portrait' });
   const pageWidth = doc.internal.pageSize.getWidth();
+  const logoDataUrl = await loadImageAsPngDataUrl(payload.organizationLogoUrl);
 
   // Institutional Navy Header Banner
   doc.setFillColor(10, 25, 47); // #0A192F
@@ -38,14 +102,22 @@ export function exportToPdf(payload: ExportTablePayload): void {
   doc.setFillColor(37, 99, 235); // #2563EB electric accent stripe
   doc.rect(0, 28, pageWidth, 2, 'F');
 
-  // Crest badge box
-  doc.setFillColor(22, 163, 74); // emerald pitch accent
-  doc.roundedRect(14, 6, 16, 16, 3, 3, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.text('SIGD', 22, 16, { align: 'center' });
+  // Official Organization Logo or SIGD fallback badge
+  if (logoDataUrl) {
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(14, 6, 16, 16, 2.5, 2.5, 'F');
+    doc.addImage(logoDataUrl, 'PNG', 15, 7, 14, 14);
+  } else {
+    doc.setFillColor(22, 163, 74); // emerald pitch accent
+    doc.roundedRect(14, 6, 16, 16, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SIGD', 22, 16, { align: 'center' });
+  }
 
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.text(payload.title, 36, 13);
   doc.setFontSize(9);
@@ -81,7 +153,7 @@ export function exportToPdf(payload: ExportTablePayload): void {
   doc.save(`${payload.fileName}.pdf`);
 }
 
-export function exportMatchSheetPdf(params: {
+export async function exportMatchSheetPdf(params: {
   match: Match;
   result?: MatchResult;
   events: MatchEvent[];
@@ -93,7 +165,9 @@ export function exportMatchSheetPdf(params: {
   refereeName: string;
   playerNames: Record<string, string>;
   teamNames: Record<string, string>;
-}): void {
+  organizationName?: string;
+  organizationLogoUrl?: string;
+}): Promise<void> {
   const {
     match,
     result,
@@ -106,24 +180,45 @@ export function exportMatchSheetPdf(params: {
     refereeName,
     playerNames,
     teamNames,
+    organizationName,
+    organizationLogoUrl,
   } = params;
 
   const doc = new jsPDF({ orientation: 'portrait' });
   const pageWidth = doc.internal.pageSize.getWidth();
+  const logoDataUrl = await loadImageAsPngDataUrl(organizationLogoUrl);
 
   doc.setFillColor(10, 25, 47);
   doc.rect(0, 0, pageWidth, 32, 'F');
   doc.setFillColor(22, 163, 74);
   doc.rect(0, 32, pageWidth, 2.5, 'F');
 
+  if (logoDataUrl) {
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(14, 6, 20, 20, 2.5, 2.5, 'F');
+    doc.addImage(logoDataUrl, 'PNG', 15, 7, 18, 18);
+  } else {
+    doc.setFillColor(22, 163, 74);
+    doc.roundedRect(14, 6, 20, 20, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SIGD', 24, 18, { align: 'center' });
+  }
+
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(15);
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text(`ACTA DIGITAL OFICIAL — PARTIDO #${match.matchNumber}`, 14, 14);
-  doc.setFontSize(9.5);
+  doc.text(`ACTA DIGITAL OFICIAL — PARTIDO #${match.matchNumber}`, 40, 13.5);
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${tournamentName} · ${categoryName}`, 14, 22);
-  doc.text(`Estado: ${result?.validationStatus?.toUpperCase() || match.status}`, pageWidth - 14, 22, {
+  doc.text(`${tournamentName} · ${categoryName}`, 40, 20.5);
+  if (organizationName) {
+    doc.setFontSize(8);
+    doc.text(organizationName, 40, 26.5);
+  }
+  doc.setFontSize(9);
+  doc.text(`Estado: ${result?.validationStatus?.toUpperCase() || match.status}`, pageWidth - 14, 20.5, {
     align: 'right',
   });
 

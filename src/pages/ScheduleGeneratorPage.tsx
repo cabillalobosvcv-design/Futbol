@@ -27,7 +27,7 @@ type ScheduleViewMode = 'rounds' | 'calendar' | 'category' | 'team' | 'field';
 
 export function ScheduleGeneratorPage() {
   const { profile } = useAuth();
-  const { tournaments, categories, teams, fields, referees, matches } = useSigdData();
+  const { organizations, tournaments, categories, teams, fields, referees, matches } = useSigdData();
 
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
@@ -264,6 +264,8 @@ export function ScheduleGeneratorPage() {
   const buildExportPayload = () => ({
     title: `Roles de Juego — ${activeTournament?.name || 'Torneo'}`,
     subtitle: `Categoría: ${activeCategory?.name || 'Todas'}`,
+    organizationName: organizations[0]?.name || 'SIGD — Sistema Integral de Gestión Deportiva',
+    organizationLogoUrl: organizations[0]?.logoUrl || '',
     fileName: `Roles_${activeCategory?.name || 'SIGD'}`.replace(/\s+/g, '_'),
     headers: ['#', 'Jornada', 'Fecha', 'Hora', 'Local', 'Visitante', 'Cancha', 'Árbitro', 'Estado'],
     rows: categoryMatches.map((m) => [

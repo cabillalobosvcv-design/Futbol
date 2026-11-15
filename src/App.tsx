@@ -6,9 +6,11 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { SigdDataProvider } from './context/SigdDataContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { ActivityHistoryPage } from './pages/ActivityHistoryPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FacilitiesRefereesPage } from './pages/FacilitiesRefereesPage';
 import { MatchResultsPage } from './pages/MatchResultsPage';
+import { OrganizationConfigPage } from './pages/OrganizationConfigPage';
 import { PublicPortalPage } from './pages/PublicPortalPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { RulesConfigPage } from './pages/RulesConfigPage';
@@ -52,6 +54,8 @@ function SigdAppRouter() {
       {activePage === 'results' && <MatchResultsPage />}
       {activePage === 'stats' && <StatisticsStandingsPage />}
       {activePage === 'reports' && <ReportsPage />}
+      {activePage === 'organization' && <OrganizationConfigPage />}
+      {activePage === 'activity_history' && <ActivityHistoryPage />}
       {activePage === 'users' && <UsersPermissionsPage />}
       <NotificationToastContainer onNavigate={setActivePage} />
     </Layout>

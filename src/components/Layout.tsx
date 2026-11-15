@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import {
   BarChart3,
   Bell,
+  Building2,
   CalendarDays,
   CheckCheck,
   ClipboardCheck,
   FileSpreadsheet,
   Globe,
+  History,
   LayoutDashboard,
   LogIn,
   LogOut,
@@ -36,6 +38,8 @@ export type PageId =
   | 'results'
   | 'stats'
   | 'reports'
+  | 'organization'
+  | 'activity_history'
   | 'users';
 
 interface NavItem {
@@ -121,6 +125,18 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
       label: 'Reportes PDF / Excel',
       icon: FileSpreadsheet,
       visible: Boolean(firebaseUser) && ROLE_PERMISSIONS.canExportReports(role),
+    },
+    {
+      id: 'organization',
+      label: 'Organización',
+      icon: Building2,
+      visible: Boolean(firebaseUser) && ROLE_PERMISSIONS.canManageUsers(role),
+    },
+    {
+      id: 'activity_history',
+      label: 'Historial de Actividad',
+      icon: History,
+      visible: Boolean(firebaseUser) && ROLE_PERMISSIONS.canViewAuditLogs(role),
     },
     {
       id: 'users',
