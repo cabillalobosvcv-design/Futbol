@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Sun,
   Trophy,
+  UserCheck,
   Users,
   X,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ export type PageId =
   | 'teams'
   | 'facilities'
   | 'schedule'
+  | 'referee_assignments'
   | 'referee_capture'
   | 'results'
   | 'stats'
@@ -109,6 +111,12 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
       label: 'Generador de Roles',
       icon: CalendarDays,
       visible: Boolean(firebaseUser) && ROLE_PERMISSIONS.canGenerateSchedule(role),
+    },
+    {
+      id: 'referee_assignments',
+      label: 'Asignación Arbitral',
+      icon: UserCheck,
+      visible: Boolean(firebaseUser) && ROLE_PERMISSIONS.canManageFacilitiesAndReferees(role),
     },
     {
       id: 'referee_capture',

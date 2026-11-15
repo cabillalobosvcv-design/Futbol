@@ -12,6 +12,7 @@ import { FacilitiesRefereesPage } from './pages/FacilitiesRefereesPage';
 import { MatchResultsPage } from './pages/MatchResultsPage';
 import { OrganizationConfigPage } from './pages/OrganizationConfigPage';
 import { PublicPortalPage } from './pages/PublicPortalPage';
+import { RefereeAssignmentsPage } from './pages/RefereeAssignmentsPage';
 import { RefereeCapturePage } from './pages/RefereeCapturePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { RulesConfigPage } from './pages/RulesConfigPage';
@@ -24,6 +25,7 @@ import { UsersPermissionsPage } from './pages/UsersPermissionsPage';
 function SigdAppRouter() {
   const { firebaseUser, role, authReady } = useAuth();
   const [activePage, setActivePage] = useState<PageId>('public_portal');
+  const [captureMatchId, setCaptureMatchId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (authReady && firebaseUser && activePage === 'public_portal') {
@@ -52,7 +54,18 @@ function SigdAppRouter() {
       {activePage === 'teams' && <TeamsPlayersPage />}
       {activePage === 'facilities' && <FacilitiesRefereesPage />}
       {activePage === 'schedule' && <ScheduleGeneratorPage />}
-      {activePage === 'referee_capture' && <RefereeCapturePage />}
+      {activePage === 'referee_assignments' && (
+        <RefereeAssignmentsPage
+          onNavigate={setActivePage}
+          onOpenCapture={(matchId) => {
+            setCaptureMatchId(matchId);
+            setActivePage('referee_capture');
+          }}
+        />
+      )}
+      {activePage === 'referee_capture' && (
+        <RefereeCapturePage initialMatchId={captureMatchId} onNavigate={setActivePage} />
+      )}
       {activePage === 'results' && <MatchResultsPage />}
       {activePage === 'stats' && <StatisticsStandingsPage />}
       {activePage === 'reports' && <ReportsPage />}

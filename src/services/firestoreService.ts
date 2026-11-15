@@ -22,6 +22,7 @@ import type {
   MatchEvent,
   MatchResult,
   Player,
+  Referee,
   Sport,
   Team,
   TiebreakerCriterion,
@@ -1103,3 +1104,103 @@ export async function saveOrganizationConfig(params: {
     handleFirestoreError(err, params.isNew ? OperationType.CREATE : OperationType.UPDATE, path);
   }
 }
+
+export async function assignRefereeToMatches(params: {
+  matchIds: string[];
+  refereeId: string;
+  refereeName: string;
+  refereeUserUid?: string;
+  matches: Match[];
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const uniqueIds = Array.from(new Set(params.matchIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return;
+
+  const cleanRefId = params.refereeId.trim().slice(0, 128);
+  const path = uniqueIds.length === 1 ? `matches/${uniqueIds[0]}` : 'matches/bulk_assign';
+
+  try {
+    const chunkSize = 400;
+    for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+      const chunk = uniqueIds.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+      for (const mId of chunk) {
+        batch.update(doc(db, 'matches', mId), {
+          refereeId: cleanRefId,
+          updatedAt: serverTimestamp(),
+        });
+      }
+      await batch.commit();
+    }
+
+    const matchNums = uniqueIds
+      .map((id) => params.matches.find((m) => m.id === id)?.matchNumber)
+      .filter((n): n is number => typeof n === 'number')
+      .sort((a, b) => a - b);
+    const matchesLabel =
+      matchNums.length > 0
+        ? matchNums.slice(0, 6).map((n) => `#${n}`).join(', ') +
+          (matchNums.length > 6 ? ` (+${matchNums.length - 6})` : '')
+        : `${uniqueIds.length} partido(s)`;
+
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: cleanRefId ? 'ASSIGN_MATCH_REFEREE' : 'UNASSIGN_MATCH_REFEREE',
+      entity: 'matches',
+      entityId: uniqueIds.length === 1 ? uniqueIds[0] : 'bulk_assignment',
+      summary: cleanRefId
+        ? `Árbitro ${params.refereeName} asignado a ${uniqueIds.length} partido(s): ${matchesLabel}.`
+        : `Asignación arbitral removida de ${uniqueIds.length} partido(s): ${matchesLabel}.`,
+    });
+
+    if (cleanRefId && params.refereeUserUid) {
+      await sendNotification({
+        recipientUid: params.refereeUserUid,
+        isBroadcast: false,
+        title:
+          uniqueIds.length === 1
+            ? `Nuevo partido asignado · ${matchesLabel}`
+            : `${uniqueIds.length} partidos asignados para arbitraje`,
+        message: `${params.actorName} te asignó ${uniqueIds.length === 1 ? 'el encuentro' : 'los encuentros'} ${matchesLabel}. Ya puedes capturar el resultado en Captura Arbitral.`,
+        type: 'info',
+        entityType: 'matches',
+        entityId: uniqueIds[0],
+        createdByUid: params.actorUid,
+      });
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+export async function linkRefereeUserAccount(params: {
+  referee: Referee;
+  userUid: string;
+  userName?: string;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `referees/${params.referee.id}`;
+  const cleanUid = params.userUid.trim().slice(0, 128);
+  try {
+    await updateDoc(doc(db, 'referees', params.referee.id), {
+      userUid: cleanUid,
+      updatedAt: serverTimestamp(),
+    });
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'LINK_REFEREE_ACCOUNT',
+      entity: 'referees',
+      entityId: params.referee.id,
+      summary: cleanUid
+        ? `Árbitro ${params.referee.fullName} vinculado a la cuenta ${params.userName || cleanUid}.`
+        : `Cuenta de usuario desvinculada del árbitro ${params.referee.fullName}.`,
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+

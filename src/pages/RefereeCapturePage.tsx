@@ -14,6 +14,7 @@ import {
   Send,
   Trash2,
 } from 'lucide-react';
+import type { PageId } from '../components/Layout';
 import { TeamCrest } from '../components/TeamCrest';
 import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
@@ -51,7 +52,12 @@ const EVENT_LABELS: Record<MatchEventType, string> = {
   participacion: 'Participación / Minutos',
 };
 
-export function RefereeCapturePage() {
+interface RefereeCapturePageProps {
+  initialMatchId?: string;
+  onNavigate?: (page: PageId) => void;
+}
+
+export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCapturePageProps = {}) {
   const { profile, role } = useAuth();
   const {
     organizations,
@@ -124,12 +130,35 @@ export function RefereeCapturePage() {
 
   useEffect(() => {
     if (!scopeInitialized && matches.length > 0) {
+      if (initialMatchId) {
+        const target = matches.find((m) => m.id === initialMatchId);
+        if (target) {
+          setSelectedMatchId(target.id);
+          setScopeTab(
+            target.refereeId && myRefereeIds.has(target.refereeId) ? 'assigned' : 'all'
+          );
+          setScopeInitialized(true);
+          return;
+        }
+      }
       if (role === 'arbitro' && hasAssignedMatches) {
         setScopeTab('assigned');
       }
       setScopeInitialized(true);
     }
-  }, [scopeInitialized, matches.length, role, hasAssignedMatches]);
+  }, [scopeInitialized, matches, role, hasAssignedMatches, initialMatchId, myRefereeIds]);
+
+  useEffect(() => {
+    if (initialMatchId) {
+      const target = matches.find((m) => m.id === initialMatchId);
+      if (target) {
+        setSelectedMatchId(target.id);
+        setScopeTab(
+          target.refereeId && myRefereeIds.has(target.refereeId) ? 'assigned' : 'all'
+        );
+      }
+    }
+  }, [initialMatchId, matches, myRefereeIds]);
 
   const teamMap = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
@@ -411,8 +440,17 @@ export function RefereeCapturePage() {
           </p>
         </div>
 
-        {/* Assigned vs All segmented filter */}
+        {/* Assigned vs All segmented filter + quick link to assignment */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {onNavigate && ROLE_PERMISSIONS.canManageFacilitiesAndReferees(role) && (
+            <button
+              type="button"
+              onClick={() => onNavigate('referee_assignments')}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap"
+            >
+              Asignar Juegos a Árbitros
+            </button>
+          )}
           <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
             <button
               type="button"
