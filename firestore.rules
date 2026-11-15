@@ -84,7 +84,7 @@ service cloud.firestore {
 
     function isValidUserProfile(data) {
       return data.keys().hasAll(['uid', 'displayName', 'email', 'role', 'active', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['uid', 'displayName', 'email', 'photoUrl', 'role', 'assignedCategoryIds', 'assignedTeamId', 'refereeId', 'active', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'photoUrl', 'role', 'assignedCategoryIds', 'assignedTeamId', 'refereeId', 'inviteId', 'active', 'createdAt', 'updatedAt'])
         && isValidId(data.uid)
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
@@ -93,7 +93,23 @@ service cloud.firestore {
         && (!('assignedCategoryIds' in data) || (data.assignedCategoryIds is list && data.assignedCategoryIds.size() <= 20))
         && isOptionalString(data, 'assignedTeamId', 128)
         && isOptionalString(data, 'refereeId', 128)
+        && (!('inviteId' in data) || data.inviteId == '' || isValidId(data.inviteId))
         && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserInvite(data) {
+      return data.keys().hasAll(['email', 'displayName', 'role', 'active', 'claimedUid', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['email', 'displayName', 'role', 'assignedCategoryIds', 'assignedTeamId', 'active', 'claimedUid', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160 && data.email == data.email.lower()
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.role in ['admin_general', 'admin_deportivo', 'coordinador', 'arbitro', 'representante', 'publico']
+        && (!('assignedCategoryIds' in data) || (data.assignedCategoryIds is list && data.assignedCategoryIds.size() <= 20))
+        && isOptionalString(data, 'assignedTeamId', 128)
+        && data.active is bool
+        && (data.claimedUid == '' || isValidId(data.claimedUid))
+        && isValidId(data.createdBy)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -450,6 +466,20 @@ service cloud.firestore {
       allow delete: if isAdminGeneral() && isValidId(orgId);
     }
 
+    function hasValidPendingInvite(inviteId, profileData) {
+      return isValidId(inviteId)
+        && exists(/databases/$(database)/documents/userInvites/$(inviteId))
+        && get(/databases/$(database)/documents/userInvites/$(inviteId)).data.email == request.auth.token.email.lower()
+        && get(/databases/$(database)/documents/userInvites/$(inviteId)).data.active == true
+        && get(/databases/$(database)/documents/userInvites/$(inviteId)).data.claimedUid == ''
+        && get(/databases/$(database)/documents/userInvites/$(inviteId)).data.role == profileData.role
+        && get(/databases/$(database)/documents/userInvites/$(inviteId)).data.active == profileData.active
+        && (!('assignedCategoryIds' in get(/databases/$(database)/documents/userInvites/$(inviteId)).data)
+          || (('assignedCategoryIds' in profileData) && profileData.assignedCategoryIds == get(/databases/$(database)/documents/userInvites/$(inviteId)).data.assignedCategoryIds))
+        && (!('assignedTeamId' in get(/databases/$(database)/documents/userInvites/$(inviteId)).data)
+          || (('assignedTeamId' in profileData) && profileData.assignedTeamId == get(/databases/$(database)/documents/userInvites/$(inviteId)).data.assignedTeamId));
+    }
+
     // Users (PII isolated: owner or admin only)
     match /users/{userId} {
       allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdminGeneral() || isAdminDeportivo());
@@ -458,8 +488,12 @@ service cloud.firestore {
         && incoming().uid == userId
         && incoming().createdAt == request.time && incoming().updatedAt == request.time
         && (
-          (request.auth.uid == userId && (incoming().role == 'publico' || (isBootstrappedAdmin() && incoming().role == 'admin_general')))
-          || isAdminGeneral()
+          isAdminGeneral()
+          || (request.auth.uid == userId && (
+            incoming().role == 'publico'
+            || (isBootstrappedAdmin() && incoming().role == 'admin_general')
+            || ('inviteId' in incoming() && incoming().inviteId != '' && hasValidPendingInvite(incoming().inviteId, incoming()))
+          ))
         );
       allow update: if isVerified() && isValidId(userId) && isValidUserProfile(incoming())
         && incoming().uid == existing().uid
@@ -471,8 +505,46 @@ service cloud.firestore {
             && incoming().role == existing().role
             && incoming().active == existing().active
             && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoUrl', 'updatedAt']))
+          || (request.auth.uid == userId
+            && existing().role == 'publico'
+            && 'inviteId' in incoming() && incoming().inviteId != ''
+            && hasValidPendingInvite(incoming().inviteId, incoming())
+            && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'assignedCategoryIds', 'assignedTeamId', 'inviteId', 'active', 'updatedAt']))
         );
       allow delete: if isAdminGeneral() && isValidId(userId);
+    }
+
+    // Pre-registered User Invites (Admin General creates/manages; verified owner can read & claim once)
+    match /userInvites/{inviteId} {
+      allow get: if isSignedIn() && isValidId(inviteId) && (
+        isAdminGeneral()
+        || (isVerified() && (resource == null || existing().email == request.auth.token.email.lower()))
+      );
+      allow list: if isSignedIn() && (
+        isBootstrappedAdmin()
+        || resource.data.createdBy == request.auth.uid
+        || (isVerified() && resource.data.email == request.auth.token.email.lower())
+      );
+      allow create: if isAdminGeneral() && isValidId(inviteId) && isValidUserInvite(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().claimedUid == ''
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(inviteId) && isValidUserInvite(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdminGeneral()
+          || (
+            existing().email == request.auth.token.email.lower()
+            && existing().active == true
+            && existing().claimedUid == ''
+            && incoming().claimedUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['claimedUid', 'updatedAt'])
+          )
+        );
+      allow delete: if isAdminGeneral() && isValidId(inviteId);
     }
 
     // Sports & Rules (Public read, Admin General write)

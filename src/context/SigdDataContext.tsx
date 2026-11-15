@@ -26,6 +26,7 @@ import type {
   Team,
   TeamStatistic,
   Tournament,
+  UserInvite,
   UserProfile,
   Venue,
 } from '../types/sigd';
@@ -34,6 +35,7 @@ interface SigdDataContextValue {
   loading: boolean;
   organizations: Organization[];
   users: UserProfile[];
+  userInvites: UserInvite[];
   sports: Sport[];
   sportRules: SportRule[];
   seasons: Season[];
@@ -66,6 +68,7 @@ export function SigdDataProvider({ children }: { children: React.ReactNode }) {
 
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [userInvites, setUserInvites] = useState<UserInvite[]>([]);
   const [sports, setSports] = useState<Sport[]>([]);
   const [sportRules, setSportRules] = useState<SportRule[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -138,17 +141,19 @@ export function SigdDataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!authReady || !firebaseUser) {
       setUsers([]);
+      setUserInvites([]);
       setAuditLogs([]);
       return;
     }
 
     const subs: (() => void)[] = [];
+    const isBootstrapAdmin =
+      firebaseUser.email?.toLowerCase() === 'cabillalobosv.cv@gmail.com';
 
     // Users list (bootstrapped admin sees all; others see self)
-    const usersQuery =
-      firebaseUser.email?.toLowerCase() === 'cabillalobosv.cv@gmail.com'
-        ? collection(db, 'users')
-        : query(collection(db, 'users'), where('uid', '==', firebaseUser.uid));
+    const usersQuery = isBootstrapAdmin
+      ? collection(db, 'users')
+      : query(collection(db, 'users'), where('uid', '==', firebaseUser.uid));
     subs.push(
       onSnapshot(
         usersQuery,
@@ -159,11 +164,28 @@ export function SigdDataProvider({ children }: { children: React.ReactNode }) {
       )
     );
 
+    // Pre-registered user invites (subscribed only when administrator permissions are active)
+    if (isBootstrapAdmin || profile?.role === 'admin_general') {
+      const invitesQuery = isBootstrapAdmin
+        ? collection(db, 'userInvites')
+        : query(collection(db, 'userInvites'), where('createdBy', '==', firebaseUser.uid));
+      subs.push(
+        onSnapshot(
+          invitesQuery,
+          (snap) => {
+            setUserInvites(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as UserInvite));
+          },
+          (err) => handleFirestoreError(err, OperationType.LIST, 'userInvites')
+        )
+      );
+    } else {
+      setUserInvites([]);
+    }
+
     // Audit logs
-    const logsQuery =
-      firebaseUser.email?.toLowerCase() === 'cabillalobosv.cv@gmail.com'
-        ? collection(db, 'auditLogs')
-        : query(collection(db, 'auditLogs'), where('actorUid', '==', firebaseUser.uid));
+    const logsQuery = isBootstrapAdmin
+      ? collection(db, 'auditLogs')
+      : query(collection(db, 'auditLogs'), where('actorUid', '==', firebaseUser.uid));
     subs.push(
       onSnapshot(
         logsQuery,
@@ -187,6 +209,7 @@ export function SigdDataProvider({ children }: { children: React.ReactNode }) {
         loading,
         organizations,
         users,
+        userInvites,
         sports,
         sportRules,
         seasons,

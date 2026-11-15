@@ -23,6 +23,7 @@ import type {
   Sport,
   Team,
   Tournament,
+  UserInvite,
   UserProfile,
   UserRole,
 } from '../types/sigd';
@@ -30,6 +31,23 @@ import type {
 export function makeId(prefix: string): string {
   const rand = Math.random().toString(36).slice(2, 8);
   return `${prefix}_${Date.now()}_${rand}`.replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
+export async function emailToInviteId(email: string): Promise<string> {
+  const normalized = email.trim().toLowerCase();
+  if (globalThis.crypto?.subtle) {
+    const data = new TextEncoder().encode(normalized);
+    const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', data);
+    const hashHex = Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    return `inv_${hashHex}`;
+  }
+  const safeHex = Array.from(new TextEncoder().encode(normalized))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, 120);
+  return `inv_${safeHex}`;
 }
 
 function cleanPayload<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {
@@ -289,6 +307,170 @@ export async function updateUserRoleAndScope(params: {
     });
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+export async function registerOrInviteUser(params: {
+  displayName: string;
+  email: string;
+  role: UserRole;
+  assignedCategoryIds: string[];
+  assignedTeamId?: string;
+  active: boolean;
+  existingUsers: UserProfile[];
+  existingInvites: UserInvite[];
+  actorUid: string;
+  actorName: string;
+}): Promise<{ mode: 'updated_existing' | 'invited'; id: string }> {
+  const normalizedEmail = params.email.trim().toLowerCase();
+  const cleanName = params.displayName.trim().slice(0, 120);
+  const categoryIds = params.assignedCategoryIds.slice(0, 20);
+  const teamId = (params.assignedTeamId || '').slice(0, 128);
+
+  const matchedUser = params.existingUsers.find(
+    (u) => u.email.trim().toLowerCase() === normalizedEmail
+  );
+
+  if (matchedUser) {
+    const path = `users/${matchedUser.uid}`;
+    try {
+      await updateDoc(
+        doc(db, 'users', matchedUser.uid),
+        cleanPayload({
+          displayName: cleanName,
+          role: params.role,
+          assignedCategoryIds: categoryIds,
+          assignedTeamId: teamId,
+          active: params.active,
+          updatedAt: serverTimestamp(),
+        })
+      );
+      await createAuditLog({
+        actorUid: params.actorUid,
+        actorName: params.actorName,
+        action: 'UPDATE_USER_PROFILE',
+        entity: 'users',
+        entityId: matchedUser.uid,
+        summary: `Alta/actualización de usuario existente ${cleanName} (${normalizedEmail}) con rol ${params.role}.`,
+      });
+      await sendNotification({
+        recipientUid: matchedUser.uid,
+        isBroadcast: false,
+        title: 'Actualización de perfil en SIGD',
+        message: `Un administrador configuró tu cuenta con el rol: ${params.role}.`,
+        type: 'info',
+        entityType: 'users',
+        entityId: matchedUser.uid,
+        createdByUid: params.actorUid,
+      });
+      return { mode: 'updated_existing', id: matchedUser.uid };
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+    }
+  }
+
+  const inviteId = await emailToInviteId(normalizedEmail);
+  const path = `userInvites/${inviteId}`;
+  const existingInvite = params.existingInvites.find((inv) => inv.id === inviteId);
+
+  try {
+    if (existingInvite) {
+      await updateDoc(
+        doc(db, 'userInvites', inviteId),
+        cleanPayload({
+          displayName: cleanName,
+          role: params.role,
+          assignedCategoryIds: categoryIds,
+          assignedTeamId: teamId,
+          active: params.active,
+          updatedAt: serverTimestamp(),
+        })
+      );
+      await createAuditLog({
+        actorUid: params.actorUid,
+        actorName: params.actorName,
+        action: 'UPDATE_USER_INVITE',
+        entity: 'userInvites',
+        entityId: inviteId,
+        summary: `Pre-registro actualizado para ${cleanName} (${normalizedEmail}) con rol ${params.role}.`,
+      });
+    } else {
+      await setDoc(
+        doc(db, 'userInvites', inviteId),
+        cleanPayload({
+          email: normalizedEmail,
+          displayName: cleanName,
+          role: params.role,
+          assignedCategoryIds: categoryIds,
+          assignedTeamId: teamId,
+          active: params.active,
+          claimedUid: '',
+          createdBy: params.actorUid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
+      await createAuditLog({
+        actorUid: params.actorUid,
+        actorName: params.actorName,
+        action: 'CREATE_USER_INVITE',
+        entity: 'userInvites',
+        entityId: inviteId,
+        summary: `Alta de usuario pre-registrado: ${cleanName} (${normalizedEmail}) con rol ${params.role}.`,
+      });
+    }
+    return { mode: 'invited', id: inviteId };
+  } catch (err) {
+    handleFirestoreError(err, existingInvite ? OperationType.UPDATE : OperationType.CREATE, path);
+    return { mode: 'invited', id: inviteId };
+  }
+}
+
+export async function updateUserInvite(params: {
+  invite: UserInvite;
+  role: UserRole;
+  active: boolean;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `userInvites/${params.invite.id}`;
+  try {
+    await updateDoc(doc(db, 'userInvites', params.invite.id), {
+      role: params.role,
+      active: params.active,
+      updatedAt: serverTimestamp(),
+    });
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'UPDATE_USER_INVITE',
+      entity: 'userInvites',
+      entityId: params.invite.id,
+      summary: `Pre-registro de ${params.invite.displayName} (${params.invite.email}) actualizado: rol ${params.role}, estado ${params.active ? 'activo' : 'suspendido'}.`,
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+export async function deleteUserInvite(params: {
+  invite: UserInvite;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `userInvites/${params.invite.id}`;
+  try {
+    await deleteDoc(doc(db, 'userInvites', params.invite.id));
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'DELETE_USER_INVITE',
+      entity: 'userInvites',
+      entityId: params.invite.id,
+      summary: `Pre-registro eliminado para ${params.invite.displayName} (${params.invite.email}).`,
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
   }
 }
 

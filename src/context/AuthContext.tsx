@@ -5,9 +5,10 @@ import {
   signOut as firebaseSignOut,
   type User,
 } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { auth, db, googleProvider, handleFirestoreError, OperationType } from '../firebase/config';
-import type { UserProfile, UserRole } from '../types/sigd';
+import { emailToInviteId } from '../services/firestoreService';
+import type { UserInvite, UserProfile, UserRole } from '../types/sigd';
 
 interface AuthContextValue {
   firebaseUser: User | null;
@@ -44,29 +45,96 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const userRef = doc(db, 'users', user.uid);
         const snap = await getDoc(userRef);
+        const inviteId = user.email && user.emailVerified ? await emailToInviteId(user.email) : '';
 
         if (snap.exists()) {
           const data = snap.data() as Omit<UserProfile, 'id'>;
+          if (data.role === 'publico' && inviteId) {
+            const inviteRef = doc(db, 'userInvites', inviteId);
+            const inviteSnap = await getDoc(inviteRef);
+            if (inviteSnap.exists()) {
+              const inv = inviteSnap.data() as Omit<UserInvite, 'id'>;
+              if (inv.active && inv.claimedUid === '') {
+                const batch = writeBatch(db);
+                batch.update(userRef, {
+                  role: inv.role,
+                  assignedCategoryIds: inv.assignedCategoryIds || [],
+                  assignedTeamId: inv.assignedTeamId || '',
+                  inviteId,
+                  active: inv.active,
+                  updatedAt: serverTimestamp(),
+                });
+                batch.update(inviteRef, {
+                  claimedUid: user.uid,
+                  updatedAt: serverTimestamp(),
+                });
+                await batch.commit();
+                setProfile({
+                  id: snap.id,
+                  ...data,
+                  role: inv.role,
+                  assignedCategoryIds: inv.assignedCategoryIds || [],
+                  assignedTeamId: inv.assignedTeamId || '',
+                  inviteId,
+                  active: inv.active,
+                });
+                return;
+              }
+            }
+          }
           setProfile({ id: snap.id, ...data });
         } else {
-          const initialRole: UserRole =
-            user.email?.toLowerCase() === BOOTSTRAP_ADMIN_EMAIL && user.emailVerified
-              ? 'admin_general'
+          let invitedData: Omit<UserInvite, 'id'> | null = null;
+          if (inviteId) {
+            const inviteRef = doc(db, 'userInvites', inviteId);
+            const inviteSnap = await getDoc(inviteRef);
+            if (inviteSnap.exists()) {
+              const inv = inviteSnap.data() as Omit<UserInvite, 'id'>;
+              if (inv.active && inv.claimedUid === '') {
+                invitedData = inv;
+              }
+            }
+          }
+
+          const isBootstrap =
+            user.email?.toLowerCase() === BOOTSTRAP_ADMIN_EMAIL && user.emailVerified;
+          const initialRole: UserRole = isBootstrap
+            ? 'admin_general'
+            : invitedData
+              ? invitedData.role
               : 'publico';
+          const initialCategories = invitedData?.assignedCategoryIds || [];
+          const initialTeamId = invitedData?.assignedTeamId || '';
+          const initialActive = invitedData ? invitedData.active : true;
+          const displayName =
+            user.displayName || invitedData?.displayName || user.email || 'Usuario SIGD';
 
           const newProfile: Record<string, unknown> = {
             uid: user.uid,
-            displayName: user.displayName || user.email || 'Usuario SIGD',
-            email: user.email || '',
+            displayName,
+            email: (user.email || '').toLowerCase(),
             photoUrl: user.photoURL || '',
             role: initialRole,
-            assignedCategoryIds: [],
-            assignedTeamId: '',
-            active: true,
+            assignedCategoryIds: initialCategories,
+            assignedTeamId: initialTeamId,
+            ...(invitedData ? { inviteId } : {}),
+            active: initialActive,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           };
-          await setDoc(userRef, newProfile);
+
+          if (invitedData && inviteId) {
+            const batch = writeBatch(db);
+            batch.set(userRef, newProfile);
+            batch.update(doc(db, 'userInvites', inviteId), {
+              claimedUid: user.uid,
+              updatedAt: serverTimestamp(),
+            });
+            await batch.commit();
+          } else {
+            await setDoc(userRef, newProfile);
+          }
+
           setProfile({
             id: user.uid,
             uid: user.uid,
@@ -74,9 +142,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: String(newProfile.email),
             photoUrl: String(newProfile.photoUrl),
             role: initialRole,
-            assignedCategoryIds: [],
-            assignedTeamId: '',
-            active: true,
+            assignedCategoryIds: initialCategories,
+            assignedTeamId: initialTeamId,
+            ...(invitedData ? { inviteId } : {}),
+            active: initialActive,
           });
         }
       } catch (err) {

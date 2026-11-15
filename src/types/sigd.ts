@@ -79,7 +79,22 @@ export interface UserProfile {
   assignedCategoryIds?: string[];
   assignedTeamId?: string;
   refereeId?: string;
+  inviteId?: string;
   active: boolean;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface UserInvite {
+  id: string;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  assignedCategoryIds?: string[];
+  assignedTeamId?: string;
+  active: boolean;
+  claimedUid: string;
+  createdBy: string;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }

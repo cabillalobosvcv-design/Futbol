@@ -32,11 +32,33 @@
         "assignedCategoryIds": { "type": "array", "description": "Máximo 20 categorías asignadas." },
         "assignedTeamId": { "type": "string", "maxLength": 128 },
         "refereeId": { "type": "string", "maxLength": 128 },
+        "inviteId": { "type": "string", "maxLength": 128 },
         "active": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "displayName", "email", "role", "active", "createdAt", "updatedAt"]
+    },
+    "UserInvite": {
+      "title": "UserInvite",
+      "description": "Pre-registro de usuario dado de alta por un Administrador General antes de su primer acceso con Google.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "maxLength": 160 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "role": {
+          "type": "string",
+          "enum": ["admin_general", "admin_deportivo", "coordinador", "arbitro", "representante", "publico"]
+        },
+        "assignedCategoryIds": { "type": "array", "description": "Máximo 20 categorías asignadas." },
+        "assignedTeamId": { "type": "string", "maxLength": 128 },
+        "active": { "type": "boolean" },
+        "claimedUid": { "type": "string", "maxLength": 128 },
+        "createdBy": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "displayName", "role", "active", "claimedUid", "createdBy", "createdAt", "updatedAt"]
     },
     "Sport": {
       "title": "Sport",
@@ -479,6 +501,10 @@
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
       "description": "Perfiles de usuarios registrados y roles RBAC."
+    },
+    "/userInvites/{inviteId}": {
+      "schema": { "$ref": "#/entities/UserInvite" },
+      "description": "Pre-registros e invitaciones de usuarios creadas por administradores."
     },
     "/sports/{sportId}": {
       "schema": { "$ref": "#/entities/Sport" },
