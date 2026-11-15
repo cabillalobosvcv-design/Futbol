@@ -33,22 +33,22 @@ export class ErrorBoundary extends React.Component<
 
       return (
         <div className="min-h-screen bg-pitch-canvas flex items-center justify-center p-6">
-          <div className="max-w-lg w-full bg-white border border-red-200 rounded-xl p-6 shadow-sm">
+          <div className="max-w-lg w-full bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900/60 rounded-xl p-6 shadow-sm">
             <div className="flex items-start gap-3">
-              <div className="p-2.5 rounded-lg bg-red-50 text-red-600 shrink-0">
+              <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 shrink-0">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-semibold text-slate-900">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                   Error de operación en SIGD
                 </h2>
-                <p className="mt-1 text-sm text-slate-600 break-words">
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">
                   {parsedMsg}
                 </p>
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
-                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-navy-900 hover:bg-navy-800 rounded-lg transition-colors"
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg transition-colors"
                 >
                   <RotateCcw className="w-4 h-4" />
                   Recargar aplicación

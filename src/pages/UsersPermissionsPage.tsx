@@ -62,28 +62,30 @@ export function UsersPermissionsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-xl p-5">
-        <h1 className="text-xl font-display font-bold text-navy-900">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 transition-colors">
+        <h1 className="text-xl font-display font-bold text-navy-900 dark:text-white">
           Usuarios, Control de Permisos, Notificaciones y Auditoría
         </h1>
-        <p className="text-sm text-slate-600 mt-0.5">
+        <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
           Administra perfiles RBAC, difunde avisos en tiempo real y revisa la bitácora inmutable de cambios.
         </p>
       </div>
 
       {msg && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+        <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{msg}</span>
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 p-1.5 bg-white border border-slate-200 rounded-xl w-fit">
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-fit transition-colors">
         <button
           type="button"
           onClick={() => setTab('users')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            tab === 'users' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'users'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -92,8 +94,10 @@ export function UsersPermissionsPage() {
         <button
           type="button"
           onClick={() => setTab('notifications')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            tab === 'notifications' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'notifications'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <BellRing className="w-4 h-4" />
@@ -102,8 +106,10 @@ export function UsersPermissionsPage() {
         <button
           type="button"
           onClick={() => setTab('audit')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            tab === 'audit' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'audit'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <History className="w-4 h-4" />
@@ -113,35 +119,39 @@ export function UsersPermissionsPage() {
 
       {tab === 'users' && (
         <div className="space-y-6">
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-2">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-colors">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-electric-500" />
-              <h2 className="font-display font-semibold text-base text-slate-900">
+              <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
                 Usuarios Registrados
               </h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-600 border-b border-slate-200">
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                     <th className="py-3 px-4 text-left font-semibold">Usuario</th>
                     <th className="py-3 px-4 text-left font-semibold">Correo</th>
                     <th className="py-3 px-4 text-left font-semibold">Rol Asignado</th>
                     <th className="py-3 px-4 text-left font-semibold">Estado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-medium text-slate-900">{u.displayName}</td>
-                      <td className="py-3 px-4 text-slate-600 font-mono text-xs">{u.email}</td>
+                    <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
+                        {u.displayName}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-mono text-xs">
+                        {u.email}
+                      </td>
                       <td className="py-3 px-4">
                         {canManageUsers ? (
                           <select
                             disabled={busy}
                             value={u.role}
                             onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
-                            className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-slate-50"
+                            className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                           >
                             {(Object.keys(ROLE_LABELS) as UserRole[]).map((rKey) => (
                               <option key={rKey} value={rKey}>
@@ -150,10 +160,12 @@ export function UsersPermissionsPage() {
                             ))}
                           </select>
                         ) : (
-                          <span className="text-xs font-medium">{ROLE_LABELS[u.role]}</span>
+                          <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                            {ROLE_LABELS[u.role]}
+                          </span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-xs font-medium text-emerald-700">
+                      <td className="py-3 px-4 text-xs font-medium text-emerald-700 dark:text-emerald-400">
                         {u.active ? 'Activo' : 'Suspendido'}
                       </td>
                     </tr>
@@ -163,44 +175,48 @@ export function UsersPermissionsPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
-            <h3 className="font-display font-semibold text-sm text-slate-900 mb-3">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 transition-colors">
+            <h3 className="font-display font-semibold text-sm text-slate-900 dark:text-white mb-3">
               Matriz de Seguridad y Permisos RBAC (Frontend + Reglas Firestore)
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <p className="font-semibold text-navy-900">Administrador General</p>
-                <p className="text-slate-600 mt-1">
+              <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+                <p className="font-semibold text-navy-900 dark:text-white">Administrador General</p>
+                <p className="text-slate-600 dark:text-slate-300 mt-1">
                   Acceso total: torneos, usuarios, disciplinas, reglamentos, reportes y auditoría.
                 </p>
               </div>
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <p className="font-semibold text-navy-900">Administrador Deportivo</p>
-                <p className="text-slate-600 mt-1">
+              <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+                <p className="font-semibold text-navy-900 dark:text-white">
+                  Administrador Deportivo
+                </p>
+                <p className="text-slate-600 dark:text-slate-300 mt-1">
                   Torneos, temporadas, categorías, equipos, jugadores, roles y validación de resultados.
                 </p>
               </div>
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <p className="font-semibold text-navy-900">Coordinador</p>
-                <p className="text-slate-600 mt-1">
+              <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+                <p className="font-semibold text-navy-900 dark:text-white">Coordinador</p>
+                <p className="text-slate-600 dark:text-slate-300 mt-1">
                   Categorías ({categories.length}), generación de roles, supervisión y aprobación oficial de actas.
                 </p>
               </div>
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <p className="font-semibold text-navy-900">Árbitro</p>
-                <p className="text-slate-600 mt-1">
+              <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+                <p className="font-semibold text-navy-900 dark:text-white">Árbitro</p>
+                <p className="text-slate-600 dark:text-slate-300 mt-1">
                   Consulta de encuentros, captura de actas digitales e incidencias enviadas a validación.
                 </p>
               </div>
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <p className="font-semibold text-navy-900">Representante de Equipo</p>
-                <p className="text-slate-600 mt-1">
+              <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+                <p className="font-semibold text-navy-900 dark:text-white">
+                  Representante de Equipo
+                </p>
+                <p className="text-slate-600 dark:text-slate-300 mt-1">
                   Consulta de su club ({teams.length} equipos), jugadores, roles y resultados oficiales.
                 </p>
               </div>
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <p className="font-semibold text-navy-900">Público / Visitante</p>
-                <p className="text-slate-600 mt-1">
+              <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+                <p className="font-semibold text-navy-900 dark:text-white">Público / Visitante</p>
+                <p className="text-slate-600 dark:text-slate-300 mt-1">
                   Solo lectura en Portal Público: calendarios, resultados, posiciones y estadísticas.
                 </p>
               </div>
@@ -212,30 +228,34 @@ export function UsersPermissionsPage() {
       {tab === 'notifications' && (
         <form
           onSubmit={handleSendBroadcast}
-          className="bg-white border border-slate-200 rounded-xl p-6 max-w-xl space-y-4"
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-xl space-y-4 transition-colors"
         >
-          <h2 className="font-display font-semibold text-base text-slate-900">
+          <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
             Enviar Notificación en Tiempo Real a Usuarios Registrados
           </h2>
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Título</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Título
+            </label>
             <input
               type="text"
               required
               value={notifTitle}
               onChange={(e) => setNotifTitle(e.target.value)}
               placeholder="Ej. Cambio de horario en Jornada 3"
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Tipo de aviso</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Tipo de aviso
+            </label>
             <select
               value={notifType}
               onChange={(e) =>
                 setNotifType(e.target.value as 'info' | 'success' | 'warning' | 'alert')
               }
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             >
               <option value="info">Informativo</option>
               <option value="success">Confirmación / Publicación</option>
@@ -244,14 +264,16 @@ export function UsersPermissionsPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Mensaje</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Mensaje
+            </label>
             <textarea
               rows={3}
               required
               value={notifMessage}
               onChange={(e) => setNotifMessage(e.target.value)}
               placeholder="Detalle de la notificación..."
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
           </div>
           <button
@@ -265,37 +287,39 @@ export function UsersPermissionsPage() {
       )}
 
       {tab === 'audit' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200">
-            <h2 className="font-display font-semibold text-base text-slate-900">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-colors">
+          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
               Registro Inmutable de Auditoría
             </h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 text-xs text-slate-600 border-b border-slate-200">
+                <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                   <th className="py-3 px-4 text-left font-semibold">Fecha</th>
                   <th className="py-3 px-4 text-left font-semibold">Usuario</th>
                   <th className="py-3 px-4 text-left font-semibold">Acción</th>
                   <th className="py-3 px-4 text-left font-semibold">Detalle</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {auditLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-4 font-mono text-xs text-slate-500 whitespace-nowrap tabular-nums">
+                  <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td className="py-2.5 px-4 font-mono text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap tabular-nums">
                       {log.createdAt?.toDate
                         ? log.createdAt.toDate().toLocaleString('es-MX')
                         : 'Reciente'}
                     </td>
-                    <td className="py-2.5 px-4 text-xs font-medium text-slate-800">
+                    <td className="py-2.5 px-4 text-xs font-medium text-slate-800 dark:text-slate-200">
                       {log.actorName || log.actorUid}
                     </td>
-                    <td className="py-2.5 px-4 font-mono text-xs text-electric-600">
+                    <td className="py-2.5 px-4 font-mono text-xs text-electric-600 dark:text-blue-400">
                       {log.action}
                     </td>
-                    <td className="py-2.5 px-4 text-xs text-slate-700">{log.summary}</td>
+                    <td className="py-2.5 px-4 text-xs text-slate-700 dark:text-slate-300">
+                      {log.summary}
+                    </td>
                   </tr>
                 ))}
               </tbody>

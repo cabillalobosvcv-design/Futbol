@@ -171,19 +171,19 @@ export function TeamsPlayersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
         <div>
-          <h1 className="text-xl font-display font-bold text-navy-900">
+          <h1 className="text-xl font-display font-bold text-navy-900 dark:text-white">
             Categorías, Equipos y Planteles de Jugadores
           </h1>
-          <p className="text-sm text-slate-600 mt-0.5">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
             Gestiona categorías por torneo y rama, identidad visual de equipos y registro oficial de jugadores.
           </p>
         </div>
         <select
           value={filterTournamentId}
           onChange={(e) => setFilterTournamentId(e.target.value)}
-          className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+          className="px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
         >
           <option value="all">Todos los torneos</option>
           {tournaments.map((t) => (
@@ -195,18 +195,20 @@ export function TeamsPlayersPage() {
       </div>
 
       {msg && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+        <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{msg}</span>
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 p-1.5 bg-white border border-slate-200 rounded-xl w-fit">
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-fit transition-colors">
         <button
           type="button"
           onClick={() => setTab('categories')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            tab === 'categories' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'categories'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <FolderKanban className="w-4 h-4" />
@@ -215,8 +217,10 @@ export function TeamsPlayersPage() {
         <button
           type="button"
           onClick={() => setTab('teams')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            tab === 'teams' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'teams'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <Shield className="w-4 h-4" />
@@ -225,8 +229,10 @@ export function TeamsPlayersPage() {
         <button
           type="button"
           onClick={() => setTab('players')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            tab === 'players' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'players'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -239,17 +245,19 @@ export function TeamsPlayersPage() {
           {canManage && (
             <form
               onSubmit={handleCreateCategory}
-              className="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-5 space-y-4 h-fit"
+              className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 h-fit transition-colors"
             >
-              <h2 className="font-display font-semibold text-base text-slate-900">
+              <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
                 Registrar Categoría
               </h2>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Torneo</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Torneo
+                </label>
                 <select
                   value={effectiveTournamentForCat}
                   onChange={(e) => setCTournamentId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 >
                   {tournaments.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -259,11 +267,13 @@ export function TeamsPlayersPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Rama</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Rama
+                </label>
                 <select
                   value={cBranchId || branches[0]?.id || ''}
                   onChange={(e) => setCBranchId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 >
                   <option value="branch_varonil">Varonil</option>
                   <option value="branch_femenil">Femenil</option>
@@ -271,7 +281,7 @@ export function TeamsPlayersPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Nombre de Categoría
                 </label>
                 <input
@@ -280,26 +290,30 @@ export function TeamsPlayersPage() {
                   value={cName}
                   onChange={(e) => setCName(e.target.value)}
                   placeholder="Ej. Libre / Sub-17 / Primera Fuerza"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Edad mín.</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Edad mín.
+                  </label>
                   <input
                     type="number"
                     value={cMinAge}
                     onChange={(e) => setCMinAge(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Edad máx.</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Edad máx.
+                  </label>
                   <input
                     type="number"
                     value={cMaxAge}
                     onChange={(e) => setCMaxAge(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                   />
                 </div>
               </div>
@@ -315,15 +329,22 @@ export function TeamsPlayersPage() {
 
           <div className={`${canManage ? 'lg:col-span-8' : 'lg:col-span-12'} grid grid-cols-1 md:grid-cols-2 gap-4`}>
             {categories.map((c) => (
-              <div key={c.id} className="bg-white border border-slate-200 rounded-xl p-4">
+              <div
+                key={c.id}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 transition-colors"
+              >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-display font-semibold text-slate-900">{c.name}</h3>
-                  <span className="text-xs text-slate-500">{c.branchName || 'General'}</span>
+                  <h3 className="font-display font-semibold text-slate-900 dark:text-white">
+                    {c.name}
+                  </h3>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {c.branchName || 'General'}
+                  </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   {tournamentMap.get(c.tournamentId)?.name || c.tournamentId}
                 </p>
-                <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+                <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
                   <span className="font-mono tabular-nums">
                     {teams.filter((t) => t.categoryId === c.id).length} equipos
                   </span>
@@ -340,20 +361,22 @@ export function TeamsPlayersPage() {
           {canManage && (
             <form
               onSubmit={handleCreateTeam}
-              className="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-5 space-y-4 h-fit"
+              className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 h-fit transition-colors"
             >
-              <h2 className="font-display font-semibold text-base text-slate-900">
+              <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
                 Inscribir Equipo
               </h2>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Torneo</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Torneo
+                </label>
                 <select
                   value={effectiveTournamentForTeam}
                   onChange={(e) => {
                     setTmTournamentId(e.target.value);
                     setTmCategoryId('');
                   }}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 >
                   {tournaments.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -363,11 +386,13 @@ export function TeamsPlayersPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Categoría</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Categoría
+                </label>
                 <select
                   value={effectiveCategoryForTeam}
                   onChange={(e) => setTmCategoryId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 >
                   {categoriesForTeamForm.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -378,30 +403,34 @@ export function TeamsPlayersPage() {
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Nombre</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Nombre
+                  </label>
                   <input
                     type="text"
                     required
                     value={tmName}
                     onChange={(e) => setTmName(e.target.value)}
                     placeholder="Atlético Norte"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Siglas</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Siglas
+                  </label>
                   <input
                     type="text"
                     maxLength={5}
                     value={tmCode}
                     onChange={(e) => setTmCode(e.target.value.toUpperCase())}
                     placeholder="ATN"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono uppercase"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono uppercase"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Director Técnico
                 </label>
                 <input
@@ -409,30 +438,30 @@ export function TeamsPlayersPage() {
                   value={tmCoach}
                   onChange={(e) => setTmCoach(e.target.value)}
                   placeholder="Nombre del DT"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Color principal
                   </label>
                   <input
                     type="color"
                     value={tmPrimary}
                     onChange={(e) => setTmPrimary(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-slate-200 cursor-pointer"
+                    className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Color secundario
                   </label>
                   <input
                     type="color"
                     value={tmSecondary}
                     onChange={(e) => setTmSecondary(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-slate-200 cursor-pointer"
+                    className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer"
                   />
                 </div>
               </div>
@@ -450,7 +479,7 @@ export function TeamsPlayersPage() {
             {filteredTeams.map((tm) => (
               <div
                 key={tm.id}
-                className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-3"
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex items-center justify-between gap-3 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <TeamCrest
@@ -461,13 +490,13 @@ export function TeamsPlayersPage() {
                     size="lg"
                   />
                   <div className="min-w-0">
-                    <h3 className="font-display font-semibold text-slate-900 truncate">
+                    <h3 className="font-display font-semibold text-slate-900 dark:text-white truncate">
                       {tm.name}
                     </h3>
-                    <p className="text-xs text-slate-500 truncate">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                       {categoryMap.get(tm.categoryId)?.name} · {tournamentMap.get(tm.tournamentId)?.name}
                     </p>
-                    <p className="text-xs text-slate-600 mt-0.5">
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
                       DT: {tm.coachName || 'Sin asignar'} ·{' '}
                       <span className="font-mono tabular-nums">
                         {players.filter((p) => p.teamId === tm.id).length} jugadores
@@ -482,7 +511,7 @@ export function TeamsPlayersPage() {
                     setPlTeamId(tm.id);
                     setTab('players');
                   }}
-                  className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 shrink-0"
+                  className="px-3 py-1.5 text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0"
                 >
                   Ver plantel
                 </button>
@@ -497,20 +526,22 @@ export function TeamsPlayersPage() {
           {canManage && (
             <form
               onSubmit={handleCreatePlayer}
-              className="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-5 space-y-4 h-fit"
+              className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 h-fit transition-colors"
             >
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
                 <UserPlus className="w-4 h-4 text-electric-500" />
-                <h2 className="font-display font-semibold text-base text-slate-900">
+                <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
                   Registrar Jugador
                 </h2>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Equipo</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Equipo
+                </label>
                 <select
                   value={plTeamId || teams[0]?.id || ''}
                   onChange={(e) => setPlTeamId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 >
                   {teams.map((tm) => (
                     <option key={tm.id} value={tm.id}>
@@ -520,7 +551,7 @@ export function TeamsPlayersPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Nombre completo
                 </label>
                 <input
@@ -529,27 +560,31 @@ export function TeamsPlayersPage() {
                   value={plName}
                   onChange={(e) => setPlName(e.target.value)}
                   placeholder="Carlos Mendoza"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Dorsal</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Dorsal
+                  </label>
                   <input
                     type="number"
                     min={0}
                     max={99}
                     value={plNumber}
                     onChange={(e) => setPlNumber(Number(e.target.value))}
-                    className="w-full px-2.5 py-2 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+                    className="w-full px-2.5 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Posición</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Posición
+                  </label>
                   <select
                     value={plPosition}
                     onChange={(e) => setPlPosition(e.target.value as PlayerPosition)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   >
                     <option value="Portero">Portero</option>
                     <option value="Defensa">Defensa</option>
@@ -559,7 +594,7 @@ export function TeamsPlayersPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Año de nacimiento
                 </label>
                 <input
@@ -568,31 +603,33 @@ export function TeamsPlayersPage() {
                   max={2022}
                   value={plBirthYear}
                   onChange={(e) => setPlBirthYear(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                 />
               </div>
               <button
                 type="submit"
                 disabled={saving || teams.length === 0}
-                className="w-full py-2.5 px-4 bg-navy-900 hover:bg-navy-800 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+                className="w-full py-2.5 px-4 bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
               >
                 Agregar Jugador
               </button>
             </form>
           )}
 
-          <div className={`${canManage ? 'lg:col-span-8' : 'lg:col-span-12'} bg-white border border-slate-200 rounded-xl overflow-hidden`}>
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+          <div
+            className={`${canManage ? 'lg:col-span-8' : 'lg:col-span-12'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-colors`}
+          >
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Shirt className="w-4 h-4 text-electric-500" />
-                <h2 className="font-display font-semibold text-base text-slate-900">
+                <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
                   Planteles Registrados
                 </h2>
               </div>
               <select
                 value={filterTeamId}
                 onChange={(e) => setFilterTeamId(e.target.value)}
-                className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-slate-50"
+                className="px-3 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               >
                 <option value="all">Todos los equipos</option>
                 {teams.map((tm) => (
@@ -605,7 +642,7 @@ export function TeamsPlayersPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-500 border-b border-slate-200">
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                     <th className="py-2.5 px-4 text-left font-medium">#</th>
                     <th className="py-2.5 px-4 text-left font-medium">Jugador</th>
                     <th className="py-2.5 px-4 text-left font-medium">Posición</th>
@@ -613,18 +650,22 @@ export function TeamsPlayersPage() {
                     <th className="py-2.5 px-4 text-right font-medium">Año</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {filteredPlayers.map((pl) => (
-                    <tr key={pl.id} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-4 font-mono font-bold tabular-nums text-navy-900">
+                    <tr key={pl.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="py-2.5 px-4 font-mono font-bold tabular-nums text-navy-900 dark:text-blue-400">
                         {pl.jerseyNumber}
                       </td>
-                      <td className="py-2.5 px-4 font-medium text-slate-900">{pl.fullName}</td>
-                      <td className="py-2.5 px-4 text-slate-600">{pl.position}</td>
-                      <td className="py-2.5 px-4 text-slate-700">
+                      <td className="py-2.5 px-4 font-medium text-slate-900 dark:text-slate-100">
+                        {pl.fullName}
+                      </td>
+                      <td className="py-2.5 px-4 text-slate-600 dark:text-slate-300">
+                        {pl.position}
+                      </td>
+                      <td className="py-2.5 px-4 text-slate-700 dark:text-slate-300">
                         {teamMap.get(pl.teamId)?.name || pl.teamId}
                       </td>
-                      <td className="py-2.5 px-4 text-right font-mono tabular-nums text-slate-500">
+                      <td className="py-2.5 px-4 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
                         {pl.birthYear || '-'}
                       </td>
                     </tr>

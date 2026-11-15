@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout, type PageId } from './components/Layout';
+import { NotificationToastContainer } from './components/NotificationToastContainer';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { SigdDataProvider } from './context/SigdDataContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { DashboardPage } from './pages/DashboardPage';
 import { FacilitiesRefereesPage } from './pages/FacilitiesRefereesPage';
 import { MatchResultsPage } from './pages/MatchResultsPage';
@@ -29,7 +32,7 @@ function SigdAppRouter() {
   if (!authReady) {
     return (
       <div className="min-h-screen bg-pitch-canvas flex items-center justify-center">
-        <div className="bg-white border border-slate-200 rounded-xl px-6 py-4 text-sm font-medium text-slate-700">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-6 py-4 text-sm font-medium text-slate-700 dark:text-slate-200">
           Cargando plataforma SIGD...
         </div>
       </div>
@@ -48,6 +51,7 @@ function SigdAppRouter() {
       {activePage === 'stats' && <StatisticsStandingsPage />}
       {activePage === 'reports' && <ReportsPage />}
       {activePage === 'users' && <UsersPermissionsPage />}
+      <NotificationToastContainer onNavigate={setActivePage} />
     </Layout>
   );
 }
@@ -55,11 +59,15 @@ function SigdAppRouter() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <SigdDataProvider>
-          <SigdAppRouter />
-        </SigdDataProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <NotificationProvider>
+            <SigdDataProvider>
+              <SigdAppRouter />
+            </SigdDataProvider>
+          </NotificationProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

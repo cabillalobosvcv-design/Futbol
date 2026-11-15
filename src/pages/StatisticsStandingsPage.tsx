@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { TeamCrest } from '../components/TeamCrest';
 import { useSigdData } from '../context/SigdDataContext';
+import { useTheme } from '../context/ThemeContext';
 
 type StatView = 'standings' | 'teams' | 'players' | 'rankings';
 type RankingMetric =
@@ -24,6 +25,17 @@ type RankingMetric =
   | 'team_gd';
 
 export function StatisticsStandingsPage() {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const gridStroke = isDark ? '#1e293b' : '#E2E8F0';
+  const axisColor = isDark ? '#94a3b8' : '#475569';
+  const tooltipStyle = {
+    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+    borderColor: isDark ? '#334155' : '#e2e8f0',
+    borderRadius: '0.5rem',
+    color: isDark ? '#f1f5f9' : '#0f172a',
+    fontSize: '12px',
+  };
   const {
     tournaments,
     categories,
@@ -89,12 +101,12 @@ export function StatisticsStandingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-display font-bold text-navy-900">
+          <h1 className="text-xl font-display font-bold text-navy-900 dark:text-white">
             Motor Estadístico y Tablas de Posiciones
           </h1>
-          <p className="text-sm text-slate-600 mt-0.5">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
             Indicadores colectivos e individuales calculados automáticamente desde actas oficiales aprobadas.
           </p>
         </div>
@@ -106,7 +118,7 @@ export function StatisticsStandingsPage() {
               setSelectedTournamentId(e.target.value);
               setSelectedCategoryId('');
             }}
-            className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+            className="px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           >
             {tournaments.map((t) => (
               <option key={t.id} value={t.id}>
@@ -117,7 +129,7 @@ export function StatisticsStandingsPage() {
           <select
             value={activeCategory?.id || ''}
             onChange={(e) => setSelectedCategoryId(e.target.value)}
-            className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+            className="px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           >
             {tournamentCategories.map((c) => (
               <option key={c.id} value={c.id}>
@@ -129,12 +141,14 @@ export function StatisticsStandingsPage() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-white border border-slate-200 rounded-xl w-fit">
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-fit">
         <button
           type="button"
           onClick={() => setView('standings')}
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            view === 'standings' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+            view === 'standings'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <Trophy className="w-4 h-4" />
@@ -144,7 +158,9 @@ export function StatisticsStandingsPage() {
           type="button"
           onClick={() => setView('teams')}
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            view === 'teams' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+            view === 'teams'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <Shield className="w-4 h-4" />
@@ -154,7 +170,9 @@ export function StatisticsStandingsPage() {
           type="button"
           onClick={() => setView('players')}
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            view === 'players' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+            view === 'players'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -164,7 +182,9 @@ export function StatisticsStandingsPage() {
           type="button"
           onClick={() => setView('rankings')}
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            view === 'rankings' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+            view === 'rankings'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <Award className="w-4 h-4" />
@@ -173,25 +193,25 @@ export function StatisticsStandingsPage() {
       </div>
 
       {view === 'standings' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="font-display font-semibold text-base text-slate-900">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
               Posiciones Oficiales — {activeCategory?.name || 'Categoría'}
             </h2>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               Sistema: {activeTournament?.winPoints ?? 3}V / {activeTournament?.drawPoints ?? 1}E /{' '}
               {activeTournament?.lossPoints ?? 0}D
             </span>
           </div>
           {catStandings.length === 0 ? (
-            <div className="p-10 text-center text-sm text-slate-500">
+            <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
               No hay posiciones oficiales calculadas aún. Aprueba al menos un acta para calcular la tabla.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-600 border-b border-slate-200">
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                     <th className="py-3 px-4 text-left font-semibold">POS</th>
                     <th className="py-3 px-4 text-left font-semibold">EQUIPO</th>
                     <th className="py-3 px-3 text-right font-semibold">PJ</th>
@@ -204,15 +224,15 @@ export function StatisticsStandingsPage() {
                     <th className="py-3 px-4 text-right font-semibold">PTS</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {catStandings.map((st) => {
                     const tm = teamMap.get(st.teamId);
                     return (
-                      <tr key={st.id} className="hover:bg-slate-50">
-                        <td className="py-3 px-4 font-mono font-bold tabular-nums text-navy-900">
+                      <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td className="py-3 px-4 font-mono font-bold tabular-nums text-navy-900 dark:text-white">
                           {st.position}
                         </td>
-                        <td className="py-3 px-4 font-medium text-slate-900">
+                        <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
                           <div className="flex items-center gap-2.5">
                             <TeamCrest
                               name={tm?.name || st.teamId}
@@ -225,11 +245,11 @@ export function StatisticsStandingsPage() {
                           </div>
                         </td>
                         <td className="py-3 px-3 text-right font-mono tabular-nums">{st.played}</td>
-                        <td className="py-3 px-3 text-right font-mono tabular-nums text-emerald-700">
+                        <td className="py-3 px-3 text-right font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
                           {st.wins}
                         </td>
                         <td className="py-3 px-3 text-right font-mono tabular-nums">{st.draws}</td>
-                        <td className="py-3 px-3 text-right font-mono tabular-nums text-red-600">
+                        <td className="py-3 px-3 text-right font-mono tabular-nums text-red-600 dark:text-red-400">
                           {st.losses}
                         </td>
                         <td className="py-3 px-3 text-right font-mono tabular-nums">{st.goalsFor}</td>
@@ -237,7 +257,7 @@ export function StatisticsStandingsPage() {
                         <td className="py-3 px-3 text-right font-mono tabular-nums">
                           {st.goalDifference > 0 ? `+${st.goalDifference}` : st.goalDifference}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold tabular-nums text-navy-900">
+                        <td className="py-3 px-4 text-right font-mono font-bold tabular-nums text-navy-900 dark:text-white">
                           {st.points}
                         </td>
                       </tr>
@@ -252,16 +272,16 @@ export function StatisticsStandingsPage() {
 
       {view === 'teams' && (
         <div className="space-y-6">
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-200">
-              <h2 className="font-display font-semibold text-base text-slate-900">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
                 Indicadores Avanzados por Equipo
               </h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-600 border-b border-slate-200">
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                     <th className="py-3 px-4 text-left font-semibold">Equipo</th>
                     <th className="py-3 px-2.5 text-right font-semibold">PJ</th>
                     <th className="py-3 px-2.5 text-right font-semibold">PTS</th>
@@ -272,10 +292,10 @@ export function StatisticsStandingsPage() {
                     <th className="py-3 px-4 text-right font-semibold">Vallas Inv.</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {catTeamStats.map((ts) => (
-                    <tr key={ts.id} className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-medium text-slate-900">
+                    <tr key={ts.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
                         {teamMap.get(ts.teamId)?.name || ts.teamId}
                       </td>
                       <td className="py-3 px-2.5 text-right font-mono tabular-nums">{ts.played}</td>
@@ -285,7 +305,7 @@ export function StatisticsStandingsPage() {
                       <td className="py-3 px-2.5 text-right font-mono tabular-nums">
                         {ts.winRate}%
                       </td>
-                      <td className="py-3 px-2.5 text-right font-mono tabular-nums text-emerald-700">
+                      <td className="py-3 px-2.5 text-right font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
                         {ts.effectivenessRate}%
                       </td>
                       <td className="py-3 px-2.5 text-right font-mono tabular-nums">
@@ -305,20 +325,20 @@ export function StatisticsStandingsPage() {
           </div>
 
           {chartData.length > 0 && (
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
               <div className="flex items-center gap-2 mb-4">
                 <BarChart3 className="w-4 h-4 text-electric-500" />
-                <h3 className="font-display font-semibold text-base text-slate-900">
+                <h3 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
                   Comparativa de Goles a Favor vs Goles en Contra
                 </h3>
               </div>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                    <XAxis dataKey="equipo" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-                    <Tooltip />
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                    <XAxis dataKey="equipo" tick={{ fontSize: 12, fill: axisColor }} />
+                    <YAxis tick={{ fontSize: 12, fill: axisColor }} allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} />
                     <Bar dataKey="gf" name="Goles a favor" fill="#16A34A" radius={[6, 6, 0, 0]} />
                     <Bar dataKey="gc" name="Goles en contra" fill="#DC2626" radius={[6, 6, 0, 0]} />
                   </BarChart>
@@ -330,16 +350,16 @@ export function StatisticsStandingsPage() {
       )}
 
       {view === 'players' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200">
-            <h2 className="font-display font-semibold text-base text-slate-900">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
               Estadísticas Individuales de Jugadores
             </h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 text-xs text-slate-600 border-b border-slate-200">
+                <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                   <th className="py-3 px-4 text-left font-semibold">Jugador</th>
                   <th className="py-3 px-4 text-left font-semibold">Equipo</th>
                   <th className="py-3 px-2.5 text-right font-semibold">PJ</th>
@@ -352,28 +372,28 @@ export function StatisticsStandingsPage() {
                   <th className="py-3 px-4 text-right font-semibold">Min.</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {catPlayerStats.map((ps) => {
                   const pl = playerMap.get(ps.playerId);
                   return (
-                    <tr key={ps.id} className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-medium text-slate-900">
+                    <tr key={ps.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
                         {pl?.fullName || ps.playerId}
                       </td>
-                      <td className="py-3 px-4 text-slate-600">
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
                         {teamMap.get(ps.teamId)?.name || ps.teamId}
                       </td>
                       <td className="py-3 px-2.5 text-right font-mono tabular-nums">
                         {ps.matchesPlayed}
                       </td>
-                      <td className="py-3 px-2.5 text-right font-mono font-bold tabular-nums text-emerald-700">
+                      <td className="py-3 px-2.5 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
                         {ps.goals}
                       </td>
                       <td className="py-3 px-2.5 text-right font-mono tabular-nums">{ps.assists}</td>
-                      <td className="py-3 px-2.5 text-right font-mono tabular-nums text-amber-600">
+                      <td className="py-3 px-2.5 text-right font-mono tabular-nums text-amber-600 dark:text-amber-400">
                         {ps.yellowCards}
                       </td>
-                      <td className="py-3 px-2.5 text-right font-mono tabular-nums text-red-600">
+                      <td className="py-3 px-2.5 text-right font-mono tabular-nums text-red-600 dark:text-red-400">
                         {ps.redCards}
                       </td>
                       <td className="py-3 px-2.5 text-right font-mono tabular-nums">{ps.starts}</td>
@@ -392,7 +412,7 @@ export function StatisticsStandingsPage() {
 
       {view === 'rankings' && (
         <div className="space-y-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center gap-2">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-wrap items-center gap-2">
             {(
               [
                 { id: 'scorers', label: 'Tabla de Goleadores' },
@@ -412,7 +432,7 @@ export function StatisticsStandingsPage() {
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
                   rankingMetric === opt.id
                     ? 'bg-electric-500 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 {opt.label}
@@ -420,11 +440,11 @@ export function StatisticsStandingsPage() {
             ))}
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
             {rankingMetric.startsWith('team_') ? (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-600 border-b border-slate-200">
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                     <th className="py-3 px-4 text-left font-semibold">Pos</th>
                     <th className="py-3 px-4 text-left font-semibold">Equipo</th>
                     <th className="py-3 px-3 text-right font-semibold">PJ</th>
@@ -434,7 +454,7 @@ export function StatisticsStandingsPage() {
                     <th className="py-3 px-4 text-right font-semibold">DG</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {[...catTeamStats]
                     .sort((a, b) => {
                       if (rankingMetric === 'team_attack') return b.goalsFor - a.goalsFor;
@@ -443,9 +463,9 @@ export function StatisticsStandingsPage() {
                       return b.goalDifference - a.goalDifference;
                     })
                     .map((ts, idx) => (
-                      <tr key={ts.id} className="hover:bg-slate-50">
+                      <tr key={ts.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                         <td className="py-3 px-4 font-mono font-bold tabular-nums">{idx + 1}</td>
-                        <td className="py-3 px-4 font-medium">
+                        <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
                           {teamMap.get(ts.teamId)?.name || ts.teamId}
                         </td>
                         <td className="py-3 px-3 text-right font-mono tabular-nums">{ts.played}</td>
@@ -464,7 +484,7 @@ export function StatisticsStandingsPage() {
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-600 border-b border-slate-200">
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                     <th className="py-3 px-4 text-left font-semibold">Pos</th>
                     <th className="py-3 px-4 text-left font-semibold">Jugador</th>
                     <th className="py-3 px-4 text-left font-semibold">Equipo</th>
@@ -484,7 +504,7 @@ export function StatisticsStandingsPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {[...catPlayerStats]
                     .filter((ps) => {
                       if (rankingMetric === 'goalkeepers') {
@@ -521,21 +541,21 @@ export function StatisticsStandingsPage() {
                             : '0.00';
 
                       return (
-                        <tr key={ps.id} className="hover:bg-slate-50">
+                        <tr key={ps.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                           <td className="py-3 px-4 font-mono font-bold tabular-nums">{idx + 1}</td>
-                          <td className="py-3 px-4 font-medium text-slate-900">
+                          <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
                             {pl?.fullName || ps.playerId}
                           </td>
-                          <td className="py-3 px-4 text-slate-600">
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
                             {teamMap.get(ps.teamId)?.name || ps.teamId}
                           </td>
-                          <td className="py-3 px-4 text-slate-500 text-xs">
+                          <td className="py-3 px-4 text-slate-500 dark:text-slate-400 text-xs">
                             {catMap.get(ps.categoryId)?.name}
                           </td>
                           <td className="py-3 px-3 text-right font-mono tabular-nums">
                             {ps.matchesPlayed}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono font-bold tabular-nums text-emerald-700">
+                          <td className="py-3 px-3 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
                             {primaryVal}
                           </td>
                           <td className="py-3 px-4 text-right font-mono tabular-nums">

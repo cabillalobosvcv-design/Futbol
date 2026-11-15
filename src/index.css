@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
@@ -22,6 +23,11 @@
     color: #0f172a;
   }
 
+  .dark body {
+    background-color: #020617;
+    color: #f1f5f9;
+  }
+
   h1, h2, h3, h4, .font-display {
     font-family: var(--font-display);
   }
@@ -31,7 +37,7 @@
   }
 }
 
-/* Interactive tactical football pitch background on white/light surfaces */
+/* Interactive tactical football pitch background on white/light and dark surfaces */
 .bg-pitch-canvas {
   background-color: #f8fafc;
   background-image:
@@ -39,6 +45,16 @@
     radial-gradient(circle at 88% 85%, rgba(22, 163, 74, 0.05) 0%, transparent 40%),
     linear-gradient(to right, rgba(15, 35, 66, 0.03) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(15, 35, 66, 0.03) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+}
+
+.dark .bg-pitch-canvas {
+  background-color: #020617;
+  background-image:
+    radial-gradient(circle at 12% 10%, rgba(37, 99, 235, 0.12) 0%, transparent 45%),
+    radial-gradient(circle at 88% 85%, rgba(22, 163, 74, 0.09) 0%, transparent 42%),
+    linear-gradient(to right, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
   background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
 }
 

@@ -219,12 +219,12 @@ export function TournamentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
         <div>
-          <h1 className="text-xl font-display font-bold text-navy-900">
+          <h1 className="text-xl font-display font-bold text-navy-900 dark:text-white">
             Temporadas, Torneos y Arquitectura Multideporte
           </h1>
-          <p className="text-sm text-slate-600 mt-0.5">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
             Administra temporadas históricas, torneos independientes y reglamentos configurables por disciplina.
           </p>
         </div>
@@ -242,19 +242,21 @@ export function TournamentsPage() {
       </div>
 
       {msg && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+        <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{msg}</span>
         </div>
       )}
 
       {/* Segmented Tabs */}
-      <div className="flex items-center gap-1.5 p-1.5 bg-white border border-slate-200 rounded-xl w-fit">
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-fit transition-colors">
         <button
           type="button"
           onClick={() => setTab('tournaments')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            tab === 'tournaments' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'tournaments'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <Trophy className="w-4 h-4" />
@@ -263,8 +265,10 @@ export function TournamentsPage() {
         <button
           type="button"
           onClick={() => setTab('seasons')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            tab === 'seasons' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'seasons'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <CalendarRange className="w-4 h-4" />
@@ -273,8 +277,10 @@ export function TournamentsPage() {
         <button
           type="button"
           onClick={() => setTab('sports')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-            tab === 'sports' ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'sports'
+              ? 'bg-navy-900 dark:bg-electric-500 text-white'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <Dumbbell className="w-4 h-4" />
@@ -287,17 +293,17 @@ export function TournamentsPage() {
           {canManageTournaments && (
             <form
               onSubmit={handleCreateTournament}
-              className="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-5 space-y-4 h-fit"
+              className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 h-fit transition-colors"
             >
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
                 <Plus className="w-4 h-4 text-electric-500" />
-                <h2 className="font-display font-semibold text-base text-slate-900">
+                <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
                   Crear Nuevo Torneo
                 </h2>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Nombre del Torneo
                 </label>
                 <input
@@ -306,17 +312,19 @@ export function TournamentsPage() {
                   value={tName}
                   onChange={(e) => setTName(e.target.value)}
                   placeholder="Ej. Torneo Apertura Fútbol 2026"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-500"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Disciplina</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Disciplina
+                  </label>
                   <select
                     value={tSportId || sports[0]?.id || ''}
                     onChange={(e) => setTSportId(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   >
                     {sports.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -326,11 +334,13 @@ export function TournamentsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Temporada</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Temporada
+                  </label>
                   <select
                     value={tSeasonId || seasons[0]?.id || ''}
                     onChange={(e) => setTSeasonId(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   >
                     {seasons.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -342,13 +352,13 @@ export function TournamentsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Modalidad de Competencia
                 </label>
                 <select
                   value={tFormat}
                   onChange={(e) => setTFormat(e.target.value as TournamentFormat)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 >
                   <option value="round_robin">Todos contra todos</option>
                   <option value="knockout">Eliminación directa</option>
@@ -358,17 +368,17 @@ export function TournamentsPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <label className="flex items-center gap-2 text-xs text-slate-700 pt-1">
+                <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 pt-1">
                   <input
                     type="checkbox"
                     checked={tDoubleRound}
                     onChange={(e) => setTDoubleRound(e.target.checked)}
-                    className="rounded border-slate-300"
+                    className="rounded border-slate-300 dark:border-slate-600"
                   />
                   Ida y vuelta (2 vueltas)
                 </label>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Descanso mínimo (hrs)
                   </label>
                   <input
@@ -377,7 +387,7 @@ export function TournamentsPage() {
                     max={240}
                     value={tMinRest}
                     onChange={(e) => setTMinRest(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+                    className="w-full px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                   />
                 </div>
               </div>
@@ -385,7 +395,7 @@ export function TournamentsPage() {
               {(tFormat === 'groups' || tFormat === 'mixed') && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Equipos por grupo
                     </label>
                     <input
@@ -394,11 +404,11 @@ export function TournamentsPage() {
                       max={16}
                       value={tTeamsPerGroup}
                       onChange={(e) => setTTeamsPerGroup(Number(e.target.value))}
-                      className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+                      className="w-full px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Clasificados por grupo
                     </label>
                     <input
@@ -407,63 +417,74 @@ export function TournamentsPage() {
                       max={8}
                       value={tQualifiers}
                       onChange={(e) => setTQualifiers(Number(e.target.value))}
-                      className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+                      className="w-full px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                     />
                   </div>
                 </div>
               )}
 
               <div>
-                <p className="text-xs font-medium text-slate-700 mb-1.5">
+                <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Sistema de Puntuación Configurable
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <span className="text-[11px] text-slate-500 block">Victoria</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                      Victoria
+                    </span>
                     <input
                       type="number"
                       min={0}
                       max={10}
                       value={tWinPts}
                       onChange={(e) => setTWinPts(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+                      className="w-full px-2.5 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] text-slate-500 block">Empate</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                      Empate
+                    </span>
                     <input
                       type="number"
                       min={0}
                       max={10}
                       value={tDrawPts}
                       onChange={(e) => setTDrawPts(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+                      className="w-full px-2.5 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] text-slate-500 block">Derrota</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                      Derrota
+                    </span>
                     <input
                       type="number"
                       min={0}
                       max={10}
                       value={tLossPts}
                       onChange={(e) => setTLossPts(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+                      className="w-full px-2.5 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                     />
                   </div>
                 </div>
               </div>
 
               <div>
-                <p className="text-xs font-medium text-slate-700 mb-1.5">Criterios de Desempate</p>
+                <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                  Criterios de Desempate
+                </p>
                 <div className="space-y-1.5">
                   {(Object.keys(TIEBREAKER_LABELS) as TiebreakerCriterion[]).map((crit) => (
-                    <label key={crit} className="flex items-center gap-2 text-xs text-slate-700">
+                    <label
+                      key={crit}
+                      className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300"
+                    >
                       <input
                         type="checkbox"
                         checked={tTiebreakers.includes(crit)}
                         onChange={() => toggleTiebreaker(crit)}
-                        className="rounded border-slate-300"
+                        className="rounded border-slate-300 dark:border-slate-600"
                       />
                       {TIEBREAKER_LABELS[crit]}
                     </label>
@@ -483,7 +504,7 @@ export function TournamentsPage() {
 
           <div className={`${canManageTournaments ? 'lg:col-span-7' : 'lg:col-span-12'} space-y-4`}>
             {tournaments.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-500">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-10 text-center text-sm text-slate-500 dark:text-slate-400">
                 No hay torneos registrados todavía. Crea una temporada y registra tu primer torneo.
               </div>
             ) : (
@@ -494,58 +515,62 @@ export function TournamentsPage() {
                 return (
                   <div
                     key={t.id}
-                    className="bg-white border border-slate-200 rounded-xl p-5 space-y-3"
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3 transition-colors"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
-                        <h3 className="font-display font-bold text-base text-navy-900">{t.name}</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <h3 className="font-display font-bold text-base text-navy-900 dark:text-white">
+                          {t.name}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                           {sport?.name || t.sportId} · {season?.name || t.seasonId} ·{' '}
                           {FORMAT_LABELS[t.format]}
                         </p>
                       </div>
-                      <span className="text-xs font-semibold text-electric-600">
+                      <span className="text-xs font-semibold text-electric-600 dark:text-blue-400">
                         Estado: {t.status}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
                       <div>
-                        <span className="text-slate-400 block">Puntuación</span>
-                        <span className="font-mono font-semibold text-slate-800 tabular-nums">
+                        <span className="text-slate-400 dark:text-slate-500 block">Puntuación</span>
+                        <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 tabular-nums">
                           V:{t.winPoints} · E:{t.drawPoints} · D:{t.lossPoints}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block">Equipos</span>
-                        <span className="font-mono font-semibold text-slate-800 tabular-nums">
+                        <span className="text-slate-400 dark:text-slate-500 block">Equipos</span>
+                        <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 tabular-nums">
                           {tTeams.length}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block">Calendario</span>
-                        <span className="font-medium text-slate-800">
+                        <span className="text-slate-400 dark:text-slate-500 block">Calendario</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
                           {t.schedulePublished ? 'Publicado' : 'Pendiente'}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block">Campeón</span>
-                        <span className="font-medium text-amber-700">
+                        <span className="text-slate-400 dark:text-slate-500 block">Campeón</span>
+                        <span className="font-medium text-amber-700 dark:text-amber-400">
                           {t.championTeamName || 'En competencia'}
                         </span>
                       </div>
                     </div>
 
                     {canManageTournaments && tTeams.length > 0 && (
-                      <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2">
                         <Crown className="w-4 h-4 text-amber-500" />
-                        <span className="text-xs text-slate-600">Cerrar y declarar campeón:</span>
+                        <span className="text-xs text-slate-600 dark:text-slate-300">
+                          Cerrar y declarar campeón:
+                        </span>
                         <select
                           value={t.championTeamId || ''}
                           onChange={(e) => {
                             if (e.target.value) handleSetTournamentChampion(t, e.target.value);
                           }}
-                          className="px-2.5 py-1 text-xs border border-slate-200 rounded-md bg-slate-50"
+                          className="px-2.5 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                         >
                           <option value="">Seleccionar equipo campeón...</option>
                           {tTeams.map((tm) => (
@@ -569,91 +594,103 @@ export function TournamentsPage() {
           {canManageTournaments && (
             <form
               onSubmit={handleCreateSeason}
-              className="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-5 space-y-4 h-fit"
+              className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 h-fit transition-colors"
             >
-              <h2 className="font-display font-semibold text-base text-slate-900">
+              <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
                 Nueva Temporada
               </h2>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Nombre</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Nombre
+                </label>
                 <input
                   type="text"
                   required
                   value={seasonName}
                   onChange={(e) => setSeasonName(e.target.value)}
                   placeholder="Ej. Temporada 2026-2027"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Año</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Año
+                </label>
                 <input
                   type="number"
                   required
                   value={seasonYear}
                   onChange={(e) => setSeasonYear(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Inicio</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Inicio
+                  </label>
                   <input
                     type="date"
                     value={seasonStart}
                     onChange={(e) => setSeasonStart(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Fin</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Fin
+                  </label>
                   <input
                     type="date"
                     value={seasonEnd}
                     onChange={(e) => setSeasonEnd(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   />
                 </div>
               </div>
               <button
                 type="submit"
                 disabled={saving}
-                className="w-full py-2.5 px-4 bg-navy-900 hover:bg-navy-800 text-white text-sm font-medium rounded-lg"
+                className="w-full py-2.5 px-4 bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 text-white text-sm font-medium rounded-lg transition-colors"
               >
                 Registrar Temporada
               </button>
             </form>
           )}
 
-          <div className={`${canManageTournaments ? 'lg:col-span-8' : 'lg:col-span-12'} bg-white border border-slate-200 rounded-xl overflow-hidden`}>
-            <div className="px-5 py-4 border-b border-slate-200">
-              <h2 className="font-display font-semibold text-base text-slate-900">
+          <div
+            className={`${canManageTournaments ? 'lg:col-span-8' : 'lg:col-span-12'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-colors`}
+          >
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
                 Historial y Vigencia de Temporadas
               </h2>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {seasons.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-500">
+                <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
                   No hay temporadas registradas todavía.
                 </div>
               ) : (
                 seasons.map((s) => (
                   <div key={s.id} className="p-4 flex items-center justify-between gap-4">
                     <div>
-                      <p className="font-semibold text-slate-900">{s.name}</p>
-                      <p className="text-xs text-slate-500 font-mono tabular-nums">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{s.name}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
                         {s.startDate} → {s.endDate} · Año {s.year}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-emerald-700">{s.status}</span>
+                      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                        {s.status}
+                      </span>
                       {canManageTournaments && s.status !== 'finalizada' && (
                         <button
                           type="button"
                           onClick={() =>
                             saveEntityDoc('seasons', s.id, { status: 'finalizada' }, false)
                           }
-                          className="px-2.5 py-1 text-xs border border-slate-200 rounded-md hover:bg-slate-50"
+                          className="px-2.5 py-1 text-xs border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                           Cerrar temporada
                         </button>
@@ -672,43 +709,49 @@ export function TournamentsPage() {
           {canManageSports && (
             <form
               onSubmit={handleCreateSport}
-              className="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-5 space-y-4 h-fit"
+              className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 h-fit transition-colors"
             >
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
                 <Settings2 className="w-4 h-4 text-electric-500" />
-                <h2 className="font-display font-semibold text-base text-slate-900">
+                <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
                   Agregar Disciplina Deportiva
                 </h2>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Nombre</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Nombre
+                </label>
                 <input
                   type="text"
                   required
                   value={sName}
                   onChange={(e) => setSName(e.target.value)}
                   placeholder="Ej. Handball"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Clave técnica</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Clave técnica
+                </label>
                 <input
                   type="text"
                   required
                   value={sKey}
                   onChange={(e) => setSKey(e.target.value)}
                   placeholder="handball"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Motor</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Motor
+                  </label>
                   <select
                     value={sEngine}
                     onChange={(e) => setSEngine(e.target.value as SportEngineType)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   >
                     <option value="football">Fútbol</option>
                     <option value="basketball">Básquetbol</option>
@@ -720,29 +763,31 @@ export function TournamentsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Periodos</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Periodos
+                  </label>
                   <input
                     type="number"
                     min={1}
                     max={12}
                     value={sPeriods}
                     onChange={(e) => setSPeriods(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Etiqueta de periodo
                 </label>
                 <input
                   type="text"
                   value={sPeriodLabel}
                   onChange={(e) => setSPeriodLabel(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 />
               </div>
-              <label className="flex items-center gap-2 text-xs text-slate-700">
+              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
                 <input
                   type="checkbox"
                   checked={sAllowDraws}
@@ -753,7 +798,7 @@ export function TournamentsPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="w-full py-2.5 px-4 bg-navy-900 hover:bg-navy-800 text-white text-sm font-medium rounded-lg"
+                className="w-full py-2.5 px-4 bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 text-white text-sm font-medium rounded-lg transition-colors"
               >
                 Registrar Disciplina
               </button>
@@ -766,22 +811,26 @@ export function TournamentsPage() {
               return (
                 <div
                   key={sp.id}
-                  className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5"
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-2.5 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Layers className="w-4 h-4 text-electric-500" />
-                      <h3 className="font-display font-semibold text-slate-900">{sp.name}</h3>
+                      <h3 className="font-display font-semibold text-slate-900 dark:text-white">
+                        {sp.name}
+                      </h3>
                     </div>
-                    <span className="text-xs font-mono text-slate-500">{sp.engineType}</span>
+                    <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                      {sp.engineType}
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-600">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
                     {sp.periodsCount} {sp.periodLabel || 'periodos'} ·{' '}
                     {sp.allowDraws ? 'Permite empate' : 'Sin empates'}
                     {sp.isPrimary ? ' · Disciplina principal' : ''}
                   </p>
                   {rule && (
-                    <div className="pt-2 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
                       <span>{rule.name}</span>
                       <span className="font-mono tabular-nums">
                         {rule.winPoints}/{rule.drawPoints}/{rule.lossPoints} pts

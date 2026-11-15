@@ -30,7 +30,7 @@ export function TeamCrest({
         src={crestUrl}
         alt={`Escudo de ${name}`}
         referrerPolicy="no-referrer"
-        className={`${dims} rounded-lg object-cover border border-slate-200 shrink-0 bg-slate-100`}
+        className={`${dims} rounded-lg object-cover border border-slate-200 dark:border-slate-700 shrink-0 bg-slate-100 dark:bg-slate-800`}
       />
     );
   }
@@ -38,7 +38,7 @@ export function TeamCrest({
   return (
     <div
       title={name}
-      className={`${dims} rounded-lg flex items-center justify-center font-display font-bold text-white shrink-0 border border-black/10 relative overflow-hidden`}
+      className={`${dims} rounded-lg flex items-center justify-center font-display font-bold text-white shrink-0 border border-black/10 dark:border-white/15 relative overflow-hidden`}
       style={{
         background: `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`,
       }}

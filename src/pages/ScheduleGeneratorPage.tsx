@@ -281,12 +281,12 @@ export function ScheduleGeneratorPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 transition-colors">
         <div>
-          <h1 className="text-xl font-display font-bold text-navy-900">
+          <h1 className="text-xl font-display font-bold text-navy-900 dark:text-white">
             Generador Automático de Roles y Calendario
           </h1>
-          <p className="text-sm text-slate-600 mt-0.5">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
             Configura restricciones de descanso, disponibilidad de canchas/árbitros, detecta conflictos y publica roles oficiales.
           </p>
         </div>
@@ -296,18 +296,18 @@ export function ScheduleGeneratorPage() {
             type="button"
             disabled={categoryMatches.length === 0}
             onClick={() => exportToPdf(buildExportPayload())}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-lg disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg disabled:opacity-50"
           >
-            <FileText className="w-4 h-4 text-red-600" />
+            <FileText className="w-4 h-4 text-red-600 dark:text-red-400" />
             Exportar PDF
           </button>
           <button
             type="button"
             disabled={categoryMatches.length === 0}
             onClick={() => exportToExcel(buildExportPayload())}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-lg disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg disabled:opacity-50"
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+            <FileSpreadsheet className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
             Exportar Excel
           </button>
           <button
@@ -323,31 +323,33 @@ export function ScheduleGeneratorPage() {
       </div>
 
       {feedback && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+        <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{feedback}</span>
         </div>
       )}
 
       {/* Generator Parameters */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 transition-colors">
+        <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
           <SlidersHorizontal className="w-4 h-4 text-electric-500" />
-          <h2 className="font-display font-semibold text-base text-slate-900">
+          <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
             Parámetros y Restricciones del Generador
           </h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Torneo</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Torneo
+            </label>
             <select
               value={activeTournament?.id || ''}
               onChange={(e) => {
                 setSelectedTournamentId(e.target.value);
                 setSelectedCategoryId('');
               }}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             >
               {tournaments.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -357,13 +359,13 @@ export function ScheduleGeneratorPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
               Categoría ({categoryTeams.length} equipos)
             </label>
             <select
               value={activeCategory?.id || ''}
               onChange={(e) => setSelectedCategoryId(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             >
               {tournamentCategories.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -373,11 +375,13 @@ export function ScheduleGeneratorPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Modalidad</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Modalidad
+            </label>
             <select
               value={formatOverride || activeTournament?.format || 'round_robin'}
               onChange={(e) => setFormatOverride(e.target.value as TournamentFormat)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             >
               <option value="round_robin">Todos contra todos</option>
               <option value="knockout">Eliminación directa</option>
@@ -386,19 +390,21 @@ export function ScheduleGeneratorPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Fecha de inicio</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Fecha de inicio
+            </label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
               Días entre jornadas
             </label>
             <input
@@ -407,11 +413,11 @@ export function ScheduleGeneratorPage() {
               max={30}
               value={daysBetweenRounds}
               onChange={(e) => setDaysBetweenRounds(Number(e.target.value))}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
               Descanso mínimo (horas)
             </label>
             <input
@@ -420,21 +426,21 @@ export function ScheduleGeneratorPage() {
               max={168}
               value={minRestHours}
               onChange={(e) => setMinRestHours(Number(e.target.value))}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono tabular-nums"
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
               Horarios permitidos (HH:MM)
             </label>
             <input
               type="text"
               value={timesInput}
               onChange={(e) => setTimesInput(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono"
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
             />
           </div>
-          <label className="flex items-center gap-2 text-xs text-slate-700 pb-2.5">
+          <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 pb-2.5">
             <input
               type="checkbox"
               checked={doubleRoundOverride}
@@ -459,7 +465,7 @@ export function ScheduleGeneratorPage() {
               type="button"
               disabled={busy}
               onClick={() => handleGenerateClick(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm font-medium text-slate-700"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200"
             >
               <RefreshCw className="w-4 h-4" />
               Reemplazar roles actuales
@@ -470,14 +476,14 @@ export function ScheduleGeneratorPage() {
 
       {/* Conflict Detector Panel */}
       {conflicts.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-2">
-          <div className="flex items-center gap-2 text-red-800 font-display font-semibold text-sm">
+        <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-xl p-4 space-y-2">
+          <div className="flex items-center gap-2 text-red-800 dark:text-red-200 font-display font-semibold text-sm">
             <AlertTriangle className="w-4 h-4" />
             <span>
               Detector de Conflictos previo a publicación ({conflicts.length} observaciones)
             </span>
           </div>
-          <ul className="space-y-1 text-xs text-red-700 list-disc pl-5">
+          <ul className="space-y-1 text-xs text-red-700 dark:text-red-300 list-disc pl-5">
             {conflicts.map((c) => (
               <li key={c.id}>{c.description}</li>
             ))}
@@ -486,7 +492,7 @@ export function ScheduleGeneratorPage() {
       )}
 
       {/* Multi-view Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 transition-colors">
         <div className="flex flex-wrap items-center gap-1">
           {(
             [
@@ -503,8 +509,8 @@ export function ScheduleGeneratorPage() {
               onClick={() => setViewMode(v.id)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 viewMode === v.id
-                  ? 'bg-navy-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-navy-900 dark:bg-electric-500 text-white'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
               {v.label}
@@ -516,7 +522,7 @@ export function ScheduleGeneratorPage() {
           <select
             value={filterTeamId}
             onChange={(e) => setFilterTeamId(e.target.value)}
-            className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-slate-50"
+            className="px-3 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           >
             <option value="all">Todos los equipos</option>
             {categoryTeams.map((t) => (
@@ -531,7 +537,7 @@ export function ScheduleGeneratorPage() {
           <select
             value={filterFieldId}
             onChange={(e) => setFilterFieldId(e.target.value)}
-            className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-slate-50"
+            className="px-3 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           >
             <option value="all">Todas las canchas</option>
             {fields.map((f) => (
@@ -544,25 +550,25 @@ export function ScheduleGeneratorPage() {
       </div>
 
       {/* Matches Grid / Table */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-display font-semibold text-base text-slate-900">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-colors">
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
             Encuentros Programados ({categoryMatches.length})
           </h2>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-slate-500 dark:text-slate-400">
             {activeCategory?.schedulePublished ? 'Calendario publicado' : 'Borrador interno'}
           </span>
         </div>
 
         {categoryMatches.length === 0 ? (
-          <div className="p-10 text-center text-sm text-slate-500">
+          <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
             No hay encuentros generados para esta selección. Configura los parámetros arriba y presiona "Generar Roles Automáticamente".
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 text-xs text-slate-500 border-b border-slate-200">
+                <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                   <th className="py-3 px-4 text-left font-medium">#</th>
                   <th className="py-3 px-4 text-left font-medium">Jornada / Fase</th>
                   <th className="py-3 px-4 text-left font-medium">Fecha y Hora</th>
@@ -573,35 +579,37 @@ export function ScheduleGeneratorPage() {
                   <th className="py-3 px-4 text-right font-medium">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {categoryMatches.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-4 font-mono tabular-nums text-slate-500">
+                  <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td className="py-3 px-4 font-mono tabular-nums text-slate-500 dark:text-slate-400">
                       {m.matchNumber}
                     </td>
-                    <td className="py-3 px-4 text-xs text-slate-700">
+                    <td className="py-3 px-4 text-xs text-slate-700 dark:text-slate-300">
                       J{m.roundNumber} · {m.stage}
                       {viewMode === 'category' ? ` (${catMap.get(m.categoryId)?.name})` : ''}
                     </td>
-                    <td className="py-3 px-4 font-mono tabular-nums text-slate-800 whitespace-nowrap">
+                    <td className="py-3 px-4 font-mono tabular-nums text-slate-800 dark:text-slate-200 whitespace-nowrap">
                       {m.date} · {m.time}
                     </td>
-                    <td className="py-3 px-4 font-semibold text-slate-900">
+                    <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">
                       {teamMap.get(m.homeTeamId)?.name || m.homeTeamId} vs{' '}
                       {teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
                     </td>
-                    <td className="py-3 px-4 text-slate-600 text-xs">
+                    <td className="py-3 px-4 text-slate-600 dark:text-slate-300 text-xs">
                       {m.fieldId ? fieldMap.get(m.fieldId)?.name || 'Sin asignar' : 'Sin asignar'}
                     </td>
-                    <td className="py-3 px-4 text-slate-600 text-xs">
+                    <td className="py-3 px-4 text-slate-600 dark:text-slate-300 text-xs">
                       {m.refereeId ? refMap.get(m.refereeId)?.fullName || 'Sin asignar' : 'Sin asignar'}
                     </td>
-                    <td className="py-3 px-4 text-xs font-medium text-slate-700">{m.status}</td>
+                    <td className="py-3 px-4 text-xs font-medium text-slate-700 dark:text-slate-300">
+                      {m.status}
+                    </td>
                     <td className="py-3 px-4 text-right">
                       <button
                         type="button"
                         onClick={() => openMatchEditor(m)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-electric-600 hover:bg-blue-50 rounded-md"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                         Editar
@@ -617,17 +625,17 @@ export function ScheduleGeneratorPage() {
 
       {/* Warning Modal for Published Calendar Modification */}
       {confirmPublishedModal?.open && (
-        <div className="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-[1px] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
             <div className="flex items-start gap-3">
-              <div className="p-2.5 rounded-lg bg-amber-50 text-amber-600 shrink-0">
+              <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 shrink-0">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-display font-bold text-base text-slate-900">
+                <h3 className="font-display font-bold text-base text-slate-900 dark:text-white">
                   Advertencia: Calendario Ya Publicado
                 </h3>
-                <p className="text-sm text-slate-600 mt-1">
+                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
                   Estás por <strong>{confirmPublishedModal.actionLabel}</strong>. Los equipos, árbitros y visitantes públicos ya consultan este calendario. ¿Deseas continuar?
                 </p>
               </div>
@@ -636,7 +644,7 @@ export function ScheduleGeneratorPage() {
               <button
                 type="button"
                 onClick={() => setConfirmPublishedModal(null)}
-                className="px-4 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50"
+                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 Cancelar
               </button>
@@ -654,48 +662,54 @@ export function ScheduleGeneratorPage() {
 
       {/* Individual Match Editor Modal */}
       {editingMatch && (
-        <div className="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-[1px] flex items-center justify-center p-4">
           <form
             onSubmit={handleSaveMatchEdit}
-            className="bg-white border border-slate-200 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl"
           >
-            <h3 className="font-display font-bold text-lg text-navy-900">
+            <h3 className="font-display font-bold text-lg text-navy-900 dark:text-white">
               Editar / Reprogramar Partido #{editingMatch.matchNumber}
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {teamMap.get(editingMatch.homeTeamId)?.name || editingMatch.homeTeamId} vs{' '}
               {teamMap.get(editingMatch.awayTeamId)?.name || editingMatch.awayTeamId}
             </p>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Fecha</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Fecha
+                </label>
                 <input
                   type="date"
                   required
                   value={editDate}
                   onChange={(e) => setEditDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Hora</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Hora
+                </label>
                 <input
                   type="time"
                   required
                   value={editTime}
                   onChange={(e) => setEditTime(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Cancha</label>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Cancha
+              </label>
               <select
                 value={editFieldId}
                 onChange={(e) => setEditFieldId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               >
                 <option value="">Sin cancha asignada</option>
                 {fields.map((f) => (
@@ -707,11 +721,13 @@ export function ScheduleGeneratorPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Árbitro</label>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Árbitro
+              </label>
               <select
                 value={editRefereeId}
                 onChange={(e) => setEditRefereeId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               >
                 <option value="">Sin árbitro asignado</option>
                 {referees.map((r) => (
@@ -723,11 +739,13 @@ export function ScheduleGeneratorPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Estado</label>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Estado
+              </label>
               <select
                 value={editStatus}
                 onChange={(e) => setEditStatus(e.target.value as MatchStatus)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               >
                 <option value="Programado">Programado</option>
                 <option value="En juego">En juego</option>
@@ -743,14 +761,14 @@ export function ScheduleGeneratorPage() {
               <button
                 type="button"
                 onClick={() => setEditingMatch(null)}
-                className="px-4 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50"
+                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={busy}
-                className="px-4 py-2 text-sm font-medium text-white bg-navy-900 hover:bg-navy-800 rounded-lg"
+                className="px-4 py-2 text-sm font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg"
               >
                 Guardar cambios
               </button>

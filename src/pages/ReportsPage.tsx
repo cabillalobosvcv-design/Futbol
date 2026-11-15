@@ -346,12 +346,12 @@ export function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="no-print bg-white border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="no-print bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
         <div>
-          <h1 className="text-xl font-display font-bold text-navy-900">
+          <h1 className="text-xl font-display font-bold text-navy-900 dark:text-white">
             Centro de Reportes y Exportaciones Oficiales
           </h1>
-          <p className="text-sm text-slate-600 mt-0.5">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
             Genera documentos profesionales en PDF, hojas de cálculo Excel (.xlsx) e impresión directa.
           </p>
         </div>
@@ -362,7 +362,7 @@ export function ReportsPage() {
               type="button"
               disabled={matches.length === 0}
               onClick={handleExportMatchPdf}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-navy-900 hover:bg-navy-800 rounded-lg disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg disabled:opacity-50"
             >
               <FileText className="w-4 h-4" />
               Descargar Acta PDF
@@ -372,7 +372,7 @@ export function ReportsPage() {
               <button
                 type="button"
                 onClick={() => exportToPdf(currentPayload)}
-                className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-white bg-navy-900 hover:bg-navy-800 rounded-lg"
+                className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg"
               >
                 <FileText className="w-4 h-4" />
                 Exportar PDF
@@ -388,7 +388,7 @@ export function ReportsPage() {
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-lg"
+                className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg"
               >
                 <Printer className="w-4 h-4" />
                 Imprimir
@@ -399,33 +399,39 @@ export function ReportsPage() {
       </div>
 
       <div className="no-print grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 h-fit">
+        <div className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 h-fit overflow-hidden transition-colors">
           {REPORT_CATALOG.map((rep) => (
             <button
               key={rep.id}
               type="button"
               onClick={() => setReportType(rep.id)}
               className={`w-full text-left p-3.5 transition-colors ${
-                reportType === rep.id ? 'bg-blue-50/70' : 'hover:bg-slate-50'
+                reportType === rep.id
+                  ? 'bg-blue-50/70 dark:bg-blue-950/40'
+                  : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
               }`}
             >
-              <p className="font-display font-semibold text-sm text-slate-900">{rep.title}</p>
-              <p className="text-xs text-slate-500 mt-0.5">{rep.desc}</p>
+              <p className="font-display font-semibold text-sm text-slate-900 dark:text-white">
+                {rep.title}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{rep.desc}</p>
             </button>
           ))}
         </div>
 
         <div className="lg:col-span-8 space-y-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 transition-colors">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Torneo</label>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Torneo
+              </label>
               <select
                 value={activeTournament?.id || ''}
                 onChange={(e) => {
                   setTournamentId(e.target.value);
                   setCategoryId('');
                 }}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               >
                 {tournaments.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -435,11 +441,13 @@ export function ReportsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Categoría</label>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Categoría
+              </label>
               <select
                 value={activeCategory?.id || ''}
                 onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               >
                 {tournamentCats.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -451,11 +459,13 @@ export function ReportsPage() {
 
             {reportType === 'calendario_equipo' && (
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Equipo</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Equipo
+                </label>
                 <select
                   value={activeTeam?.id || ''}
                   onChange={(e) => setTeamId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 >
                   {activeTeams.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -468,11 +478,13 @@ export function ReportsPage() {
 
             {reportType === 'actas_partidos' && (
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Partido</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Partido
+                </label>
                 <select
                   value={matchId || matches[0]?.id || ''}
                   onChange={(e) => setMatchId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 >
                   {matches.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -486,8 +498,8 @@ export function ReportsPage() {
           </div>
 
           {/* Live Print/Report Preview */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 bg-navy-900 text-white flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-colors">
+            <div className="px-5 py-4 bg-navy-900 dark:bg-slate-950 text-white flex items-center justify-between border-b border-transparent dark:border-slate-800">
               <div>
                 <p className="text-xs text-blue-300">{orgName}</p>
                 <h2 className="font-display font-bold text-base mt-0.5">
@@ -502,7 +514,7 @@ export function ReportsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-600 border-b border-slate-200">
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                     {currentPayload.headers.map((h) => (
                       <th key={h} className="py-2.5 px-3 text-left font-semibold">
                         {h}
@@ -510,21 +522,24 @@ export function ReportsPage() {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {currentPayload.rows.length === 0 ? (
                     <tr>
                       <td
                         colSpan={currentPayload.headers.length}
-                        className="py-8 text-center text-sm text-slate-500"
+                        className="py-8 text-center text-sm text-slate-500 dark:text-slate-400"
                       >
                         No hay registros disponibles para este reporte con los filtros actuales.
                       </td>
                     </tr>
                   ) : (
                     currentPayload.rows.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
+                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                         {row.map((cell, cIdx) => (
-                          <td key={cIdx} className="py-2.5 px-3 font-mono text-xs tabular-nums">
+                          <td
+                            key={cIdx}
+                            className="py-2.5 px-3 font-mono text-xs tabular-nums text-slate-800 dark:text-slate-200"
+                          >
                             {cell}
                           </td>
                         ))}

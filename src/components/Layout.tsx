@@ -12,14 +12,16 @@ import {
   LogOut,
   MapPin,
   Menu,
+  Moon,
   ShieldCheck,
+  Sun,
   Trophy,
   Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useSigdData } from '../context/SigdDataContext';
-import { markNotificationRead } from '../services/firestoreService';
+import { useNotifications } from '../context/NotificationContext';
+import { useTheme } from '../context/ThemeContext';
 import { ROLE_LABELS, ROLE_PERMISSIONS } from '../types/sigd';
 
 export type PageId =
@@ -49,13 +51,10 @@ interface LayoutProps {
 
 export function Layout({ activePage, onNavigate, children }: LayoutProps) {
   const { firebaseUser, profile, role, signingIn, signInWithGoogle, signOut } = useAuth();
-  const { notifications } = useSigdData();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { theme, setTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-
-  const unreadCount = firebaseUser
-    ? notifications.filter((n) => !n.readBy?.includes(firebaseUser.uid)).length
-    : 0;
 
   const allNavItems: NavItem[] = [
     {
@@ -125,11 +124,11 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
 
   const handleMarkRead = async (notifId: string) => {
     if (!firebaseUser) return;
-    await markNotificationRead(notifId, firebaseUser.uid);
+    await markAsRead(notifId);
   };
 
   return (
-    <div className="min-h-screen flex bg-pitch-canvas text-slate-900">
+    <div className="min-h-screen flex bg-pitch-canvas text-slate-900 dark:text-slate-100 transition-colors">
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
@@ -252,37 +251,73 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="no-print sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-6">
+        <header className="no-print sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 sm:gap-6">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100"
+              className="lg:hidden p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
               aria-label="Abrir menú"
             >
               <Menu className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-2 text-sm min-w-0">
-              <span className="font-display font-bold text-navy-900 whitespace-nowrap shrink-0">
+              <span className="font-display font-bold text-navy-900 dark:text-white whitespace-nowrap shrink-0">
                 SIGD
               </span>
-              <span className="text-slate-300" aria-hidden="true">/</span>
-              <span className="font-medium text-slate-700 truncate">
+              <span className="text-slate-300 dark:text-slate-600" aria-hidden="true">/</span>
+              <span className="font-medium text-slate-700 dark:text-slate-200 truncate">
                 {activeNav?.label || 'Portal Público'}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+            {/* Light / Dark Theme Segmented Buttons */}
+            <div
+              role="group"
+              aria-label="Selector de tema claro u oscuro"
+              className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0"
+            >
+              <button
+                type="button"
+                onClick={() => setTheme('light')}
+                aria-pressed={theme === 'light'}
+                aria-label="Cambiar a modo claro"
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  theme === 'light'
+                    ? 'bg-white text-navy-900 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Sun className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Claro</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme('dark')}
+                aria-pressed={theme === 'dark'}
+                aria-label="Cambiar a modo oscuro"
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  theme === 'dark'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Moon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Oscuro</span>
+              </button>
+            </div>
+
             {firebaseUser && (
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setNotifOpen((prev) => !prev)}
-                  className="relative inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-sm font-medium text-slate-700 transition-colors whitespace-nowrap"
+                  className="relative inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap"
                   aria-label="Notificaciones en tiempo real"
                 >
-                  <Bell className="w-4 h-4 text-navy-800" />
+                  <Bell className="w-4 h-4 text-navy-800 dark:text-blue-400" />
                   <span className="hidden sm:inline">Notificaciones</span>
                   {unreadCount > 0 && (
                     <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md bg-red-600 text-white text-[11px] font-mono font-semibold tabular-nums">
@@ -292,22 +327,34 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
                 </button>
 
                 {notifOpen && (
-                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-                      <span className="font-display font-semibold text-sm text-slate-900">
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-800/70">
+                      <span className="font-display font-semibold text-sm text-slate-900 dark:text-slate-100">
                         Centro de Notificaciones
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setNotifOpen(false)}
-                        className="text-slate-400 hover:text-slate-700"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {unreadCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => void markAllAsRead()}
+                            className="text-xs font-medium text-electric-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                          >
+                            Marcar todas leídas
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setNotifOpen(false)}
+                          className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                          aria-label="Cerrar centro de notificaciones"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
+                    <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                       {notifications.length === 0 ? (
-                        <div className="p-6 text-center text-sm text-slate-500">
+                        <div className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">
                           No hay notificaciones registradas todavía.
                         </div>
                       ) : (
@@ -315,16 +362,20 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
                           const isRead = firebaseUser && n.readBy?.includes(firebaseUser.uid);
                           const accentColor =
                             n.type === 'success'
-                              ? 'text-emerald-700'
+                              ? 'text-emerald-700 dark:text-emerald-400'
                               : n.type === 'alert'
-                                ? 'text-red-700'
+                                ? 'text-red-700 dark:text-red-400'
                                 : n.type === 'warning'
-                                  ? 'text-amber-700'
-                                  : 'text-electric-600';
+                                  ? 'text-amber-700 dark:text-amber-400'
+                                  : 'text-electric-600 dark:text-blue-400';
                           return (
                             <div
                               key={n.id}
-                              className={`p-3.5 text-sm ${isRead ? 'bg-white' : 'bg-blue-50/40'}`}
+                              className={`p-3.5 text-sm ${
+                                isRead
+                                  ? 'bg-white dark:bg-slate-900'
+                                  : 'bg-blue-50/40 dark:bg-blue-950/30'
+                              }`}
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <p className={`font-semibold ${accentColor}`}>{n.title}</p>
@@ -332,15 +383,15 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
                                   <button
                                     type="button"
                                     onClick={() => handleMarkRead(n.id)}
-                                    className="text-xs text-electric-600 hover:underline inline-flex items-center gap-1 shrink-0"
+                                    className="text-xs text-electric-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 shrink-0"
                                     title="Marcar como leída"
                                   >
                                     <CheckCheck className="w-3.5 h-3.5" />
                                   </button>
                                 )}
                               </div>
-                              <p className="text-xs text-slate-600 mt-1">{n.message}</p>
-                              <p className="text-[11px] text-slate-400 mt-1.5 font-mono tabular-nums">
+                              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">{n.message}</p>
+                              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 font-mono tabular-nums">
                                 {n.createdAt?.toDate
                                   ? n.createdAt.toDate().toLocaleString('es-MX')
                                   : 'Reciente'}
@@ -360,7 +411,7 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
                 type="button"
                 disabled={signingIn}
                 onClick={() => signInWithGoogle()}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-navy-900 hover:bg-navy-800 text-white text-sm font-medium transition-colors whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 text-white text-sm font-medium transition-colors whitespace-nowrap shrink-0"
               >
                 <LogIn className="w-4 h-4" />
                 Iniciar sesión

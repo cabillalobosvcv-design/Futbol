@@ -266,19 +266,19 @@ export function MatchResultsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
         <div>
-          <h1 className="text-xl font-display font-bold text-navy-900">
+          <h1 className="text-xl font-display font-bold text-navy-900 dark:text-white">
             Administración de Partidos, Actas Digitales y Validación
           </h1>
-          <p className="text-sm text-slate-600 mt-0.5">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
             Captura marcadores, incidencias individuales y valida resultados oficiales que actualizan tablas y rankings.
           </p>
         </div>
         <select
           value={filterTournamentId}
           onChange={(e) => setFilterTournamentId(e.target.value)}
-          className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50"
+          className="px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
         >
           <option value="all">Todos los torneos</option>
           {tournaments.map((t) => (
@@ -290,7 +290,7 @@ export function MatchResultsPage() {
       </div>
 
       {feedback && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+        <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{feedback}</span>
         </div>
@@ -298,15 +298,15 @@ export function MatchResultsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Match Selector Sidebar */}
-        <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl overflow-hidden h-fit">
-          <div className="px-4 py-3.5 border-b border-slate-200">
-            <h2 className="font-display font-semibold text-sm text-slate-900">
+        <div className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden h-fit transition-colors">
+          <div className="px-4 py-3.5 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="font-display font-semibold text-sm text-slate-900 dark:text-white">
               Ficha de Encuentros ({filteredMatches.length})
             </h2>
           </div>
-          <div className="max-h-[600px] overflow-y-auto divide-y divide-slate-100">
+          <div className="max-h-[600px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
             {filteredMatches.length === 0 ? (
-              <div className="p-6 text-center text-sm text-slate-500">
+              <div className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">
                 No hay partidos programados.
               </div>
             ) : (
@@ -319,35 +319,37 @@ export function MatchResultsPage() {
                     type="button"
                     onClick={() => loadMatchIntoForm(m)}
                     className={`w-full text-left p-3.5 transition-colors ${
-                      isSelected ? 'bg-blue-50/70' : 'hover:bg-slate-50'
+                      isSelected
+                        ? 'bg-blue-50/70 dark:bg-blue-950/40'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
                     }`}
                   >
-                    <div className="flex items-center justify-between text-xs text-slate-500">
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                       <span className="font-mono">
                         #{m.matchNumber} · J{m.roundNumber}
                       </span>
                       <span
                         className={`font-medium ${
                           m.status === 'Pendiente de validación'
-                            ? 'text-amber-700'
+                            ? 'text-amber-700 dark:text-amber-400'
                             : m.status === 'Finalizado'
-                              ? 'text-emerald-700'
-                              : 'text-slate-600'
+                              ? 'text-emerald-700 dark:text-emerald-400'
+                              : 'text-slate-600 dark:text-slate-300'
                         }`}
                       >
                         {m.status}
                       </span>
                     </div>
-                    <p className="text-sm font-semibold text-slate-900 mt-1">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
                       {teamMap.get(m.homeTeamId)?.name || m.homeTeamId} vs{' '}
                       {teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
                     </p>
-                    <div className="flex items-center justify-between text-xs text-slate-500 mt-1">
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-1">
                       <span className="font-mono tabular-nums">
                         {m.date} · {m.time}
                       </span>
                       {res && (
-                        <span className="font-mono font-bold text-navy-900 tabular-nums">
+                        <span className="font-mono font-bold text-navy-900 dark:text-blue-400 tabular-nums">
                           {res.homeScore}-{res.awayScore}
                         </span>
                       )}
@@ -362,26 +364,26 @@ export function MatchResultsPage() {
         {/* Digital Match Sheet Editor */}
         <div className="lg:col-span-8 space-y-6">
           {!activeMatch ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-500">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-10 text-center text-sm text-slate-500 dark:text-slate-400">
               Selecciona un encuentro de la lista para capturar o validar su acta digital.
             </div>
           ) : (
             <form
               onSubmit={handleSubmitSheet}
-              className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 space-y-6"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 sm:p-6 space-y-6 transition-colors"
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
                 <div>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Partido #{activeMatch.matchNumber} ·{' '}
                     {tournamentMap.get(activeMatch.tournamentId)?.name} ·{' '}
                     {catMap.get(activeMatch.categoryId)?.name}
                   </p>
-                  <h2 className="font-display font-bold text-lg text-navy-900 mt-0.5">
+                  <h2 className="font-display font-bold text-lg text-navy-900 dark:text-white mt-0.5">
                     {teamMap.get(activeMatch.homeTeamId)?.name || activeMatch.homeTeamId} vs{' '}
                     {teamMap.get(activeMatch.awayTeamId)?.name || activeMatch.awayTeamId}
                   </h2>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {activeMatch.date} {activeMatch.time} · Cancha:{' '}
                     {activeMatch.fieldId ? fieldMap.get(activeMatch.fieldId)?.name : 'Por asignar'} ·
                     Árbitro:{' '}
@@ -392,17 +394,17 @@ export function MatchResultsPage() {
                 <button
                   type="button"
                   onClick={handleDownloadActaPdf}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 shrink-0"
                 >
-                  <FileDown className="w-4 h-4 text-red-600" />
+                  <FileDown className="w-4 h-4 text-red-600 dark:text-red-400" />
                   Descargar Acta PDF
                 </button>
               </div>
 
               {/* Final Scoreboard */}
-              <div className="grid grid-cols-3 gap-4 items-center bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <div className="grid grid-cols-3 gap-4 items-center bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
                 <div className="text-center">
-                  <span className="text-xs font-medium text-slate-600 block mb-1">
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-300 block mb-1">
                     Local ({teamMap.get(activeMatch.homeTeamId)?.shortCode || 'LOC'})
                   </span>
                   <input
@@ -412,17 +414,17 @@ export function MatchResultsPage() {
                     disabled={!canSubmit}
                     value={homeScore}
                     onChange={(e) => setHomeScore(Number(e.target.value))}
-                    className="w-20 mx-auto text-center py-2 text-2xl font-mono font-bold border border-slate-300 rounded-lg bg-white tabular-nums"
+                    className="w-20 mx-auto text-center py-2 text-2xl font-mono font-bold border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white tabular-nums"
                   />
                 </div>
-                <div className="text-center text-xs font-mono text-slate-400">
+                <div className="text-center text-xs font-mono text-slate-400 dark:text-slate-500">
                   MARCADOR FINAL
-                  <span className="block text-[11px] mt-1 text-slate-600">
+                  <span className="block text-[11px] mt-1 text-slate-600 dark:text-slate-300">
                     Validación: {existingResult?.validationStatus || 'sin capturar'}
                   </span>
                 </div>
                 <div className="text-center">
-                  <span className="text-xs font-medium text-slate-600 block mb-1">
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-300 block mb-1">
                     Visitante ({teamMap.get(activeMatch.awayTeamId)?.shortCode || 'VIS'})
                   </span>
                   <input
@@ -432,21 +434,25 @@ export function MatchResultsPage() {
                     disabled={!canSubmit}
                     value={awayScore}
                     onChange={(e) => setAwayScore(Number(e.target.value))}
-                    className="w-20 mx-auto text-center py-2 text-2xl font-mono font-bold border border-slate-300 rounded-lg bg-white tabular-nums"
+                    className="w-20 mx-auto text-center py-2 text-2xl font-mono font-bold border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white tabular-nums"
                   />
                 </div>
               </div>
 
               {/* Period Scores */}
               <div>
-                <h3 className="text-xs font-semibold text-slate-700 mb-2">Goles por Periodo</h3>
+                <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                  Goles por Periodo
+                </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {periodScores.map((ps, idx) => (
                     <div
                       key={ps.period}
-                      className="flex items-center justify-between gap-2 p-2.5 border border-slate-200 rounded-lg"
+                      className="flex items-center justify-between gap-2 p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800/40"
                     >
-                      <span className="text-xs font-medium text-slate-700">{ps.period}</span>
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                        {ps.period}
+                      </span>
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
@@ -458,9 +464,9 @@ export function MatchResultsPage() {
                             next[idx] = { ...ps, home: Number(e.target.value) };
                             setPeriodScores(next);
                           }}
-                          className="w-14 text-center py-1 text-sm border border-slate-200 rounded font-mono tabular-nums"
+                          className="w-14 text-center py-1 text-sm border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                         />
-                        <span className="text-slate-400">-</span>
+                        <span className="text-slate-400 dark:text-slate-500">-</span>
                         <input
                           type="number"
                           min={0}
@@ -471,7 +477,7 @@ export function MatchResultsPage() {
                             next[idx] = { ...ps, away: Number(e.target.value) };
                             setPeriodScores(next);
                           }}
-                          className="w-14 text-center py-1 text-sm border border-slate-200 rounded font-mono tabular-nums"
+                          className="w-14 text-center py-1 text-sm border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                         />
                       </div>
                     </div>
@@ -481,8 +487,8 @@ export function MatchResultsPage() {
 
               {/* Individual Match Events Capture */}
               {canSubmit && (
-                <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/60">
-                  <h3 className="text-xs font-semibold text-slate-800">
+                <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-3 bg-slate-50/60 dark:bg-slate-800/50">
+                  <h3 className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                     Capturar Estadísticas e Incidencias Individuales
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -492,7 +498,7 @@ export function MatchResultsPage() {
                         setEvTeamId(e.target.value);
                         setEvPlayerId('');
                       }}
-                      className="px-2.5 py-2 text-xs border border-slate-200 rounded-lg bg-white"
+                      className="px-2.5 py-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                     >
                       <option value={activeMatch.homeTeamId}>
                         Local: {teamMap.get(activeMatch.homeTeamId)?.name}
@@ -505,7 +511,7 @@ export function MatchResultsPage() {
                     <select
                       value={evPlayerId || matchTeamPlayers[0]?.id || ''}
                       onChange={(e) => setEvPlayerId(e.target.value)}
-                      className="px-2.5 py-2 text-xs border border-slate-200 rounded-lg bg-white"
+                      className="px-2.5 py-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                     >
                       {matchTeamPlayers.length === 0 ? (
                         <option value="">Sin jugadores registrados</option>
@@ -521,7 +527,7 @@ export function MatchResultsPage() {
                     <select
                       value={evType}
                       onChange={(e) => setEvType(e.target.value as MatchEventType)}
-                      className="px-2.5 py-2 text-xs border border-slate-200 rounded-lg bg-white"
+                      className="px-2.5 py-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                     >
                       <option value="gol">Gol</option>
                       <option value="penal">Gol de Penal</option>
@@ -536,25 +542,29 @@ export function MatchResultsPage() {
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-center">
                     <div>
-                      <span className="text-[11px] text-slate-500 block">Minuto</span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                        Minuto
+                      </span>
                       <input
                         type="number"
                         min={0}
                         max={130}
                         value={evMinute}
                         onChange={(e) => setEvMinute(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white font-mono tabular-nums"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                       />
                     </div>
 
                     {(evType === 'gol' || evType === 'penal' || evType === 'autogol') && (
                       <>
                         <div>
-                          <span className="text-[11px] text-slate-500 block">Tipo anotación</span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                            Tipo anotación
+                          </span>
                           <select
                             value={evGoalType}
                             onChange={(e) => setEvGoalType(e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white"
+                            className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                           >
                             <option value="Normal">Jugada</option>
                             <option value="Cabeza">Cabeza</option>
@@ -564,11 +574,13 @@ export function MatchResultsPage() {
                           </select>
                         </div>
                         <div>
-                          <span className="text-[11px] text-slate-500 block">Asistencia (opc.)</span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                            Asistencia (opc.)
+                          </span>
                           <select
                             value={evAssistId}
                             onChange={(e) => setEvAssistId(e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white"
+                            className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                           >
                             <option value="">Ninguna</option>
                             {matchTeamPlayers.map((p) => (
@@ -583,7 +595,7 @@ export function MatchResultsPage() {
 
                     {evType === 'participacion' && (
                       <>
-                        <label className="flex items-center gap-1.5 text-xs text-slate-700 pt-4">
+                        <label className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 pt-4">
                           <input
                             type="checkbox"
                             checked={evStarter}
@@ -592,14 +604,16 @@ export function MatchResultsPage() {
                           Titular
                         </label>
                         <div>
-                          <span className="text-[11px] text-slate-500 block">Min. jugados</span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                            Min. jugados
+                          </span>
                           <input
                             type="number"
                             min={0}
                             max={130}
                             value={evMinPlayed}
                             onChange={(e) => setEvMinPlayed(Number(e.target.value))}
-                            className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white font-mono tabular-nums"
+                            className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                           />
                         </div>
                       </>
@@ -608,7 +622,7 @@ export function MatchResultsPage() {
                     <button
                       type="button"
                       onClick={handleAddEvent}
-                      className="mt-4 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-navy-900 hover:bg-navy-800 rounded-lg"
+                      className="mt-4 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Agregar al acta
@@ -619,26 +633,28 @@ export function MatchResultsPage() {
 
               {/* Draft Events List */}
               <div>
-                <h3 className="text-xs font-semibold text-slate-700 mb-2">
+                <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
                   Eventos Registrados en el Acta ({draftEvents.length})
                 </h3>
                 {draftEvents.length === 0 ? (
-                  <p className="text-xs text-slate-500">Sin incidencias capturadas todavía.</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Sin incidencias capturadas todavía.
+                  </p>
                 ) : (
-                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
                     {draftEvents.map((ev, i) => (
                       <div key={i} className="px-3 py-2 flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2.5">
-                          <span className="font-mono font-bold text-navy-900 tabular-nums">
+                          <span className="font-mono font-bold text-navy-900 dark:text-blue-400 tabular-nums">
                             {ev.minute}&apos;
                           </span>
-                          <span className="font-semibold uppercase text-electric-600">
+                          <span className="font-semibold uppercase text-electric-600 dark:text-blue-400">
                             {ev.eventType}
                           </span>
-                          <span className="text-slate-900 font-medium">
+                          <span className="text-slate-900 dark:text-slate-100 font-medium">
                             {playerMap.get(ev.playerId)?.fullName || ev.playerId}
                           </span>
-                          <span className="text-slate-500">
+                          <span className="text-slate-500 dark:text-slate-400">
                             ({teamMap.get(ev.teamId)?.shortCode || ev.teamId})
                           </span>
                         </div>
@@ -648,7 +664,7 @@ export function MatchResultsPage() {
                             onClick={() =>
                               setDraftEvents((prev) => prev.filter((_, idx) => idx !== i))
                             }
-                            className="text-red-600 hover:text-red-800"
+                            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -660,7 +676,7 @@ export function MatchResultsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Observaciones del Árbitro / Incidencias
                 </label>
                 <textarea
@@ -669,12 +685,12 @@ export function MatchResultsPage() {
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
                   placeholder="Reporte arbitral, comportamiento de porras, estado del terreno..."
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
               </div>
 
               {canSubmit && (
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
                   <button
                     type="submit"
                     disabled={busy}
@@ -691,13 +707,13 @@ export function MatchResultsPage() {
                         value={correctionReason}
                         onChange={(e) => setCorrectionReason(e.target.value)}
                         placeholder="Motivo de validación/corrección (opcional)"
-                        className="px-3 py-2 text-xs border border-slate-200 rounded-lg"
+                        className="px-3 py-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                       />
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => handleValidate(false)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-700 border border-red-200 bg-red-50 hover:bg-red-100 rounded-lg"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 dark:hover:bg-red-900/60 rounded-lg"
                       >
                         <XCircle className="w-4 h-4" />
                         Rechazar
@@ -718,18 +734,21 @@ export function MatchResultsPage() {
 
               {/* Correction History */}
               {existingResult?.correctionHistory && existingResult.correctionHistory.length > 0 && (
-                <div className="pt-3 border-t border-slate-200 space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
                     <History className="w-3.5 h-3.5" />
                     <span>Historial de Correcciones y Validaciones</span>
                   </div>
-                  <div className="space-y-1 text-xs text-slate-600">
+                  <div className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
                     {existingResult.correctionHistory.map((ch, idx) => (
-                      <div key={idx} className="flex items-center justify-between bg-slate-50 px-3 py-1.5 rounded">
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/70 px-3 py-1.5 rounded"
+                      >
                         <span>
                           {ch.correctedByName}: {ch.reason} ({ch.previousScore} → {ch.newScore})
                         </span>
-                        <span className="font-mono text-[11px] text-slate-400">
+                        <span className="font-mono text-[11px] text-slate-400 dark:text-slate-500">
                           {new Date(ch.correctedAt).toLocaleString('es-MX')}
                         </span>
                       </div>

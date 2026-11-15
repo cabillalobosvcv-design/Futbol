@@ -170,7 +170,7 @@ export function PublicPortalPage() {
   return (
     <div className="space-y-6">
       {/* Hero Banner with Generated Stadium Photograph */}
-      <section className="relative rounded-2xl overflow-hidden border border-slate-200 bg-navy-900 text-white">
+      <section className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-navy-900 text-white">
         <img
           src="/src/assets/images/sigd_stadium_hero_1794523620472.jpg"
           alt="Estadio iluminado SIGD"
@@ -209,8 +209,8 @@ export function PublicPortalPage() {
       </section>
 
       {/* Filter Toolbar */}
-      <section className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center gap-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-700 shrink-0">
+      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 shrink-0">
           <Filter className="w-4 h-4 text-electric-500" />
           <span>Filtros de consulta:</span>
         </div>
@@ -222,7 +222,7 @@ export function PublicPortalPage() {
               setSelectedTournamentId('all');
               setSelectedCategoryId('all');
             }}
-            className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-electric-500"
+            className="px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric-500"
           >
             <option value="all">Todas las temporadas</option>
             {seasons.map((s) => (
@@ -238,7 +238,7 @@ export function PublicPortalPage() {
               setSelectedTournamentId(e.target.value);
               setSelectedCategoryId('all');
             }}
-            className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-electric-500"
+            className="px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric-500"
           >
             <option value="all">Todos los torneos</option>
             {filteredTournaments.map((t) => (
@@ -251,7 +251,7 @@ export function PublicPortalPage() {
           <select
             value={selectedCategoryId}
             onChange={(e) => setSelectedCategoryId(e.target.value)}
-            className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-electric-500"
+            className="px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-electric-500"
           >
             <option value="all">Todas las categorías</option>
             {filteredCategories.map((c) => (
@@ -262,20 +262,20 @@ export function PublicPortalPage() {
           </select>
 
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar equipo o categoría..."
-              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-electric-500"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric-500"
             />
           </div>
         </div>
       </section>
 
       {/* Segmented Navigation Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto p-1.5 bg-white border border-slate-200 rounded-xl">
+      <div className="flex items-center gap-1.5 overflow-x-auto p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -286,8 +286,8 @@ export function PublicPortalPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap shrink-0 transition-colors ${
                 isActive
-                  ? 'bg-navy-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  ? 'bg-navy-900 dark:bg-electric-500 text-white'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -301,25 +301,25 @@ export function PublicPortalPage() {
       {activeTab === 'resumen' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Upcoming Matches */}
-          <div className="lg:col-span-7 bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CalendarDays className="w-4 h-4 text-electric-500" />
-                <h2 className="font-display font-semibold text-base text-slate-900">
+                <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
                   Próximos Encuentros
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveTab('calendario')}
-                className="text-xs font-medium text-electric-600 hover:underline"
+                className="text-xs font-medium text-electric-600 dark:text-blue-400 hover:underline"
               >
                 Ver calendario completo
               </button>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {upcomingMatches.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-500">
+                <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
                   No hay próximos partidos publicados para los filtros seleccionados.
                 </div>
               ) : (
@@ -329,8 +329,8 @@ export function PublicPortalPage() {
                   const cat = categoryMap.get(m.categoryId);
                   const field = m.fieldId ? fieldMap.get(m.fieldId) : undefined;
                   return (
-                    <div key={m.id} className="p-4 hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                    <div key={m.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
                         <span>
                           {cat?.name || 'Categoría'} · Jornada {m.roundNumber}
                         </span>
@@ -348,15 +348,15 @@ export function PublicPortalPage() {
                             crestUrl={home?.crestUrl}
                             size="sm"
                           />
-                          <span className="font-medium text-sm text-slate-900 truncate">
+                          <span className="font-medium text-sm text-slate-900 dark:text-slate-100 truncate">
                             {home?.name || m.homeTeamId}
                           </span>
                         </div>
-                        <span className="text-xs font-mono font-semibold text-slate-400 px-2">
+                        <span className="text-xs font-mono font-semibold text-slate-400 dark:text-slate-500 px-2">
                           vs
                         </span>
                         <div className="flex items-center justify-end gap-2.5 min-w-0 flex-1">
-                          <span className="font-medium text-sm text-slate-900 truncate text-right">
+                          <span className="font-medium text-sm text-slate-900 dark:text-slate-100 truncate text-right">
                             {away?.name || m.awayTeamId}
                           </span>
                           <TeamCrest
@@ -370,8 +370,8 @@ export function PublicPortalPage() {
                         </div>
                       </div>
                       {field && (
-                        <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-                          <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                        <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                           <span>{field.name}</span>
                         </div>
                       )}
@@ -383,31 +383,31 @@ export function PublicPortalPage() {
           </div>
 
           {/* Standings Preview */}
-          <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-emerald-600" />
-                <h2 className="font-display font-semibold text-base text-slate-900">
+                <Trophy className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
                   Tabla de Posiciones
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveTab('posiciones')}
-                className="text-xs font-medium text-electric-600 hover:underline"
+                className="text-xs font-medium text-electric-600 dark:text-blue-400 hover:underline"
               >
                 Tabla completa
               </button>
             </div>
             {filteredStandings.length === 0 ? (
-              <div className="p-8 text-center text-sm text-slate-500">
+              <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
                 Las posiciones oficiales se publicarán al validar el primer resultado.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 text-xs text-slate-500 border-b border-slate-200">
+                    <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                       <th className="py-2.5 px-3 text-left font-medium">Pos</th>
                       <th className="py-2.5 px-3 text-left font-medium">Equipo</th>
                       <th className="py-2.5 px-2 text-right font-medium">PJ</th>
@@ -415,15 +415,15 @@ export function PublicPortalPage() {
                       <th className="py-2.5 px-3 text-right font-medium">PTS</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {filteredStandings.slice(0, 8).map((st) => {
                       const team = teamMap.get(st.teamId);
                       return (
-                        <tr key={st.id} className="hover:bg-slate-50">
-                          <td className="py-2.5 px-3 font-mono font-semibold tabular-nums text-slate-700">
+                        <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          <td className="py-2.5 px-3 font-mono font-semibold tabular-nums text-slate-700 dark:text-slate-200">
                             {st.position}
                           </td>
-                          <td className="py-2.5 px-3 font-medium text-slate-900">
+                          <td className="py-2.5 px-3 font-medium text-slate-900 dark:text-slate-100">
                             <div className="flex items-center gap-2">
                               <TeamCrest
                                 name={team?.name || st.teamId}
@@ -435,13 +435,13 @@ export function PublicPortalPage() {
                               <span className="truncate max-w-[140px]">{team?.name || st.teamId}</span>
                             </div>
                           </td>
-                          <td className="py-2.5 px-2 text-right font-mono tabular-nums text-slate-600">
+                          <td className="py-2.5 px-2 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">
                             {st.played}
                           </td>
-                          <td className="py-2.5 px-2 text-right font-mono tabular-nums text-slate-600">
+                          <td className="py-2.5 px-2 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">
                             {st.goalDifference > 0 ? `+${st.goalDifference}` : st.goalDifference}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold tabular-nums text-navy-900">
+                          <td className="py-2.5 px-3 text-right font-mono font-bold tabular-nums text-navy-900 dark:text-white">
                             {st.points}
                           </td>
                         </tr>
@@ -454,16 +454,16 @@ export function PublicPortalPage() {
           </div>
 
           {/* Active Tournaments & Official Results */}
-          <div className="lg:col-span-6 bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-2">
-              <Target className="w-4 h-4 text-emerald-600" />
-              <h2 className="font-display font-semibold text-base text-slate-900">
+          <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+              <Target className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
                 Resultados Oficiales Recientes
               </h2>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {officialResults.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-500">
+                <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
                   Aún no hay resultados oficiales validados.
                 </div>
               ) : (
@@ -474,14 +474,14 @@ export function PublicPortalPage() {
                   return (
                     <div key={m.id} className="p-4 flex items-center justify-between gap-4">
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs text-slate-500 mb-1">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
                           {categoryMap.get(m.categoryId)?.name} · {m.date}
                         </p>
-                        <p className="text-sm font-semibold text-slate-900 truncate">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
                           {home?.name || m.homeTeamId} vs {away?.name || m.awayTeamId}
                         </p>
                       </div>
-                      <div className="px-3 py-1.5 rounded-lg bg-navy-900 text-white font-mono font-bold text-base tabular-nums shrink-0">
+                      <div className="px-3 py-1.5 rounded-lg bg-navy-900 dark:bg-slate-800 border border-transparent dark:border-slate-700 text-white font-mono font-bold text-base tabular-nums shrink-0">
                         {res?.homeScore ?? m.homeScore ?? 0} - {res?.awayScore ?? m.awayScore ?? 0}
                       </div>
                     </div>
@@ -491,16 +491,16 @@ export function PublicPortalPage() {
             </div>
           </div>
 
-          <div className="lg:col-span-6 bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-2">
+          <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
               <Award className="w-4 h-4 text-electric-500" />
-              <h2 className="font-display font-semibold text-base text-slate-900">
+              <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
                 Líderes de Goleo
               </h2>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {topScorers.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-500">
+                <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
                   No hay anotaciones oficiales registradas todavía.
                 </div>
               ) : (
@@ -510,22 +510,22 @@ export function PublicPortalPage() {
                   return (
                     <div key={ps.id} className="p-4 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-6 text-center font-mono font-bold text-slate-400 tabular-nums">
+                        <span className="w-6 text-center font-mono font-bold text-slate-400 dark:text-slate-500 tabular-nums">
                           {idx + 1}
                         </span>
-                        <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-display font-bold text-xs text-navy-900 shrink-0">
+                        <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-display font-bold text-xs text-navy-900 dark:text-slate-100 shrink-0">
                           {pl?.fullName?.slice(0, 2).toUpperCase() || 'JG'}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-900 truncate">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
                             {pl?.fullName || ps.playerId}
                           </p>
-                          <p className="text-xs text-slate-500 truncate">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                             {tm?.name || ps.teamId} · {ps.matchesPlayed} PJ
                           </p>
                         </div>
                       </div>
-                      <span className="font-mono font-bold text-lg text-emerald-700 tabular-nums shrink-0">
+                      <span className="font-mono font-bold text-lg text-emerald-700 dark:text-emerald-400 tabular-nums shrink-0">
                         {ps.goals}
                       </span>
                     </div>
@@ -538,21 +538,21 @@ export function PublicPortalPage() {
       )}
 
       {activeTab === 'calendario' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200">
-            <h2 className="font-display font-semibold text-base text-slate-900">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
               Calendario de Próximos Partidos ({upcomingMatches.length})
             </h2>
           </div>
           {upcomingMatches.length === 0 ? (
-            <div className="p-10 text-center text-sm text-slate-500">
+            <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
               No existen partidos programados para este filtro.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-500 border-b border-slate-200">
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                     <th className="py-3 px-4 text-left font-medium">#</th>
                     <th className="py-3 px-4 text-left font-medium">Fecha / Hora</th>
                     <th className="py-3 px-4 text-left font-medium">Categoría</th>
@@ -561,26 +561,26 @@ export function PublicPortalPage() {
                     <th className="py-3 px-4 text-left font-medium">Estado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {upcomingMatches.map((m) => (
-                    <tr key={m.id} className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-mono tabular-nums text-slate-500">
+                    <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="py-3 px-4 font-mono tabular-nums text-slate-500 dark:text-slate-400">
                         {m.matchNumber}
                       </td>
-                      <td className="py-3 px-4 font-mono tabular-nums text-slate-800 whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono tabular-nums text-slate-800 dark:text-slate-200 whitespace-nowrap">
                         {m.date} · {m.time}
                       </td>
-                      <td className="py-3 px-4 text-slate-600">
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
                         {categoryMap.get(m.categoryId)?.name || m.categoryId} · J{m.roundNumber}
                       </td>
-                      <td className="py-3 px-4 font-semibold text-slate-900">
+                      <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">
                         {teamMap.get(m.homeTeamId)?.name || m.homeTeamId} vs{' '}
                         {teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
                       </td>
-                      <td className="py-3 px-4 text-slate-600">
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
                         {m.fieldId ? fieldMap.get(m.fieldId)?.name || 'Por definir' : 'Por definir'}
                       </td>
-                      <td className="py-3 px-4 text-xs font-medium text-electric-600">
+                      <td className="py-3 px-4 text-xs font-medium text-electric-600 dark:text-blue-400">
                         {m.status}
                       </td>
                     </tr>
@@ -593,18 +593,18 @@ export function PublicPortalPage() {
       )}
 
       {activeTab === 'resultados' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200">
-            <h2 className="font-display font-semibold text-base text-slate-900">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
               Resultados Oficiales Validados ({officialResults.length})
             </h2>
           </div>
           {officialResults.length === 0 ? (
-            <div className="p-10 text-center text-sm text-slate-500">
+            <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
               No hay resultados oficiales aprobados todavía.
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {officialResults.map((m) => {
                 const res = approvedResultByMatch.get(m.id)!;
                 const home = teamMap.get(m.homeTeamId);
@@ -612,19 +612,19 @@ export function PublicPortalPage() {
                 return (
                   <div
                     key={m.id}
-                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50"
+                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                   >
                     <div>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         {tournamentMap.get(m.tournamentId)?.name} ·{' '}
                         {categoryMap.get(m.categoryId)?.name} · Jornada {m.roundNumber} · {m.date}
                       </p>
-                      <p className="text-base font-display font-semibold text-slate-900 mt-1">
+                      <p className="text-base font-display font-semibold text-slate-900 dark:text-slate-100 mt-1">
                         {home?.name || m.homeTeamId} vs {away?.name || m.awayTeamId}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="px-3.5 py-1.5 rounded-lg bg-navy-900 text-white font-mono font-bold text-lg tabular-nums">
+                      <span className="px-3.5 py-1.5 rounded-lg bg-navy-900 dark:bg-slate-800 border border-transparent dark:border-slate-700 text-white font-mono font-bold text-lg tabular-nums">
                         {res.homeScore} - {res.awayScore}
                       </span>
                     </div>
@@ -637,22 +637,22 @@ export function PublicPortalPage() {
       )}
 
       {activeTab === 'posiciones' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="font-display font-semibold text-base text-slate-900">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
               Tabla Oficial de Posiciones
             </h2>
-            <span className="text-xs text-slate-500">Actualizada tras validación oficial</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Actualizada tras validación oficial</span>
           </div>
           {filteredStandings.length === 0 ? (
-            <div className="p-10 text-center text-sm text-slate-500">
+            <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
               No hay posiciones calculadas para los filtros seleccionados.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-600 border-b border-slate-200">
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                     <th className="py-3 px-4 text-left font-semibold">POS</th>
                     <th className="py-3 px-4 text-left font-semibold">EQUIPO</th>
                     <th className="py-3 px-3 text-left font-semibold">CATEGORÍA</th>
@@ -666,15 +666,15 @@ export function PublicPortalPage() {
                     <th className="py-3 px-4 text-right font-semibold">PTS</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {filteredStandings.map((st) => {
                     const team = teamMap.get(st.teamId);
                     return (
-                      <tr key={st.id} className="hover:bg-slate-50">
-                        <td className="py-3 px-4 font-mono font-bold tabular-nums text-navy-900">
+                      <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td className="py-3 px-4 font-mono font-bold tabular-nums text-navy-900 dark:text-white">
                           {st.position}
                         </td>
-                        <td className="py-3 px-4 font-medium text-slate-900">
+                        <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
                           <div className="flex items-center gap-2.5">
                             <TeamCrest
                               name={team?.name || st.teamId}
@@ -686,15 +686,15 @@ export function PublicPortalPage() {
                             <span>{team?.name || st.teamId}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-3 text-slate-500 text-xs">
+                        <td className="py-3 px-3 text-slate-500 dark:text-slate-400 text-xs">
                           {categoryMap.get(st.categoryId)?.name}
                         </td>
                         <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.played}</td>
-                        <td className="py-3 px-2.5 text-right font-mono tabular-nums text-emerald-700">
+                        <td className="py-3 px-2.5 text-right font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
                           {st.wins}
                         </td>
                         <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.draws}</td>
-                        <td className="py-3 px-2.5 text-right font-mono tabular-nums text-red-600">
+                        <td className="py-3 px-2.5 text-right font-mono tabular-nums text-red-600 dark:text-red-400">
                           {st.losses}
                         </td>
                         <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.goalsFor}</td>
@@ -702,7 +702,7 @@ export function PublicPortalPage() {
                         <td className="py-3 px-2.5 text-right font-mono tabular-nums">
                           {st.goalDifference > 0 ? `+${st.goalDifference}` : st.goalDifference}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold tabular-nums text-navy-900">
+                        <td className="py-3 px-4 text-right font-mono font-bold tabular-nums text-navy-900 dark:text-white">
                           {st.points}
                         </td>
                       </tr>
@@ -716,21 +716,21 @@ export function PublicPortalPage() {
       )}
 
       {activeTab === 'goleadores' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200">
-            <h2 className="font-display font-semibold text-base text-slate-900">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
               Tabla Oficial de Goleadores
             </h2>
           </div>
           {topScorers.length === 0 ? (
-            <div className="p-10 text-center text-sm text-slate-500">
+            <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
               No hay goles registrados en actas oficiales todavía.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-600 border-b border-slate-200">
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                     <th className="py-3 px-4 text-left font-semibold">Pos</th>
                     <th className="py-3 px-4 text-left font-semibold">Jugador</th>
                     <th className="py-3 px-4 text-left font-semibold">Equipo</th>
@@ -740,42 +740,42 @@ export function PublicPortalPage() {
                     <th className="py-3 px-4 text-right font-semibold">Prom/PJ</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {topScorers.map((ps, idx) => {
                     const pl = playerMap.get(ps.playerId);
                     const tm = teamMap.get(ps.teamId);
                     const avg = ps.matchesPlayed > 0 ? (ps.goals / ps.matchesPlayed).toFixed(2) : '0.00';
                     return (
-                      <tr key={ps.id} className="hover:bg-slate-50">
-                        <td className="py-3 px-4 font-mono font-bold tabular-nums text-slate-700">
+                      <tr key={ps.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td className="py-3 px-4 font-mono font-bold tabular-nums text-slate-700 dark:text-slate-200">
                           {idx + 1}
                         </td>
-                        <td className="py-3 px-4 font-medium text-slate-900">
+                        <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
                           <div className="flex items-center gap-2.5">
                             {pl?.photoUrl ? (
                               <img
                                 src={pl.photoUrl}
                                 alt={pl.fullName}
                                 referrerPolicy="no-referrer"
-                                className="w-8 h-8 rounded-lg object-cover border border-slate-200"
+                                className="w-8 h-8 rounded-lg object-cover border border-slate-200 dark:border-slate-700"
                               />
                             ) : (
-                              <div className="w-8 h-8 rounded-lg bg-navy-900 text-white flex items-center justify-center text-xs font-bold">
+                              <div className="w-8 h-8 rounded-lg bg-navy-900 dark:bg-slate-800 text-white flex items-center justify-center text-xs font-bold">
                                 #{pl?.jerseyNumber ?? '-'}
                               </div>
                             )}
                             <span>{pl?.fullName || ps.playerId}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-slate-700">{tm?.name || ps.teamId}</td>
-                        <td className="py-3 px-4 text-slate-500 text-xs">
+                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300">{tm?.name || ps.teamId}</td>
+                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 text-xs">
                           {categoryMap.get(ps.categoryId)?.name}
                         </td>
                         <td className="py-3 px-3 text-right font-mono tabular-nums">{ps.matchesPlayed}</td>
-                        <td className="py-3 px-3 text-right font-mono font-bold tabular-nums text-emerald-700">
+                        <td className="py-3 px-3 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
                           {ps.goals}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono tabular-nums text-slate-600">
+                        <td className="py-3 px-4 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">
                           {avg}
                         </td>
                       </tr>
@@ -791,7 +791,7 @@ export function PublicPortalPage() {
       {activeTab === 'equipos' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredTeams.length === 0 ? (
-            <div className="col-span-full bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-500">
+            <div className="col-span-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-10 text-center text-sm text-slate-500 dark:text-slate-400">
               No hay equipos registrados para los filtros seleccionados.
             </div>
           ) : (
@@ -801,7 +801,7 @@ export function PublicPortalPage() {
               return (
                 <div
                   key={team.id}
-                  className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-4"
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex items-center justify-between gap-4"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <TeamCrest
@@ -813,23 +813,23 @@ export function PublicPortalPage() {
                       size="lg"
                     />
                     <div className="min-w-0">
-                      <h3 className="font-display font-semibold text-slate-900 truncate">
+                      <h3 className="font-display font-semibold text-slate-900 dark:text-slate-100 truncate">
                         {team.name}
                       </h3>
-                      <p className="text-xs text-slate-500 truncate">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                         {categoryMap.get(team.categoryId)?.name || 'Categoría'} ·{' '}
                         <span className="font-mono tabular-nums">{rosterCount}</span> jugadores
                       </p>
                       {team.coachName && (
-                        <p className="text-xs text-slate-500 truncate mt-0.5">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
                           DT: {team.coachName}
                         </p>
                       )}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="text-xs text-slate-400 block">Puntos</span>
-                    <span className="font-mono font-bold text-lg text-navy-900 tabular-nums">
+                    <span className="text-xs text-slate-400 dark:text-slate-500 block">Puntos</span>
+                    <span className="font-mono font-bold text-lg text-navy-900 dark:text-white tabular-nums">
                       {stat?.points ?? 0}
                     </span>
                   </div>
@@ -841,19 +841,19 @@ export function PublicPortalPage() {
       )}
 
       {activeTab === 'campeones' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
             <Crown className="w-4 h-4 text-amber-500" />
-            <h2 className="font-display font-semibold text-base text-slate-900">
+            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
               Historial de Campeones por Temporada
             </h2>
           </div>
           {historicalChampions.length === 0 ? (
-            <div className="p-10 text-center text-sm text-slate-500">
+            <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
               Cuando finalicen los torneos se conservará aquí el historial oficial de campeones.
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {historicalChampions.map((t) => {
                 const champ = t.championTeamId ? teamMap.get(t.championTeamId) : undefined;
                 const season = seasonMap.get(t.seasonId);
@@ -861,19 +861,19 @@ export function PublicPortalPage() {
                 return (
                   <div key={t.id} className="p-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-lg bg-amber-50 text-amber-600">
+                      <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
                         <Trophy className="w-5 h-5" />
                       </div>
                       <div>
-                        <p className="font-display font-semibold text-slate-900">
+                        <p className="font-display font-semibold text-slate-900 dark:text-slate-100">
                           {champ?.name || t.championTeamName || 'Por definir'}
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           {t.name} · {sport?.name || 'Deporte'} · {season?.name || 'Temporada'}
                         </p>
                       </div>
                     </div>
-                    <span className="text-xs font-mono text-slate-500 tabular-nums">
+                    <span className="text-xs font-mono text-slate-500 dark:text-slate-400 tabular-nums">
                       {season?.year || ''}
                     </span>
                   </div>
@@ -885,15 +885,15 @@ export function PublicPortalPage() {
       )}
 
       {/* Active Tournaments Footer Strip */}
-      <section className="bg-white border border-slate-200 rounded-xl p-5">
+      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
         <div className="flex items-center gap-2 mb-3">
-          <Users className="w-4 h-4 text-navy-800" />
-          <h3 className="font-display font-semibold text-sm text-slate-900">
+          <Users className="w-4 h-4 text-navy-800 dark:text-blue-400" />
+          <h3 className="font-display font-semibold text-sm text-slate-900 dark:text-slate-100">
             Torneos Activos Registrados
           </h3>
         </div>
         {filteredTournaments.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Aún no hay torneos creados en la plataforma.
           </p>
         ) : (
@@ -901,16 +901,16 @@ export function PublicPortalPage() {
             {filteredTournaments.map((t) => (
               <div
                 key={t.id}
-                className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/70 flex flex-col justify-between gap-2"
+                className="p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex flex-col justify-between gap-2"
               >
                 <div>
-                  <p className="font-semibold text-sm text-slate-900">{t.name}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="font-semibold text-sm text-slate-900 dark:text-slate-100">{t.name}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     {sportMap.get(t.sportId)?.name || 'Deporte'} ·{' '}
                     {seasonMap.get(t.seasonId)?.name || 'Temporada'}
                   </p>
                 </div>
-                <div className="flex items-center justify-between text-xs text-slate-600 pt-2 border-t border-slate-200/70">
+                <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-200/70 dark:border-slate-700/70">
                   <span>Estado: {t.status}</span>
                   <span className="font-mono tabular-nums">
                     {categories.filter((c) => c.tournamentId === t.id).length} categorías

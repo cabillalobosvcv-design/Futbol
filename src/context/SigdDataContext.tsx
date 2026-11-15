@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { collection, onSnapshot, or, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase/config';
 import { useAuth } from './AuthContext';
+import { useNotifications } from './NotificationContext';
 import type {
   AuditLog,
   Branch,
@@ -84,8 +85,8 @@ export function SigdDataProvider({ children }: { children: React.ReactNode }) {
   const [matchEvents, setMatchEvents] = useState<MatchEvent[]>([]);
   const [teamStatistics, setTeamStatistics] = useState<TeamStatistic[]>([]);
   const [playerStatistics, setPlayerStatistics] = useState<PlayerStatistic[]>([]);
+  const { notifications } = useNotifications();
   const [standings, setStandings] = useState<Standing[]>([]);
-  const [notifications, setNotifications] = useState<SigdNotification[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   // Public & operational collections (always live for Public Portal + Staff)
@@ -136,37 +137,12 @@ export function SigdDataProvider({ children }: { children: React.ReactNode }) {
   // Authenticated & PII-protected collections
   useEffect(() => {
     if (!authReady || !firebaseUser) {
-      setNotifications([]);
       setUsers([]);
       setAuditLogs([]);
       return;
     }
 
     const subs: (() => void)[] = [];
-
-    // Notifications scoped to user or broadcast
-    const notifQuery = query(
-      collection(db, 'notifications'),
-      or(
-        where('recipientUid', '==', firebaseUser.uid),
-        where('isBroadcast', '==', true)
-      )
-    );
-    subs.push(
-      onSnapshot(
-        notifQuery,
-        (snap) => {
-          const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as SigdNotification);
-          items.sort((a, b) => {
-            const ta = a.createdAt?.toMillis?.() || 0;
-            const tb = b.createdAt?.toMillis?.() || 0;
-            return tb - ta;
-          });
-          setNotifications(items);
-        },
-        (err) => handleFirestoreError(err, OperationType.LIST, 'notifications')
-      )
-    );
 
     // Users list (bootstrapped admin sees all; others see self)
     const usersQuery =
