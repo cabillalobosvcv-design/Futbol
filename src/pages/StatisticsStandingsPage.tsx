@@ -245,6 +245,7 @@ export function StatisticsStandingsPage() {
                               shortCode={tm?.shortCode || 'EQ'}
                               primaryColor={tm?.primaryColor}
                               secondaryColor={tm?.secondaryColor}
+                              crestUrl={tm?.crestUrl}
                               size="sm"
                             />
                             <span>{tm?.name || st.teamId}</span>

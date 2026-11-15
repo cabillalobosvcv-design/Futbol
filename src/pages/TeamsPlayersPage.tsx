@@ -1,12 +1,32 @@
-import React, { useMemo, useState } from 'react';
-import { CheckCircle2, FolderKanban, Shield, Shirt, UserPlus, Users } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  FolderKanban,
+  Image as ImageIcon,
+  Link2,
+  Shield,
+  Shirt,
+  Trash2,
+  Upload,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import { TeamCrest } from '../components/TeamCrest';
 import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
-import { createAuditLog, makeId, saveEntityDoc } from '../services/firestoreService';
-import { ROLE_PERMISSIONS, type PlayerPosition } from '../types/sigd';
+import {
+  createAuditLog,
+  makeId,
+  saveEntityDoc,
+  updateTeamCrestUrl,
+  uploadTeamLogo,
+} from '../services/firestoreService';
+import { ROLE_PERMISSIONS, type PlayerPosition, type Team } from '../types/sigd';
 
 type Tab = 'categories' | 'teams' | 'players';
+
+const MAX_LOGO_BYTES = 3 * 1024 * 1024; // 3 MB
 
 export function TeamsPlayersPage() {
   const { profile, role } = useAuth();
@@ -16,6 +36,7 @@ export function TeamsPlayersPage() {
   const [filterTournamentId, setFilterTournamentId] = useState<string>('all');
   const [filterTeamId, setFilterTeamId] = useState<string>('all');
   const [msg, setMsg] = useState<string | null>(null);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const canManage = ROLE_PERMISSIONS.canManageTeamsAndPlayers(role);
@@ -27,14 +48,21 @@ export function TeamsPlayersPage() {
   const [cMinAge, setCMinAge] = useState(15);
   const [cMaxAge, setCMaxAge] = useState(99);
 
-  // Team form
+  // Team form (with logo instead of color pickers)
+  const [tmDraftId, setTmDraftId] = useState(() => makeId('tm'));
   const [tmTournamentId, setTmTournamentId] = useState('');
   const [tmCategoryId, setTmCategoryId] = useState('');
   const [tmName, setTmName] = useState('');
   const [tmCode, setTmCode] = useState('');
-  const [tmPrimary, setTmPrimary] = useState('#0A192F');
-  const [tmSecondary, setTmSecondary] = useState('#2563EB');
+  const [tmLogoUrl, setTmLogoUrl] = useState('');
+  const [tmUploadingLogo, setTmUploadingLogo] = useState(false);
   const [tmCoach, setTmCoach] = useState('');
+  const teamLogoInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Inline logo editor for existing teams
+  const [editingLogoTeamId, setEditingLogoTeamId] = useState<string | null>(null);
+  const [editLogoUrl, setEditLogoUrl] = useState('');
+  const [editLogoBusy, setEditLogoBusy] = useState(false);
 
   // Player form
   const [plTeamId, setPlTeamId] = useState('');
@@ -100,13 +128,49 @@ export function TeamsPlayersPage() {
     }
   };
 
+  const handleTeamLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !canManage) return;
+    setMsg(null);
+    setErrMsg(null);
+
+    if (!file.type.startsWith('image/')) {
+      setErrMsg('Selecciona una imagen válida (PNG, JPG, WebP o SVG) para el logotipo del equipo.');
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setErrMsg('El logotipo del equipo no debe superar los 3 MB.');
+      return;
+    }
+
+    setTmUploadingLogo(true);
+    try {
+      const downloadUrl = await uploadTeamLogo(tmDraftId, file);
+      setTmLogoUrl(downloadUrl);
+      setMsg('Logotipo subido a Firebase Storage y listo para asignarse al equipo.');
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : '';
+      setErrMsg(
+        raw.includes('storage/')
+          ? `No se pudo subir el logotipo a Firebase Storage (${raw}). Puedes pegar una URL directa.`
+          : 'No se pudo subir el logotipo a Firebase Storage. Intenta de nuevo o pega una URL directa.'
+      );
+    } finally {
+      setTmUploadingLogo(false);
+      if (teamLogoInputRef.current) teamLogoInputRef.current.value = '';
+    }
+  };
+
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile || !tmName.trim() || !effectiveCategoryForTeam) return;
     setSaving(true);
+    setMsg(null);
+    setErrMsg(null);
     try {
-      const id = makeId('tm');
+      const id = tmDraftId;
       const code = (tmCode.trim() || tmName.trim().slice(0, 3)).toUpperCase().slice(0, 6);
+      const cleanLogoUrl = tmLogoUrl.trim().slice(0, 500);
       await saveEntityDoc(
         'teams',
         id,
@@ -115,8 +179,8 @@ export function TeamsPlayersPage() {
           categoryId: effectiveCategoryForTeam,
           name: tmName.trim(),
           shortCode: code,
-          primaryColor: tmPrimary,
-          secondaryColor: tmSecondary,
+          primaryColor: '#0A192F',
+          ...(cleanLogoUrl ? { crestUrl: cleanLogoUrl } : {}),
           coachName: tmCoach.trim(),
           active: true,
         },
@@ -128,14 +192,77 @@ export function TeamsPlayersPage() {
         action: 'CREATE_TEAM',
         entity: 'teams',
         entityId: id,
-        summary: `Equipo inscrito: ${tmName.trim()} (${code})`,
+        summary: `Equipo inscrito: ${tmName.trim()} (${code})${cleanLogoUrl ? ' con logotipo oficial' : ''}`,
       });
+      setTmDraftId(makeId('tm'));
       setTmName('');
       setTmCode('');
+      setTmLogoUrl('');
       setTmCoach('');
-      setMsg('Equipo inscrito correctamente.');
+      setMsg('Equipo inscrito correctamente con su logotipo.');
+    } catch {
+      setErrMsg('No se pudo inscribir el equipo. Verifica tus permisos o la URL del logotipo.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleExistingTeamLogoFile = async (
+    team: Team,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile || !canManage) return;
+    setMsg(null);
+    setErrMsg(null);
+
+    if (!file.type.startsWith('image/')) {
+      setErrMsg('Selecciona un archivo de imagen válido (PNG, JPG, WebP o SVG).');
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setErrMsg('El logotipo del equipo no debe superar los 3 MB.');
+      return;
+    }
+
+    setEditLogoBusy(true);
+    try {
+      const downloadUrl = await uploadTeamLogo(team.id, file);
+      setEditLogoUrl(downloadUrl);
+      await updateTeamCrestUrl({
+        team,
+        crestUrl: downloadUrl,
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+      });
+      setEditingLogoTeamId(null);
+      setMsg(`Logotipo de ${team.name} actualizado correctamente.`);
+    } catch {
+      setErrMsg('No se pudo subir el nuevo logotipo. Puedes pegar una URL directa.');
+    } finally {
+      setEditLogoBusy(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleSaveExistingTeamLogoUrl = async (team: Team) => {
+    if (!profile || !canManage) return;
+    setEditLogoBusy(true);
+    setMsg(null);
+    setErrMsg(null);
+    try {
+      await updateTeamCrestUrl({
+        team,
+        crestUrl: editLogoUrl,
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+      });
+      setEditingLogoTeamId(null);
+      setMsg(`Logotipo de ${team.name} guardado correctamente.`);
+    } catch {
+      setErrMsg('No se pudo actualizar el logotipo del equipo.');
+    } finally {
+      setEditLogoBusy(false);
     }
   };
 
@@ -198,6 +325,13 @@ export function TeamsPlayersPage() {
         <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{msg}</span>
+        </div>
+      )}
+
+      {errMsg && (
+        <div className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{errMsg}</span>
         </div>
       )}
 
@@ -441,82 +575,199 @@ export function TeamsPlayersPage() {
                   className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Color principal
-                  </label>
-                  <input
-                    type="color"
-                    value={tmPrimary}
-                    onChange={(e) => setTmPrimary(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer"
-                  />
+              {/* Team Logo Section (replaces color pickers) */}
+              <div className="p-3.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <TeamCrest
+                      name={tmName.trim() || 'Nuevo Equipo'}
+                      shortCode={(tmCode.trim() || tmName.trim().slice(0, 3) || 'EQ').toUpperCase()}
+                      crestUrl={tmLogoUrl.trim() || undefined}
+                      size="lg"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-electric-500 shrink-0" />
+                        <span>Logotipo del Equipo</span>
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                        PNG, JPG, WebP o SVG (máx. 3 MB)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <input
+                      ref={teamLogoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      onChange={handleTeamLogoFileChange}
+                      className="hidden"
+                      id="team-logo-upload"
+                    />
+                    <label
+                      htmlFor="team-logo-upload"
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 cursor-pointer transition-colors whitespace-nowrap ${
+                        tmUploadingLogo ? 'opacity-60 pointer-events-none' : ''
+                      }`}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      {tmUploadingLogo ? 'Subiendo...' : 'Subir logo'}
+                    </label>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Color secundario
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                    <Link2 className="w-3 h-3 text-slate-400" />
+                    O pegar URL directa del logotipo (opcional)
                   </label>
-                  <input
-                    type="color"
-                    value={tmSecondary}
-                    onChange={(e) => setTmSecondary(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer"
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      maxLength={500}
+                      value={tmLogoUrl}
+                      onChange={(e) => setTmLogoUrl(e.target.value)}
+                      placeholder="https://.../escudo-equipo.png"
+                      className="flex-1 px-2.5 py-1.5 text-xs font-mono border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                    />
+                    {tmLogoUrl.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => setTmLogoUrl('')}
+                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                        title="Quitar logotipo"
+                        aria-label="Quitar logotipo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
+
               <button
                 type="submit"
-                disabled={saving || !effectiveCategoryForTeam}
+                disabled={saving || tmUploadingLogo || !effectiveCategoryForTeam}
                 className="w-full py-2.5 px-4 bg-electric-500 hover:bg-electric-600 text-white text-sm font-medium rounded-lg disabled:opacity-50"
               >
-                Inscribir Equipo
+                {saving ? 'Inscribiendo...' : 'Inscribir Equipo'}
               </button>
             </form>
           )}
 
-          <div className={`${canManage ? 'lg:col-span-8' : 'lg:col-span-12'} grid grid-cols-1 md:grid-cols-2 gap-4`}>
-            {filteredTeams.map((tm) => (
-              <div
-                key={tm.id}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex items-center justify-between gap-3 transition-colors"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <TeamCrest
-                    name={tm.name}
-                    shortCode={tm.shortCode}
-                    primaryColor={tm.primaryColor}
-                    secondaryColor={tm.secondaryColor}
-                    size="lg"
-                  />
-                  <div className="min-w-0">
-                    <h3 className="font-display font-semibold text-slate-900 dark:text-white truncate">
-                      {tm.name}
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                      {categoryMap.get(tm.categoryId)?.name} · {tournamentMap.get(tm.tournamentId)?.name}
-                    </p>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                      DT: {tm.coachName || 'Sin asignar'} ·{' '}
-                      <span className="font-mono tabular-nums">
-                        {players.filter((p) => p.teamId === tm.id).length} jugadores
-                      </span>
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFilterTeamId(tm.id);
-                    setPlTeamId(tm.id);
-                    setTab('players');
-                  }}
-                  className="px-3 py-1.5 text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0"
+          <div className={`${canManage ? 'lg:col-span-8' : 'lg:col-span-12'} grid grid-cols-1 md:grid-cols-2 gap-4 h-fit`}>
+            {filteredTeams.map((tm) => {
+              const isEditingLogo = editingLogoTeamId === tm.id;
+              return (
+                <div
+                  key={tm.id}
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3 transition-colors"
                 >
-                  Ver plantel
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <TeamCrest
+                        name={tm.name}
+                        shortCode={tm.shortCode}
+                        primaryColor={tm.primaryColor}
+                        secondaryColor={tm.secondaryColor}
+                        crestUrl={tm.crestUrl}
+                        size="lg"
+                      />
+                      <div className="min-w-0">
+                        <h3 className="font-display font-semibold text-slate-900 dark:text-white truncate">
+                          {tm.name}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          {categoryMap.get(tm.categoryId)?.name} · {tournamentMap.get(tm.tournamentId)?.name}
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                          DT: {tm.coachName || 'Sin asignar'} ·{' '}
+                          <span className="font-mono tabular-nums">
+                            {players.filter((p) => p.teamId === tm.id).length} jugadores
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                    {canManage && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isEditingLogo) {
+                            setEditingLogoTeamId(null);
+                          } else {
+                            setEditingLogoTeamId(tm.id);
+                            setEditLogoUrl(tm.crestUrl || '');
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5 text-electric-500" />
+                        {tm.crestUrl ? 'Cambiar logo' : 'Agregar logo'}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilterTeamId(tm.id);
+                        setPlTeamId(tm.id);
+                        setTab('players');
+                      }}
+                      className="px-3 py-1 text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0 ml-auto"
+                    >
+                      Ver plantel
+                    </button>
+                  </div>
+
+                  {canManage && isEditingLogo && (
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          maxLength={500}
+                          value={editLogoUrl}
+                          onChange={(e) => setEditLogoUrl(e.target.value)}
+                          placeholder="https://.../logo.png"
+                          className="flex-1 px-2.5 py-1.5 text-xs font-mono border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                        />
+                        <label className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-navy-900 dark:bg-slate-700 text-white text-xs font-medium cursor-pointer hover:bg-navy-800 whitespace-nowrap">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Subir</span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                            disabled={editLogoBusy}
+                            onChange={(e) => handleExistingTeamLogoFile(tm, e)}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingLogoTeamId(null)}
+                          className="px-2.5 py-1 text-xs text-slate-600 dark:text-slate-300 hover:underline"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={editLogoBusy}
+                          onClick={() => handleSaveExistingTeamLogoUrl(tm)}
+                          className="px-3 py-1 rounded-lg bg-electric-500 hover:bg-electric-600 text-white text-xs font-medium disabled:opacity-50"
+                        >
+                          {editLogoBusy ? 'Guardando...' : 'Guardar logo'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

@@ -741,6 +741,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                         name={home?.name || m.homeTeamId}
                         shortCode={home?.shortCode || 'LOC'}
                         primaryColor={home?.primaryColor}
+                        crestUrl={home?.crestUrl}
                         size="sm"
                       />
                       <div className="min-w-0">

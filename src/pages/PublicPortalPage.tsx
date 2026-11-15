@@ -457,6 +457,7 @@ export function PublicPortalPage() {
                                 shortCode={team?.shortCode || 'EQ'}
                                 primaryColor={team?.primaryColor}
                                 secondaryColor={team?.secondaryColor}
+                                crestUrl={team?.crestUrl}
                                 size="sm"
                               />
                               <span className="truncate max-w-[140px]">{team?.name || st.teamId}</span>
@@ -708,6 +709,7 @@ export function PublicPortalPage() {
                               shortCode={team?.shortCode || 'EQ'}
                               primaryColor={team?.primaryColor}
                               secondaryColor={team?.secondaryColor}
+                              crestUrl={team?.crestUrl}
                               size="sm"
                             />
                             <span>{team?.name || st.teamId}</span>

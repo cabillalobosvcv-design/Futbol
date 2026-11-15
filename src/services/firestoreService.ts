@@ -1204,3 +1204,45 @@ export async function linkRefereeUserAccount(params: {
   }
 }
 
+export async function uploadTeamLogo(teamId: string, file: File): Promise<string> {
+  const safeTeamId = teamId.replace(/[^a-zA-Z0-9_-]/g, '') || makeId('tm');
+  const extRaw = file.name.split('.').pop()?.toLowerCase() || 'png';
+  const ext = ['png', 'jpg', 'jpeg', 'webp', 'svg'].includes(extRaw) ? extRaw : 'png';
+  const storagePath = `teams/${safeTeamId}/logo_${Date.now()}.${ext}`;
+  const storageRef = ref(storage, storagePath);
+  await uploadBytes(storageRef, file, {
+    contentType: file.type || 'image/png',
+    cacheControl: 'public, max-age=31536000',
+  });
+  return getDownloadURL(storageRef);
+}
+
+export async function updateTeamCrestUrl(params: {
+  team: Team;
+  crestUrl: string;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `teams/${params.team.id}`;
+  const cleanUrl = params.crestUrl.trim().slice(0, 500);
+  try {
+    await updateDoc(doc(db, 'teams', params.team.id), {
+      crestUrl: cleanUrl,
+      updatedAt: serverTimestamp(),
+    });
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'UPDATE_TEAM_LOGO',
+      entity: 'teams',
+      entityId: params.team.id,
+      summary: cleanUrl
+        ? `Logotipo actualizado para el equipo ${params.team.name}.`
+        : `Logotipo removido del equipo ${params.team.name}.`,
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+

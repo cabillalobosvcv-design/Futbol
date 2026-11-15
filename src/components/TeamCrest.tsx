@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Shield } from 'lucide-react';
 
 interface TeamCrestProps {
@@ -17,6 +18,12 @@ export function TeamCrest({
   crestUrl,
   size = 'md',
 }: TeamCrestProps) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [crestUrl]);
+
   const dims =
     size === 'sm'
       ? 'w-7 h-7 text-[10px]'
@@ -24,13 +31,14 @@ export function TeamCrest({
         ? 'w-12 h-12 text-xs'
         : 'w-9 h-9 text-[11px]';
 
-  if (crestUrl) {
+  if (crestUrl && !imgFailed) {
     return (
       <img
         src={crestUrl}
-        alt={`Escudo de ${name}`}
+        alt={`Logotipo de ${name}`}
         referrerPolicy="no-referrer"
-        className={`${dims} rounded-lg object-cover border border-slate-200 dark:border-slate-700 shrink-0 bg-slate-100 dark:bg-slate-800`}
+        onError={() => setImgFailed(true)}
+        className={`${dims} rounded-lg object-contain p-0.5 border border-slate-200 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-800`}
       />
     );
   }
