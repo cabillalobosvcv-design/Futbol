@@ -807,7 +807,7 @@ export function TournamentsPage() {
 
           <div className={`${canManageSports ? 'lg:col-span-8' : 'lg:col-span-12'} grid grid-cols-1 md:grid-cols-2 gap-4`}>
             {sports.map((sp) => {
-              const rule = sportRules.find((r) => r.sportId === sp.id);
+              const rule = sportRules.find((r) => r.sportId === sp.id && !r.tournamentId);
               return (
                 <div
                   key={sp.id}

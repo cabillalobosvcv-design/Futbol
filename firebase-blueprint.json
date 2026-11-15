@@ -81,10 +81,11 @@
     },
     "SportRule": {
       "title": "SportRule",
-      "description": "Reglamento configurable por deporte o torneo.",
+      "description": "Reglamento configurable por disciplina o torneo.",
       "type": "object",
       "properties": {
         "sportId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "tournamentId": { "type": "string", "maxLength": 128 },
         "name": { "type": "string", "minLength": 2, "maxLength": 120 },
         "winPoints": { "type": "integer" },
         "drawPoints": { "type": "integer" },

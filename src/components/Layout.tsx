@@ -13,6 +13,7 @@ import {
   MapPin,
   Menu,
   Moon,
+  Scale,
   ShieldCheck,
   Sun,
   Trophy,
@@ -28,6 +29,7 @@ export type PageId =
   | 'public_portal'
   | 'dashboard'
   | 'tournaments'
+  | 'rules'
   | 'teams'
   | 'facilities'
   | 'schedule'
@@ -74,6 +76,15 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
       label: 'Torneos y Deportes',
       icon: Trophy,
       visible: Boolean(firebaseUser),
+    },
+    {
+      id: 'rules',
+      label: 'Reglamentos',
+      icon: Scale,
+      visible:
+        Boolean(firebaseUser) &&
+        (ROLE_PERMISSIONS.canManageSportsAndRules(role) ||
+          ROLE_PERMISSIONS.canManageTournaments(role)),
     },
     {
       id: 'teams',

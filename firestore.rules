@@ -132,13 +132,14 @@ service cloud.firestore {
 
     function isValidSportRule(data) {
       return data.keys().hasAll(['sportId', 'name', 'winPoints', 'drawPoints', 'lossPoints', 'tiebreakers', 'minRestHours', 'updatedAt'])
-        && data.keys().hasOnly(['sportId', 'name', 'winPoints', 'drawPoints', 'lossPoints', 'tiebreakers', 'minRestHours', 'matchDurationMinutes', 'maxPlayersOnField', 'yellowCardsSuspensionLimit', 'updatedAt'])
+        && data.keys().hasOnly(['sportId', 'tournamentId', 'name', 'winPoints', 'drawPoints', 'lossPoints', 'tiebreakers', 'minRestHours', 'matchDurationMinutes', 'maxPlayersOnField', 'yellowCardsSuspensionLimit', 'updatedAt'])
         && isValidId(data.sportId)
+        && (!('tournamentId' in data) || data.tournamentId == '' || isValidId(data.tournamentId))
         && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
         && data.winPoints is int && data.winPoints >= 0 && data.winPoints <= 10
         && data.drawPoints is int && data.drawPoints >= 0 && data.drawPoints <= 10
         && data.lossPoints is int && data.lossPoints >= 0 && data.lossPoints <= 10
-        && data.tiebreakers is list && data.tiebreakers.size() >= 1 && data.tiebreakers.size() <= 10
+        && data.tiebreakers is list && data.tiebreakers.size() >= 1 && data.tiebreakers.size() <= 10 && data.tiebreakers[0] is string
         && data.minRestHours is int && data.minRestHours >= 0 && data.minRestHours <= 240
         && isOptionalInt(data, 'matchDurationMinutes')
         && isOptionalInt(data, 'maxPlayersOnField')
@@ -563,9 +564,11 @@ service cloud.firestore {
       allow list: if true;
       allow create: if isAdminGeneral() && isValidId(ruleId) && isValidSportRule(incoming())
         && incoming().updatedAt == request.time
-        && exists(/databases/$(database)/documents/sports/$(incoming().sportId));
+        && exists(/databases/$(database)/documents/sports/$(incoming().sportId))
+        && (!('tournamentId' in incoming()) || incoming().tournamentId == '' || exists(/databases/$(database)/documents/tournaments/$(incoming().tournamentId)));
       allow update: if isAdminGeneral() && isValidId(ruleId) && isValidSportRule(incoming())
         && incoming().sportId == existing().sportId
+        && (!('tournamentId' in existing()) || existing().tournamentId == '' || incoming().tournamentId == existing().tournamentId)
         && incoming().updatedAt == request.time;
       allow delete: if isAdminGeneral() && isValidId(ruleId);
     }

@@ -15,6 +15,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase/config';
 import { DEFAULT_SPORTS_CATALOG } from '../engines/sportsCatalog';
 import { computeFootballCategoryMetrics } from '../engines/footballStatsEngine';
 import type {
+  Category,
   CorrectionEntry,
   Match,
   MatchEvent,
@@ -22,6 +23,7 @@ import type {
   Player,
   Sport,
   Team,
+  TiebreakerCriterion,
   Tournament,
   UserInvite,
   UserProfile,
@@ -851,5 +853,157 @@ export async function approveOrRejectMatchResult(params: {
     });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
+  }
+}
+
+export async function saveTournamentSportRule(params: {
+  ruleId?: string;
+  isNew: boolean;
+  tournament: Tournament;
+  sport: Sport;
+  name: string;
+  winPoints: number;
+  drawPoints: number;
+  lossPoints: number;
+  tiebreakers: TiebreakerCriterion[];
+  minRestHours: number;
+  matchDurationMinutes?: number;
+  maxPlayersOnField?: number;
+  yellowCardsSuspensionLimit?: number;
+  categories: Category[];
+  teams: Team[];
+  players: Player[];
+  allMatches: Match[];
+  allResults: MatchResult[];
+  allEvents: MatchEvent[];
+  actorUid: string;
+  actorName: string;
+}): Promise<string> {
+  const targetRuleId = params.ruleId || `rule_trn_${params.tournament.id}`;
+  const path = `sportRules/${targetRuleId}`;
+  try {
+    const batch = writeBatch(db);
+    const ruleRef = doc(db, 'sportRules', targetRuleId);
+    const rulePayload = cleanPayload({
+      sportId: params.sport.id,
+      tournamentId: params.tournament.id,
+      name: params.name.trim().slice(0, 120),
+      winPoints: params.winPoints,
+      drawPoints: params.drawPoints,
+      lossPoints: params.lossPoints,
+      tiebreakers: params.tiebreakers.slice(0, 10),
+      minRestHours: params.minRestHours,
+      matchDurationMinutes: params.matchDurationMinutes,
+      maxPlayersOnField: params.maxPlayersOnField,
+      yellowCardsSuspensionLimit: params.yellowCardsSuspensionLimit,
+      updatedAt: serverTimestamp(),
+    });
+
+    if (params.isNew) {
+      batch.set(ruleRef, rulePayload);
+    } else {
+      batch.update(ruleRef, rulePayload);
+    }
+
+    batch.update(doc(db, 'tournaments', params.tournament.id), {
+      winPoints: params.winPoints,
+      drawPoints: params.drawPoints,
+      lossPoints: params.lossPoints,
+      tiebreakers: params.tiebreakers.slice(0, 10),
+      minRestHours: params.minRestHours,
+      updatedAt: serverTimestamp(),
+    });
+
+    await batch.commit();
+
+    // Recalculate standings and team statistics when approved results exist for this tournament
+    if (params.sport.engineType === 'football') {
+      const updatedTournament: Tournament = {
+        ...params.tournament,
+        winPoints: params.winPoints,
+        drawPoints: params.drawPoints,
+        lossPoints: params.lossPoints,
+        tiebreakers: params.tiebreakers.slice(0, 10),
+        minRestHours: params.minRestHours,
+      };
+      const tournamentCategories = params.categories.filter(
+        (c) => c.tournamentId === params.tournament.id
+      );
+
+      for (const cat of tournamentCategories) {
+        const hasApproved = params.allResults.some(
+          (r) =>
+            r.tournamentId === params.tournament.id &&
+            r.categoryId === cat.id &&
+            r.validationStatus === 'aprobado'
+        );
+        if (!hasApproved) continue;
+
+        const computed = computeFootballCategoryMetrics({
+          sportEngine: params.sport.engineType,
+          tournament: updatedTournament,
+          categoryId: cat.id,
+          teams: params.teams.filter((t) => t.categoryId === cat.id),
+          players: params.players.filter((p) => p.categoryId === cat.id),
+          matches: params.allMatches,
+          results: params.allResults,
+          events: params.allEvents,
+        });
+
+        const statsBatch = writeBatch(db);
+        for (const ts of computed.teamStats) {
+          statsBatch.set(doc(db, 'teamStatistics', `ts_${ts.categoryId}_${ts.teamId}`), {
+            ...ts,
+            updatedAt: serverTimestamp(),
+          });
+        }
+        for (const st of computed.standings) {
+          statsBatch.set(
+            doc(db, 'standings', `std_${st.categoryId}_${st.teamId}`),
+            cleanPayload({
+              ...st,
+              updatedAt: serverTimestamp(),
+            })
+          );
+        }
+        await statsBatch.commit();
+      }
+    }
+
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'SAVE_TOURNAMENT_RULES',
+      entity: 'sportRules',
+      entityId: targetRuleId,
+      summary: `Reglamento configurado para ${params.tournament.name}: V:${params.winPoints}/E:${params.drawPoints}/D:${params.lossPoints} · Desempates: ${params.tiebreakers.join(' > ')}.`,
+    });
+
+    return targetRuleId;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+    return targetRuleId;
+  }
+}
+
+export async function deleteTournamentSportRule(params: {
+  ruleId: string;
+  tournamentName: string;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `sportRules/${params.ruleId}`;
+  try {
+    await deleteDoc(doc(db, 'sportRules', params.ruleId));
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'DELETE_TOURNAMENT_RULES',
+      entity: 'sportRules',
+      entityId: params.ruleId,
+      summary: `Reglamento personalizado eliminado para el torneo ${params.tournamentName}.`,
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
   }
 }

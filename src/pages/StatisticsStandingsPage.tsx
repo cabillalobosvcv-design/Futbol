@@ -38,6 +38,7 @@ export function StatisticsStandingsPage() {
   };
   const {
     tournaments,
+    sportRules,
     categories,
     teams,
     players,
@@ -53,6 +54,10 @@ export function StatisticsStandingsPage() {
 
   const activeTournament =
     tournaments.find((t) => t.id === selectedTournamentId) || tournaments[0];
+  const activeTournamentRule = useMemo(
+    () => sportRules.find((r) => r.tournamentId === activeTournament?.id),
+    [sportRules, activeTournament?.id]
+  );
   const tournamentCategories = useMemo(
     () => categories.filter((c) => c.tournamentId === activeTournament?.id),
     [categories, activeTournament?.id]
@@ -199,8 +204,9 @@ export function StatisticsStandingsPage() {
               Posiciones Oficiales — {activeCategory?.name || 'Categoría'}
             </h2>
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              Sistema: {activeTournament?.winPoints ?? 3}V / {activeTournament?.drawPoints ?? 1}E /{' '}
-              {activeTournament?.lossPoints ?? 0}D
+              Sistema: {activeTournamentRule?.winPoints ?? activeTournament?.winPoints ?? 3}V /{' '}
+              {activeTournamentRule?.drawPoints ?? activeTournament?.drawPoints ?? 1}E /{' '}
+              {activeTournamentRule?.lossPoints ?? activeTournament?.lossPoints ?? 0}D
             </span>
           </div>
           {catStandings.length === 0 ? (

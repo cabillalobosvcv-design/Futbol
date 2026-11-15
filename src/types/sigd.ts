@@ -123,6 +123,7 @@ export interface Sport {
 export interface SportRule {
   id: string;
   sportId: string;
+  tournamentId?: string;
   name: string;
   winPoints: number;
   drawPoints: number;

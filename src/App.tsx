@@ -11,6 +11,7 @@ import { FacilitiesRefereesPage } from './pages/FacilitiesRefereesPage';
 import { MatchResultsPage } from './pages/MatchResultsPage';
 import { PublicPortalPage } from './pages/PublicPortalPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { RulesConfigPage } from './pages/RulesConfigPage';
 import { ScheduleGeneratorPage } from './pages/ScheduleGeneratorPage';
 import { StatisticsStandingsPage } from './pages/StatisticsStandingsPage';
 import { TeamsPlayersPage } from './pages/TeamsPlayersPage';
@@ -44,6 +45,7 @@ function SigdAppRouter() {
       {activePage === 'public_portal' && <PublicPortalPage />}
       {activePage === 'dashboard' && <DashboardPage onNavigate={setActivePage} />}
       {activePage === 'tournaments' && <TournamentsPage />}
+      {activePage === 'rules' && <RulesConfigPage />}
       {activePage === 'teams' && <TeamsPlayersPage />}
       {activePage === 'facilities' && <FacilitiesRefereesPage />}
       {activePage === 'schedule' && <ScheduleGeneratorPage />}
