@@ -4,7 +4,9 @@ import {
   AlertTriangle,
   ArrowLeftRight,
   CalendarDays,
+  Check,
   CheckCircle2,
+  Clock,
   Edit3,
   FileSpreadsheet,
   FileText,
@@ -16,7 +18,12 @@ import {
   X,
 } from 'lucide-react';
 import { exportToExcel, exportToPdf } from '../engines/exportEngine';
-import { detectScheduleConflicts, generateTournamentFixtures } from '../engines/fixtureGenerator';
+import {
+  detectScheduleConflicts,
+  generateTournamentFixtures,
+  getValidDatesInRange,
+  WEEKDAY_ORDER,
+} from '../engines/fixtureGenerator';
 import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
 import {
@@ -35,6 +42,37 @@ import type { Match, MatchStage, MatchStatus, TournamentFormat } from '../types/
 
 type ScheduleViewMode = 'rounds' | 'calendar' | 'category' | 'team' | 'field';
 
+const HOURLY_TIME_SLOTS = [
+  '06:00',
+  '07:00',
+  '08:00',
+  '09:00',
+  '10:00',
+  '11:00',
+  '12:00',
+  '13:00',
+  '14:00',
+  '15:00',
+  '16:00',
+  '17:00',
+  '18:00',
+  '19:00',
+  '20:00',
+  '21:00',
+  '22:00',
+  '23:00',
+];
+
+const WEEKDAY_SHORT_LABELS: Record<string, string> = {
+  Lunes: 'Lun',
+  Martes: 'Mar',
+  Miércoles: 'Mié',
+  Jueves: 'Jue',
+  Viernes: 'Vie',
+  Sábado: 'Sáb',
+  Domingo: 'Dom',
+};
+
 export function ScheduleGeneratorPage() {
   const { profile } = useAuth();
   const { organizations, tournaments, categories, teams, fields, referees, matches } = useSigdData();
@@ -47,8 +85,10 @@ export function ScheduleGeneratorPage() {
 
   // Generator Options
   const [startDate, setStartDate] = useState('2026-11-21');
+  const [endDate, setEndDate] = useState('2027-01-31');
+  const [allowedWeekdays, setAllowedWeekdays] = useState<string[]>(['Sábado', 'Domingo']);
   const [daysBetweenRounds, setDaysBetweenRounds] = useState(7);
-  const [timesInput, setTimesInput] = useState('09:00, 11:00, 13:00, 15:00');
+  const [selectedTimes, setSelectedTimes] = useState<string[]>(['09:00', '11:00', '13:00', '15:00']);
   const [minRestHours, setMinRestHours] = useState(24);
   const [formatOverride, setFormatOverride] = useState<TournamentFormat | ''>('');
   const [doubleRoundOverride, setDoubleRoundOverride] = useState(false);
@@ -173,21 +213,90 @@ export function ScheduleGeneratorPage() {
     [matches, activeTournament?.id, fields, referees, minRestHours]
   );
 
+  const validPlayDates = useMemo(
+    () => getValidDatesInRange(startDate, endDate, allowedWeekdays),
+    [startDate, endDate, allowedWeekdays]
+  );
+
+  const dynamicPreview = useMemo(() => {
+    if (!activeTournament || !activeCategory || categoryTeams.length < 2) {
+      return null;
+    }
+    return generateTournamentFixtures({
+      tournamentId: activeTournament.id,
+      categoryId: activeCategory.id,
+      teams: categoryTeams,
+      format: formatOverride || activeTournament.format,
+      doubleRound: doubleRoundOverride || Boolean(activeTournament.doubleRound),
+      teamsPerGroup: activeTournament.teamsPerGroup || 4,
+      qualifiersPerGroup: activeTournament.qualifiersPerGroup || 2,
+      startDate,
+      endDate,
+      allowedWeekdays,
+      daysBetweenRounds: Number(daysBetweenRounds),
+      defaultTimes: selectedTimes.length > 0 ? selectedTimes : ['09:00'],
+      fields,
+      referees,
+      minRestHours: Number(minRestHours),
+    });
+  }, [
+    activeTournament,
+    activeCategory,
+    categoryTeams,
+    formatOverride,
+    doubleRoundOverride,
+    startDate,
+    endDate,
+    allowedWeekdays,
+    daysBetweenRounds,
+    selectedTimes,
+    fields,
+    referees,
+    minRestHours,
+  ]);
+
+  const toggleWeekday = (day: string) => {
+    setAllowedWeekdays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
+  };
+
+  const toggleHourSlot = (hour: string) => {
+    setSelectedTimes((prev) => {
+      const next = prev.includes(hour) ? prev.filter((t) => t !== hour) : [...prev, hour];
+      return next.sort((a, b) => a.localeCompare(b));
+    });
+  };
+
   const executeGenerate = async (replaceExisting: boolean) => {
     if (!profile || !activeTournament || !activeCategory) return;
     if (categoryTeams.length < 2) {
-      setFeedback('Se necesitan al menos 2 equipos activos en la categoría para generar roles.');
+      setErrorMsg('Se necesitan al menos 2 equipos activos en la categoría para generar roles.');
+      return;
+    }
+    if (!startDate || !endDate || endDate < startDate) {
+      setErrorMsg('La fecha de fin debe ser igual o posterior a la fecha de inicio.');
+      return;
+    }
+    if (allowedWeekdays.length === 0) {
+      setErrorMsg('Selecciona al menos un día de la semana para jugar.');
+      return;
+    }
+    if (validPlayDates.length === 0) {
+      setErrorMsg(
+        'No existen fechas disponibles entre la fecha de inicio y fin para los días de la semana seleccionados.'
+      );
+      return;
+    }
+    if (selectedTimes.length === 0) {
+      setErrorMsg('Selecciona al menos un horario permitido de la lista por hora.');
       return;
     }
 
     setBusy(true);
     setFeedback(null);
+    setErrorMsg(null);
     try {
-      const defaultTimes = timesInput
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => /^\d{2}:\d{2}$/.test(s));
-
       const result = generateTournamentFixtures({
         tournamentId: activeTournament.id,
         categoryId: activeCategory.id,
@@ -197,8 +306,10 @@ export function ScheduleGeneratorPage() {
         teamsPerGroup: activeTournament.teamsPerGroup || 4,
         qualifiersPerGroup: activeTournament.qualifiersPerGroup || 2,
         startDate,
+        endDate,
+        allowedWeekdays,
         daysBetweenRounds: Number(daysBetweenRounds),
-        defaultTimes: defaultTimes.length > 0 ? defaultTimes : ['09:00', '11:00', '13:00'],
+        defaultTimes: selectedTimes,
         fields,
         referees,
         minRestHours: Number(minRestHours),
@@ -217,7 +328,7 @@ export function ScheduleGeneratorPage() {
       });
 
       setFeedback(
-        `Calendario generado con ${result.matches.length} encuentros en ${result.rounds.length} jornadas. Conflictos detectados: ${result.conflicts.length}.`
+        `Calendario generado con ${result.matches.length} encuentros en ${result.rounds.length} jornadas (${startDate} al ${endDate}). Conflictos detectados: ${result.conflicts.length}.`
       );
     } finally {
       setBusy(false);
@@ -557,15 +668,24 @@ export function ScheduleGeneratorPage() {
       )}
 
       {/* Generator Parameters */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 transition-colors">
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
-          <SlidersHorizontal className="w-4 h-4 text-electric-500" />
-          <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
-            Parámetros y Restricciones del Generador
-          </h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-5 transition-colors">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="w-4 h-4 text-electric-500" />
+            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
+              Parámetros y Restricciones del Generador Dinámico
+            </h2>
+          </div>
+          {dynamicPreview && (
+            <span className="text-xs font-medium px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/50 text-electric-600 dark:text-blue-300">
+              Estimación: {dynamicPreview.matches.length} partidos · {dynamicPreview.rounds.length}{' '}
+              jornadas · {validPlayDates.length} fecha(s) hábiles
+            </span>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Torneo, Categoría, Modalidad, Intervalo y Descanso */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
           <div>
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
               Torneo
@@ -618,21 +738,7 @@ export function ScheduleGeneratorPage() {
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Fecha de inicio
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-          <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Días entre jornadas
+              Días mín. entre jornadas
             </label>
             <input
               type="number"
@@ -656,31 +762,208 @@ export function ScheduleGeneratorPage() {
               className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Horarios permitidos (HH:MM)
-            </label>
-            <input
-              type="text"
-              value={timesInput}
-              onChange={(e) => setTimesInput(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 pb-2.5">
-            <input
-              type="checkbox"
-              checked={doubleRoundOverride}
-              onChange={(e) => setDoubleRoundOverride(e.target.checked)}
-            />
-            Forzar Ida y Vuelta
-          </label>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 pt-2">
+        {/* Rango de Fechas y Días de la Semana */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start pt-1">
+          <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Fecha de inicio
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Fecha de fin
+              </label>
+              <input
+                type="date"
+                min={startDate}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+              />
+            </div>
+            <label className="sm:col-span-2 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 pt-1">
+              <input
+                type="checkbox"
+                checked={doubleRoundOverride}
+                onChange={(e) => setDoubleRoundOverride(e.target.checked)}
+              />
+              Forzar Ida y Vuelta (doble vuelta)
+            </label>
+          </div>
+
+          <div className="lg:col-span-7 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                Días de la semana a jugar ({allowedWeekdays.length} seleccionados)
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setAllowedWeekdays(['Sábado', 'Domingo'])}
+                  className="px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Fin de semana
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAllowedWeekdays(['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'])
+                  }
+                  className="px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Entre semana
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAllowedWeekdays([...WEEKDAY_ORDER])}
+                  className="px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Todos
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+              {WEEKDAY_ORDER.map((day) => {
+                const active = allowedWeekdays.includes(day);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleWeekday(day)}
+                    className={`px-2.5 py-2 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${
+                      active
+                        ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {active && <Check className="w-3 h-3 shrink-0" />}
+                    <span className="truncate">{WEEKDAY_SHORT_LABELS[day] || day}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Lista de Horarios Permitidos por Hora */}
+        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-electric-500" />
+              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                Horarios permitidos (lista por hora · {selectedTimes.length} seleccionados)
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setSelectedTimes(['08:00', '09:00', '10:00', '11:00', '12:00'])}
+                className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Mañana (08–12)
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedTimes(['13:00', '14:00', '15:00', '16:00', '17:00', '18:00'])
+                }
+                className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Tarde (13–18)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTimes(['19:00', '20:00', '21:00', '22:00'])}
+                className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Noche (19–22)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTimes([...HOURLY_TIME_SLOTS])}
+                className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTimes([])}
+                className="px-2.5 py-1 rounded border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+              >
+                Limpiar
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-9 gap-2">
+            {HOURLY_TIME_SLOTS.map((hour) => {
+              const checked = selectedTimes.includes(hour);
+              return (
+                <label
+                  key={hour}
+                  className={`flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs font-mono cursor-pointer transition-colors select-none ${
+                    checked
+                      ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500 font-semibold'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleHourSlot(hour)}
+                    className="sr-only"
+                  />
+                  {checked && <Check className="w-3 h-3 shrink-0" />}
+                  <span>{hour}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Dynamic Range & Capacity Diagnostics */}
+        {(!startDate || !endDate || endDate < startDate) && (
+          <div className="text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg px-3 py-2">
+            Verifica que la Fecha de fin sea igual o posterior a la Fecha de inicio.
+          </div>
+        )}
+        {startDate && endDate && endDate >= startDate && validPlayDates.length === 0 && (
+          <div className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
+            No hay días válidos para jugar entre {startDate} y {endDate} con los días de la semana seleccionados.
+          </div>
+        )}
+        {dynamicPreview &&
+          validPlayDates.length > 0 &&
+          dynamicPreview.rounds.length > validPlayDates.length && (
+            <div className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
+              El torneo requiere {dynamicPreview.rounds.length} jornadas, pero solo hay{' '}
+              {validPlayDates.length} fecha(s) hábiles en el rango seleccionado. Algunas jornadas
+              compartirán fecha o puedes ampliar la Fecha de fin / agregar más días de juego.
+            </div>
+          )}
+
+        <div className="flex flex-wrap items-center gap-3 pt-1">
           <button
             type="button"
-            disabled={busy || !activeCategory}
+            disabled={
+              busy ||
+              !activeCategory ||
+              !startDate ||
+              !endDate ||
+              endDate < startDate ||
+              validPlayDates.length === 0 ||
+              selectedTimes.length === 0
+            }
             onClick={() => handleGenerateClick(categoryMatches.length > 0)}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-electric-500 hover:bg-electric-600 text-white text-sm font-medium disabled:opacity-50"
           >
@@ -690,9 +973,16 @@ export function ScheduleGeneratorPage() {
           {categoryMatches.length > 0 && (
             <button
               type="button"
-              disabled={busy}
+              disabled={
+                busy ||
+                !startDate ||
+                !endDate ||
+                endDate < startDate ||
+                validPlayDates.length === 0 ||
+                selectedTimes.length === 0
+              }
               onClick={() => handleGenerateClick(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 disabled:opacity-50"
             >
               <RefreshCw className="w-4 h-4" />
               Reemplazar roles actuales

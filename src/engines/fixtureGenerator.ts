@@ -19,6 +19,8 @@ export interface GenerateFixtureOptions {
   teamsPerGroup: number;
   qualifiersPerGroup: number;
   startDate: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+  allowedWeekdays?: string[]; // e.g. ['Sábado', 'Domingo']
   daysBetweenRounds: number;
   defaultTimes: string[]; // e.g. ['09:00', '11:00', '13:00', '15:00']
   fields: Field[];
@@ -36,18 +38,55 @@ export interface GeneratedFixtureResult {
 }
 
 const WEEKDAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+export const WEEKDAY_ORDER = [
+  'Lunes',
+  'Martes',
+  'Miércoles',
+  'Jueves',
+  'Viernes',
+  'Sábado',
+  'Domingo',
+] as const;
 
-function addDaysToIsoDate(isoDate: string, days: number): string {
+export function addDaysToIsoDate(isoDate: string, days: number): string {
   const [y, m, d] = isoDate.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  const dt = new Date(Date.UTC(y || 2026, (m || 1) - 1, d || 1));
   dt.setUTCDate(dt.getUTCDate() + days);
   return dt.toISOString().slice(0, 10);
 }
 
-function getWeekdayName(isoDate: string): string {
+export function getWeekdayName(isoDate: string): string {
   const [y, m, d] = isoDate.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  const dt = new Date(Date.UTC(y || 2026, (m || 1) - 1, d || 1));
   return WEEKDAY_NAMES[dt.getUTCDay()] || 'Sábado';
+}
+
+function diffIsoDays(startIso: string, endIso: string): number {
+  const [y1, m1, d1] = startIso.split('-').map(Number);
+  const [y2, m2, d2] = endIso.split('-').map(Number);
+  const t1 = Date.UTC(y1 || 2026, (m1 || 1) - 1, d1 || 1);
+  const t2 = Date.UTC(y2 || 2026, (m2 || 1) - 1, d2 || 1);
+  return Math.round((t2 - t1) / (24 * 3600 * 1000));
+}
+
+export function getValidDatesInRange(
+  startDate: string,
+  endDate: string,
+  allowedWeekdays?: string[]
+): string[] {
+  if (!startDate || !endDate || startDate > endDate) return [];
+  const allowedSet = new Set(
+    allowedWeekdays && allowedWeekdays.length > 0 ? allowedWeekdays : [...WEEKDAY_ORDER]
+  );
+  const dates: string[] = [];
+  let cursor = startDate;
+  for (let i = 0; i < 730 && cursor <= endDate; i++) {
+    if (allowedSet.has(getWeekdayName(cursor))) {
+      dates.push(cursor);
+    }
+    cursor = addDaysToIsoDate(cursor, 1);
+  }
+  return dates;
 }
 
 function parseDateTimeMs(date: string, time: string): number {
@@ -286,10 +325,11 @@ export function generateTournamentFixtures(opts: GenerateFixtureOptions): Genera
     }
   }
 
-  // Slot allocator respecting field availability, simultaneous team/field/referee constraints, and minRestHours
+  // Slot allocator respecting date range, allowed weekdays, field availability, simultaneous constraints, and minRestHours
   const availableFields = opts.fields.filter((f) => f.status === 'disponible');
   const activeReferees = opts.referees.filter((r) => r.status === 'activo');
-  const defaultTimes = opts.defaultTimes.length > 0 ? opts.defaultTimes : ['09:00', '11:00', '13:00', '15:00', '17:00'];
+  const defaultTimes =
+    opts.defaultTimes.length > 0 ? opts.defaultTimes : ['09:00', '11:00', '13:00', '15:00'];
 
   const usedFieldSlots = new Set<string>(); // `${fieldId}|${date}|${time}`
   const usedRefereeSlots = new Set<string>(); // `${refId}|${date}|${time}`
@@ -300,9 +340,70 @@ export function generateTournamentFixtures(opts: GenerateFixtureOptions): Genera
 
   // Group pairings by roundNumber
   const sortedPairings = [...rawPairings].sort((a, b) => a.roundNumber - b.roundNumber);
+  const uniqueRoundNumbers = Array.from(new Set(sortedPairings.map((p) => p.roundNumber))).sort(
+    (a, b) => a - b
+  );
+
+  const effectiveEndDate =
+    opts.endDate && opts.endDate >= opts.startDate
+      ? opts.endDate
+      : addDaysToIsoDate(
+          opts.startDate,
+          Math.max(14, uniqueRoundNumbers.length * Math.max(1, opts.daysBetweenRounds) + 14)
+        );
+
+  const validDates = getValidDatesInRange(
+    opts.startDate,
+    effectiveEndDate,
+    opts.allowedWeekdays
+  );
+
+  // Map each roundNumber to a primary validDate index inside [startDate, endDate]
+  const roundDateIndexMap = new Map<number, number>();
+  if (validDates.length > 0 && uniqueRoundNumbers.length > 0) {
+    if (uniqueRoundNumbers.length > validDates.length) {
+      uniqueRoundNumbers.forEach((rn, idx) => {
+        const mappedIdx = Math.min(
+          validDates.length - 1,
+          Math.floor((idx * validDates.length) / uniqueRoundNumbers.length)
+        );
+        roundDateIndexMap.set(rn, mappedIdx);
+      });
+    } else {
+      let prevIdx = 0;
+      uniqueRoundNumbers.forEach((rn, idx) => {
+        if (idx === 0) {
+          roundDateIndexMap.set(rn, 0);
+          prevIdx = 0;
+          return;
+        }
+        const remainingRounds = uniqueRoundNumbers.length - 1 - idx;
+        const maxAllowedIdx = validDates.length - 1 - remainingRounds;
+        const minGap = Math.max(1, opts.daysBetweenRounds);
+
+        let chosenIdx = prevIdx + 1;
+        while (
+          chosenIdx < maxAllowedIdx &&
+          diffIsoDays(validDates[prevIdx], validDates[chosenIdx]) < minGap
+        ) {
+          chosenIdx += 1;
+        }
+        chosenIdx = Math.min(chosenIdx, maxAllowedIdx);
+        roundDateIndexMap.set(rn, chosenIdx);
+        prevIdx = chosenIdx;
+      });
+    }
+  }
 
   for (const p of sortedPairings) {
-    const baseRoundDate = addDaysToIsoDate(opts.startDate, (p.roundNumber - 1) * Math.max(1, opts.daysBetweenRounds));
+    const baseDateIdx = roundDateIndexMap.get(p.roundNumber) ?? 0;
+    const baseRoundDate =
+      validDates.length > 0
+        ? validDates[baseDateIdx]
+        : addDaysToIsoDate(
+            opts.startDate,
+            (p.roundNumber - 1) * Math.max(1, opts.daysBetweenRounds)
+          );
 
     if (!roundsMap.has(p.roundNumber)) {
       roundsMap.set(p.roundNumber, {
@@ -320,10 +421,15 @@ export function generateTournamentFixtures(opts: GenerateFixtureOptions): Genera
     let chosenField: Field | undefined = availableFields[0];
     let chosenReferee: Referee | undefined;
 
-    // Try candidate dates (base date, +1 day, +2 days) and time slots + fields
+    // Candidate dates: prefer validDates starting at baseDateIdx (same weekend/upcoming valid weekdays inside range)
+    const candidateDates: string[] =
+      validDates.length > 0
+        ? validDates.slice(baseDateIdx, Math.min(validDates.length, baseDateIdx + 6))
+        : [0, 1, 2, 3].map((d) => addDaysToIsoDate(baseRoundDate, d));
+
     let slotFound = false;
-    for (let dayOffset = 0; dayOffset <= 3 && !slotFound; dayOffset++) {
-      const candidateDate = addDaysToIsoDate(baseRoundDate, dayOffset);
+    for (const candidateDate of candidateDates) {
+      if (slotFound) break;
       const weekday = getWeekdayName(candidateDate);
 
       for (const candidateTime of defaultTimes) {
