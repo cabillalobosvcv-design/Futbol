@@ -3,6 +3,7 @@ import {
   Award,
   BarChart3,
   CalendarDays,
+  ChevronDown,
   Clock,
   Crown,
   Filter,
@@ -13,6 +14,7 @@ import {
   Trophy,
   Users,
 } from 'lucide-react';
+import { MobileCollapsibleStandings } from '../components/MobileCollapsibleStandings';
 import { MatchStatusIndicator } from '../components/SemanticIcons';
 import { TeamCrest } from '../components/TeamCrest';
 import { useSigdData } from '../context/SigdDataContext';
@@ -43,6 +45,7 @@ export function PublicPortalPage() {
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>('all');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const teamMap = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
@@ -237,13 +240,29 @@ export function PublicPortalPage() {
         </div>
       </section>
 
-      {/* Filter Toolbar */}
-      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center gap-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 shrink-0">
-          <Filter className="w-4 h-4 text-electric-500" />
-          <span>Filtros de consulta:</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 flex-1">
+      {/* Filter Toolbar (Collapsible on mobile) */}
+      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 flex flex-col lg:flex-row lg:items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setMobileFiltersOpen((v) => !v)}
+          aria-expanded={mobileFiltersOpen}
+          className="lg:pointer-events-none flex items-center justify-between gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 shrink-0 min-h-[36px] lg:min-h-0"
+        >
+          <span className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-electric-500" />
+            <span>Filtros de consulta</span>
+          </span>
+          <ChevronDown
+            className={`w-4 h-4 text-slate-400 lg:hidden transition-transform duration-150 ${
+              mobileFiltersOpen ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+        <div
+          className={`${
+            mobileFiltersOpen ? 'grid' : 'hidden'
+          } lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 flex-1`}
+        >
           <select
             value={selectedSeasonId}
             onChange={(e) => {
@@ -437,53 +456,65 @@ export function PublicPortalPage() {
                 Las posiciones oficiales se publicarán al validar el primer resultado.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
-                      <th className="py-2.5 px-3 text-left font-medium">Pos</th>
-                      <th className="py-2.5 px-3 text-left font-medium">Equipo</th>
-                      <th className="py-2.5 px-2 text-right font-medium">PJ</th>
-                      <th className="py-2.5 px-2 text-right font-medium">DG</th>
-                      <th className="py-2.5 px-3 text-right font-medium">PTS</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {filteredStandings.slice(0, 8).map((st) => {
-                      const team = teamMap.get(st.teamId);
-                      return (
-                        <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                          <td className="py-2.5 px-3 font-mono font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                            {st.position}
-                          </td>
-                          <td className="py-2.5 px-3 font-medium text-slate-900 dark:text-slate-100">
-                            <div className="flex items-center gap-2">
-                              <TeamCrest
-                                name={team?.name || st.teamId}
-                                shortCode={team?.shortCode || 'EQ'}
-                                primaryColor={team?.primaryColor}
-                                secondaryColor={team?.secondaryColor}
-                                crestUrl={team?.crestUrl}
-                                size="sm"
-                              />
-                              <span className="truncate max-w-[140px]">{team?.name || st.teamId}</span>
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-2 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">
-                            {st.played}
-                          </td>
-                          <td className="py-2.5 px-2 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">
-                            {st.goalDifference > 0 ? `+${st.goalDifference}` : st.goalDifference}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold tabular-nums text-navy-900 dark:text-white">
-                            {st.points}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <MobileCollapsibleStandings
+                  standings={filteredStandings}
+                  teamMap={teamMap}
+                  categoryMap={categoryMap}
+                  showCategoryName={selectedCategoryId === 'all'}
+                  showPenCol={filteredStandings.some(
+                    (st) => (st.penaltyWins ?? 0) > 0 || Boolean(tournamentMap.get(st.tournamentId)?.drawPenaltyShootout)
+                  )}
+                  maxItems={8}
+                />
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                        <th className="py-2.5 px-3 text-left font-medium">Pos</th>
+                        <th className="py-2.5 px-3 text-left font-medium">Equipo</th>
+                        <th className="py-2.5 px-2 text-right font-medium">PJ</th>
+                        <th className="py-2.5 px-2 text-right font-medium">DG</th>
+                        <th className="py-2.5 px-3 text-right font-medium">PTS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {filteredStandings.slice(0, 8).map((st) => {
+                        const team = teamMap.get(st.teamId);
+                        return (
+                          <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="py-2.5 px-3 font-mono font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                              {st.position}
+                            </td>
+                            <td className="py-2.5 px-3 font-medium text-slate-900 dark:text-slate-100">
+                              <div className="flex items-center gap-2">
+                                <TeamCrest
+                                  name={team?.name || st.teamId}
+                                  shortCode={team?.shortCode || 'EQ'}
+                                  primaryColor={team?.primaryColor}
+                                  secondaryColor={team?.secondaryColor}
+                                  crestUrl={team?.crestUrl}
+                                  size="sm"
+                                />
+                                <span className="truncate max-w-[140px]">{team?.name || st.teamId}</span>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-2 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                              {st.played}
+                            </td>
+                            <td className="py-2.5 px-2 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                              {st.goalDifference > 0 ? `+${st.goalDifference}` : st.goalDifference}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold tabular-nums text-navy-900 dark:text-white">
+                              {st.points}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
 
@@ -771,82 +802,91 @@ export function PublicPortalPage() {
                 No hay posiciones calculadas para los filtros seleccionados.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
-                      <th className="py-3 px-4 text-left font-semibold">POS</th>
-                      <th className="py-3 px-4 text-left font-semibold">EQUIPO</th>
-                      <th className="py-3 px-3 text-left font-semibold">CATEGORÍA</th>
-                      <th className="py-3 px-2.5 text-right font-semibold">PJ</th>
-                      <th className="py-3 px-2.5 text-right font-semibold">PG</th>
-                      <th className="py-3 px-2.5 text-right font-semibold">PE</th>
-                      {showPenCol && (
-                        <th
-                          className="py-3 px-2.5 text-right font-semibold text-amber-700 dark:text-amber-400"
-                          title="Ganados en Penales (+1 pt extra)"
-                        >
-                          PEN
-                        </th>
-                      )}
-                      <th className="py-3 px-2.5 text-right font-semibold">PP</th>
-                      <th className="py-3 px-2.5 text-right font-semibold">GF</th>
-                      <th className="py-3 px-2.5 text-right font-semibold">GC</th>
-                      <th className="py-3 px-2.5 text-right font-semibold">DG</th>
-                      <th className="py-3 px-4 text-right font-semibold">PTS</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {filteredStandings.map((st) => {
-                      const team = teamMap.get(st.teamId);
-                      return (
-                        <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                          <td className="py-3 px-4 font-mono font-bold tabular-nums text-navy-900 dark:text-white">
-                            {st.position}
-                          </td>
-                          <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
-                            <div className="flex items-center gap-2.5">
-                              <TeamCrest
-                                name={team?.name || st.teamId}
-                                shortCode={team?.shortCode || 'EQ'}
-                                primaryColor={team?.primaryColor}
-                                secondaryColor={team?.secondaryColor}
-                                crestUrl={team?.crestUrl}
-                                size="sm"
-                              />
-                              <span>{team?.name || st.teamId}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 text-slate-500 dark:text-slate-400 text-xs">
-                            {categoryMap.get(st.categoryId)?.name}
-                          </td>
-                          <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.played}</td>
-                          <td className="py-3 px-2.5 text-right font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
-                            {st.wins}
-                          </td>
-                          <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.draws}</td>
-                          {showPenCol && (
-                            <td className="py-3 px-2.5 text-right font-mono tabular-nums text-amber-700 dark:text-amber-400">
-                              {st.penaltyWins ?? 0}
+              <>
+                <MobileCollapsibleStandings
+                  standings={filteredStandings}
+                  teamMap={teamMap}
+                  categoryMap={categoryMap}
+                  showCategoryName={true}
+                  showPenCol={showPenCol}
+                />
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
+                        <th className="py-3 px-4 text-left font-semibold">POS</th>
+                        <th className="py-3 px-4 text-left font-semibold">EQUIPO</th>
+                        <th className="py-3 px-3 text-left font-semibold">CATEGORÍA</th>
+                        <th className="py-3 px-2.5 text-right font-semibold">PJ</th>
+                        <th className="py-3 px-2.5 text-right font-semibold">PG</th>
+                        <th className="py-3 px-2.5 text-right font-semibold">PE</th>
+                        {showPenCol && (
+                          <th
+                            className="py-3 px-2.5 text-right font-semibold text-amber-700 dark:text-amber-400"
+                            title="Ganados en Penales (+1 pt extra)"
+                          >
+                            PEN
+                          </th>
+                        )}
+                        <th className="py-3 px-2.5 text-right font-semibold">PP</th>
+                        <th className="py-3 px-2.5 text-right font-semibold">GF</th>
+                        <th className="py-3 px-2.5 text-right font-semibold">GC</th>
+                        <th className="py-3 px-2.5 text-right font-semibold">DG</th>
+                        <th className="py-3 px-4 text-right font-semibold">PTS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {filteredStandings.map((st) => {
+                        const team = teamMap.get(st.teamId);
+                        return (
+                          <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="py-3 px-4 font-mono font-bold tabular-nums text-navy-900 dark:text-white">
+                              {st.position}
                             </td>
-                          )}
-                          <td className="py-3 px-2.5 text-right font-mono tabular-nums text-red-600 dark:text-red-400">
-                            {st.losses}
-                          </td>
-                          <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.goalsFor}</td>
-                          <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.goalsAgainst}</td>
-                          <td className="py-3 px-2.5 text-right font-mono tabular-nums">
-                            {st.goalDifference > 0 ? `+${st.goalDifference}` : st.goalDifference}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold tabular-nums text-navy-900 dark:text-white">
-                            {st.points}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                            <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
+                              <div className="flex items-center gap-2.5">
+                                <TeamCrest
+                                  name={team?.name || st.teamId}
+                                  shortCode={team?.shortCode || 'EQ'}
+                                  primaryColor={team?.primaryColor}
+                                  secondaryColor={team?.secondaryColor}
+                                  crestUrl={team?.crestUrl}
+                                  size="sm"
+                                />
+                                <span>{team?.name || st.teamId}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-slate-500 dark:text-slate-400 text-xs">
+                              {categoryMap.get(st.categoryId)?.name}
+                            </td>
+                            <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.played}</td>
+                            <td className="py-3 px-2.5 text-right font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
+                              {st.wins}
+                            </td>
+                            <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.draws}</td>
+                            {showPenCol && (
+                              <td className="py-3 px-2.5 text-right font-mono tabular-nums text-amber-700 dark:text-amber-400">
+                                {st.penaltyWins ?? 0}
+                              </td>
+                            )}
+                            <td className="py-3 px-2.5 text-right font-mono tabular-nums text-red-600 dark:text-red-400">
+                              {st.losses}
+                            </td>
+                            <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.goalsFor}</td>
+                            <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.goalsAgainst}</td>
+                            <td className="py-3 px-2.5 text-right font-mono tabular-nums">
+                              {st.goalDifference > 0 ? `+${st.goalDifference}` : st.goalDifference}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-bold tabular-nums text-navy-900 dark:text-white">
+                              {st.points}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         );

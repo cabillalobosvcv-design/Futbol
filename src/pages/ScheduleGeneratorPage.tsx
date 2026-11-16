@@ -6,6 +6,9 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Clock,
   Edit3,
   FileSpreadsheet,
@@ -24,6 +27,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { CollapsibleSection } from '../components/CollapsibleSection';
 import { FieldStatusIcon, MatchStatusIndicator } from '../components/SemanticIcons';
 import { TeamCrest } from '../components/TeamCrest';
 import { exportToExcel, exportToPdf } from '../engines/exportEngine';
@@ -190,6 +194,20 @@ export function ScheduleGeneratorPage() {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Mobile & Desktop Collapsible Controls
+  const [paramsPanelOpen, setParamsPanelOpen] = useState(true);
+  const [paramSectionsOpen, setParamSectionsOpen] = useState({
+    weekly: true,
+    dates: true,
+    hours: false,
+    fields: false,
+  });
+  const [conflictsOpen, setConflictsOpen] = useState(false);
+  const [roundToolsBarOpen, setRoundToolsBarOpen] = useState(false);
+  const [draftRoundsCollapsed, setDraftRoundsCollapsed] = useState<Record<number, boolean>>({});
+  const [savedRoundsCollapsed, setSavedRoundsCollapsed] = useState<Record<number, boolean>>({});
+  const [expandedSavedMatchIds, setExpandedSavedMatchIds] = useState<Record<string, boolean>>({});
 
   const activeTournament =
     tournaments.find((t) => t.id === selectedTournamentId) || tournaments[0];
@@ -1205,735 +1223,846 @@ export function ScheduleGeneratorPage() {
         </div>
       )}
 
-      {/* Generator Parameters */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-5 transition-colors">
-        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="w-4 h-4 text-electric-500" />
-            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
-              Parámetros del Generador Semanal de Roles
-            </h2>
-          </div>
-          {dynamicPreview && (
-            <span className="text-xs font-medium px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/50 text-electric-600 dark:text-blue-300">
-              Estimación: {dynamicPreview.matches.length} partidos · {dynamicPreview.rounds.length}{' '}
-              jornada(s) · {weekBuckets.length} semana(s) hábiles
-            </span>
-          )}
+      {/* Generator Parameters (Collapsible + Accordion Sections for Mobile) */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-colors">
+        <div
+          className={`px-4 sm:px-5 py-3.5 sm:py-4 flex flex-wrap items-center justify-between gap-2 ${
+            paramsPanelOpen ? 'border-b border-slate-200 dark:border-slate-800' : ''
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => setParamsPanelOpen((v) => !v)}
+            aria-expanded={paramsPanelOpen}
+            className="flex-1 min-w-0 flex items-center justify-between gap-3 text-left min-h-[40px]"
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 text-electric-500 shrink-0" />
+                <h2 className="font-display font-semibold text-sm sm:text-base text-slate-900 dark:text-white truncate">
+                  Parámetros del Generador Semanal de Roles
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                {activeCategory?.name || 'Categoría'} · {startDate} al {endDate} · {selectedTimes.length}{' '}
+                horario(s)
+                {dynamicPreview
+                  ? ` · Est. ${dynamicPreview.matches.length} partidos (${dynamicPreview.rounds.length} jor.)`
+                  : ''}
+              </p>
+            </div>
+            <ChevronDown
+              className={`w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0 transition-transform duration-150 ${
+                paramsPanelOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
         </div>
 
-        {/* Torneo, Categoría y Modalidad */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-          <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Torneo
-            </label>
-            <select
-              value={activeTournament?.id || ''}
-              onChange={(e) => {
-                setSelectedTournamentId(e.target.value);
-                setSelectedCategoryId('');
-                setWeeklyDraft(null);
-              }}
-              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            >
-              {tournaments.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Categoría ({categoryTeams.length} equipos)
-            </label>
-            <select
-              value={activeCategory?.id || ''}
-              onChange={(e) => {
-                setSelectedCategoryId(e.target.value);
-                setWeeklyDraft(null);
-              }}
-              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            >
-              {tournamentCategories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Modalidad
-            </label>
-            <select
-              value={formatOverride || activeTournament?.format || 'round_robin'}
-              onChange={(e) => setFormatOverride(e.target.value as TournamentFormat)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            >
-              <option value="round_robin">Todos contra todos</option>
-              <option value="knockout">Eliminación directa</option>
-              <option value="groups">Fase de grupos</option>
-              <option value="mixed">Modalidad mixta</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Planificación por Semana */}
-        <div className="p-4 rounded-xl border border-blue-200/80 dark:border-blue-900/70 bg-blue-50/40 dark:bg-blue-950/20 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-electric-500" />
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                Modo de generación por semana
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setScheduleMode('weekly_all')}
-                className={`px-3 py-1.5 rounded-lg border font-medium transition-colors ${
-                  scheduleMode === 'weekly_all'
-                    ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
-                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                Rol semanal completo (todas las jornadas)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const nextPendingRound =
-                    (categoryRoundsSummary[categoryRoundsSummary.length - 1]?.roundNumber || 0) + 1;
-                  setScheduleMode('single_week');
-                  setTargetRoundNumber(Math.min(estimatedTotalRounds, nextPendingRound));
-                }}
-                className={`px-3 py-1.5 rounded-lg border font-medium transition-colors ${
-                  scheduleMode === 'single_week'
-                    ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
-                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                Solo una semana / jornada específica
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-            {scheduleMode === 'weekly_all' ? (
+        {paramsPanelOpen && (
+          <div className="p-4 sm:p-5 space-y-4 sm:space-y-5">
+            {/* Torneo, Categoría y Modalidad */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Ritmo semanal
+                  Torneo
                 </label>
                 <select
-                  value={roundsPerWeek}
-                  onChange={(e) => setRoundsPerWeek(Number(e.target.value) || 1)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                  value={activeTournament?.id || ''}
+                  onChange={(e) => {
+                    setSelectedTournamentId(e.target.value);
+                    setSelectedCategoryId('');
+                    setWeeklyDraft(null);
+                  }}
+                  className="w-full px-3 py-2 min-h-[42px] text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 >
-                  <option value={1}>1 jornada por semana (estándar)</option>
-                  <option value={2}>2 jornadas por semana (doble)</option>
+                  {tournaments.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
                 </select>
               </div>
-            ) : (
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Jornada a generar para esta semana
+                  Categoría ({categoryTeams.length} equipos)
                 </label>
                 <select
-                  value={targetRoundNumber}
-                  onChange={(e) => setTargetRoundNumber(Number(e.target.value) || 1)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                  value={activeCategory?.id || ''}
+                  onChange={(e) => {
+                    setSelectedCategoryId(e.target.value);
+                    setWeeklyDraft(null);
+                  }}
+                  className="w-full px-3 py-2 min-h-[42px] text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 >
-                  {Array.from({ length: Math.max(1, estimatedTotalRounds) }, (_, i) => i + 1).map(
-                    (rn) => {
-                      const alreadySaved = categoryRoundsSummary.some((r) => r.roundNumber === rn);
-                      return (
-                        <option key={rn} value={rn}>
-                          Jornada {rn} {alreadySaved ? '(ya existe — se actualizará)' : '(pendiente)'}
-                        </option>
-                      );
-                    }
+                  {tournamentCategories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Modalidad
+                </label>
+                <select
+                  value={formatOverride || activeTournament?.format || 'round_robin'}
+                  onChange={(e) => setFormatOverride(e.target.value as TournamentFormat)}
+                  className="w-full px-3 py-2 min-h-[42px] text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                >
+                  <option value="round_robin">Todos contra todos</option>
+                  <option value="knockout">Eliminación directa</option>
+                  <option value="groups">Fase de grupos</option>
+                  <option value="mixed">Modalidad mixta</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 1. Planificación por Semana (Colapsable) */}
+            <CollapsibleSection
+              title="Modo de generación por semana"
+              summary={
+                scheduleMode === 'weekly_all'
+                  ? `Rol completo · ${roundsPerWeek} jornada(s)/semana · ${weekBuckets.length} semana(s)`
+                  : `Solo Jornada ${targetRoundNumber} · ${weekBuckets.length} semana(s) en rango`
+              }
+              icon={<CalendarDays className="w-4 h-4 text-electric-500" />}
+              open={paramSectionsOpen.weekly}
+              onToggle={() =>
+                setParamSectionsOpen((prev) => ({ ...prev, weekly: !prev.weekly }))
+              }
+              headerClassName="bg-blue-50/50 dark:bg-blue-950/20"
+              bodyClassName="p-4 bg-blue-50/20 dark:bg-blue-950/10 space-y-3"
+            >
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setScheduleMode('weekly_all')}
+                  className={`px-3 py-2 min-h-[40px] rounded-lg border font-medium transition-colors ${
+                    scheduleMode === 'weekly_all'
+                      ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  Rol semanal completo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextPendingRound =
+                      (categoryRoundsSummary[categoryRoundsSummary.length - 1]?.roundNumber || 0) + 1;
+                    setScheduleMode('single_week');
+                    setTargetRoundNumber(Math.min(estimatedTotalRounds, nextPendingRound));
+                  }}
+                  className={`px-3 py-2 min-h-[40px] rounded-lg border font-medium transition-colors ${
+                    scheduleMode === 'single_week'
+                      ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  Solo una semana / jornada
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                {scheduleMode === 'weekly_all' ? (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Ritmo semanal
+                    </label>
+                    <select
+                      value={roundsPerWeek}
+                      onChange={(e) => setRoundsPerWeek(Number(e.target.value) || 1)}
+                      className="w-full px-3 py-2 min-h-[42px] text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                    >
+                      <option value={1}>1 jornada por semana (estándar)</option>
+                      <option value={2}>2 jornadas por semana (doble)</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Jornada a generar para esta semana
+                    </label>
+                    <select
+                      value={targetRoundNumber}
+                      onChange={(e) => setTargetRoundNumber(Number(e.target.value) || 1)}
+                      className="w-full px-3 py-2 min-h-[42px] text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                    >
+                      {Array.from({ length: Math.max(1, estimatedTotalRounds) }, (_, i) => i + 1).map(
+                        (rn) => {
+                          const alreadySaved = categoryRoundsSummary.some((r) => r.roundNumber === rn);
+                          return (
+                            <option key={rn} value={rn}>
+                              Jornada {rn} {alreadySaved ? '(ya existe — se actualizará)' : '(pendiente)'}
+                            </option>
+                          );
+                        }
+                      )}
+                    </select>
+                  </div>
+                )}
+
+                <div className="sm:col-span-1 lg:col-span-3 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                  {scheduleMode === 'single_week' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (startDate) setEndDate(addDaysToIsoDate(startDate, 6));
+                        }}
+                        className="px-3 py-2 min-h-[40px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                      >
+                        Rango a 1 semana (+6 días)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (startDate) {
+                            const nextStart = addDaysToIsoDate(startDate, 7);
+                            setStartDate(nextStart);
+                            setEndDate(addDaysToIsoDate(nextStart, 6));
+                          }
+                        }}
+                        className="px-3 py-2 min-h-[40px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                      >
+                        Semana siguiente (+7d)
+                      </button>
+                    </>
                   )}
-                </select>
+                  {weekBuckets.length > 0 && (
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Semanas detectadas: <strong>{weekBuckets.length}</strong> (
+                      {weekBuckets
+                        .slice(0, 4)
+                        .map((wb) => `S${wb.weekNumber}: ${wb.dates[0].slice(5)}`)
+                        .join(' · ')}
+                      {weekBuckets.length > 4 ? ` · +${weekBuckets.length - 4} más` : ''})
+                    </span>
+                  )}
+                </div>
               </div>
-            )}
+            </CollapsibleSection>
 
-            <div className="sm:col-span-1 lg:col-span-3 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-              {scheduleMode === 'single_week' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (startDate) setEndDate(addDaysToIsoDate(startDate, 6));
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
-                  >
-                    Ajustar rango a 1 semana (+6 días)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (startDate) {
-                        const nextStart = addDaysToIsoDate(startDate, 7);
-                        setStartDate(nextStart);
-                        setEndDate(addDaysToIsoDate(nextStart, 6));
-                      }
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
-                  >
-                    Avanzar a semana siguiente (+7d)
-                  </button>
-                </>
-              )}
-              {weekBuckets.length > 0 && (
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Semanas detectadas: <strong>{weekBuckets.length}</strong> (
-                  {weekBuckets
-                    .slice(0, 4)
-                    .map((wb) => `S${wb.weekNumber}: ${wb.dates[0].slice(5)}`)
-                    .join(' · ')}
-                  {weekBuckets.length > 4 ? ` · +${weekBuckets.length - 4} más` : ''})
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+            {/* 2. Rango de Fechas y Días de la Semana (Colapsable) */}
+            <CollapsibleSection
+              title="Fechas y días de la semana a jugar"
+              summary={`${startDate} al ${endDate} · ${
+                allowedWeekdays.length > 0
+                  ? allowedWeekdays.map((d) => WEEKDAY_SHORT_LABELS[d] || d).join(', ')
+                  : 'Sin días'
+              }`}
+              icon={<CalendarDays className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+              open={paramSectionsOpen.dates}
+              onToggle={() =>
+                setParamSectionsOpen((prev) => ({ ...prev, dates: !prev.dates }))
+              }
+              bodyClassName="p-4 space-y-4"
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Fecha de inicio
+                    </label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full px-3 py-2 min-h-[42px] text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Fecha de fin
+                    </label>
+                    <input
+                      type="date"
+                      min={startDate}
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full px-3 py-2 min-h-[42px] text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                    />
+                  </div>
+                  <label className="sm:col-span-2 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 pt-1 min-h-[36px]">
+                    <input
+                      type="checkbox"
+                      checked={doubleRoundOverride}
+                      onChange={(e) => setDoubleRoundOverride(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    Forzar Ida y Vuelta (doble vuelta)
+                  </label>
+                </div>
 
-        {/* Rango de Fechas y Días de la Semana */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start pt-1">
-          <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Fecha de inicio
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Fecha de fin
-              </label>
-              <input
-                type="date"
-                min={startDate}
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-              />
-            </div>
-            <label className="sm:col-span-2 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 pt-1">
-              <input
-                type="checkbox"
-                checked={doubleRoundOverride}
-                onChange={(e) => setDoubleRoundOverride(e.target.checked)}
-              />
-              Forzar Ida y Vuelta (doble vuelta)
-            </label>
-          </div>
+                <div className="lg:col-span-7 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      Días seleccionados ({allowedWeekdays.length})
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setAllowedWeekdays(['Sábado', 'Domingo'])}
+                        className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Fin de semana
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAllowedWeekdays(['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'])
+                        }
+                        className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Entre semana
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAllowedWeekdays([...WEEKDAY_ORDER])}
+                        className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Todos
+                      </button>
+                    </div>
+                  </div>
 
-          <div className="lg:col-span-7 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 space-y-2.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                Días de la semana a jugar ({allowedWeekdays.length} seleccionados)
-              </span>
+                  <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                    {WEEKDAY_ORDER.map((day) => {
+                      const active = allowedWeekdays.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => toggleWeekday(day)}
+                          className={`px-2 py-2.5 min-h-[42px] rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${
+                            active
+                              ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          {active && <Check className="w-3 h-3 shrink-0" />}
+                          <span className="truncate">{WEEKDAY_SHORT_LABELS[day] || day}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </CollapsibleSection>
+
+            {/* 3. Lista de Horarios Permitidos por Hora (Colapsable) */}
+            <CollapsibleSection
+              title="Horarios permitidos (lista por hora)"
+              summary={
+                selectedTimes.length > 0
+                  ? `${selectedTimes.length} seleccionados · ${selectedTimes.slice(0, 4).join(', ')}${
+                      selectedTimes.length > 4 ? '…' : ''
+                    }`
+                  : 'Ningún horario seleccionado'
+              }
+              icon={<Clock className="w-4 h-4 text-electric-500" />}
+              open={paramSectionsOpen.hours}
+              onToggle={() =>
+                setParamSectionsOpen((prev) => ({ ...prev, hours: !prev.hours }))
+              }
+              bodyClassName="p-4 bg-slate-50/50 dark:bg-slate-800/30 space-y-3"
+            >
               <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                 <button
                   type="button"
-                  onClick={() => setAllowedWeekdays(['Sábado', 'Domingo'])}
-                  className="px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  onClick={() => setSelectedTimes(['08:00', '09:00', '10:00', '11:00', '12:00'])}
+                  className="group inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[36px] rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
-                  Fin de semana
+                  <Sun className="w-3 h-3 text-amber-500 transition-transform duration-150 group-hover:scale-110" />
+                  Mañana (08–12)
                 </button>
                 <button
                   type="button"
                   onClick={() =>
-                    setAllowedWeekdays(['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'])
+                    setSelectedTimes(['13:00', '14:00', '15:00', '16:00', '17:00', '18:00'])
                   }
-                  className="px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="group inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[36px] rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
-                  Entre semana
+                  <Clock className="w-3 h-3 text-orange-500 transition-transform duration-150 group-hover:scale-110" />
+                  Tarde (13–18)
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAllowedWeekdays([...WEEKDAY_ORDER])}
-                  className="px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  onClick={() => setSelectedTimes(['19:00', '20:00', '21:00', '22:00'])}
+                  className="group inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[36px] rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
+                  <Moon className="w-3 h-3 text-indigo-500 dark:text-indigo-400 transition-transform duration-150 group-hover:scale-110" />
+                  Noche (19–22)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTimes([...HOURLY_TIME_SLOTS])}
+                  className="group inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[36px] rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 transition-transform duration-150 group-hover:scale-110" />
                   Todos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTimes([])}
+                  className="group inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[36px] rounded border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                >
+                  <Trash2 className="w-3 h-3 transition-transform duration-150 group-hover:scale-110" />
+                  Limpiar
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-9 gap-2">
+                {HOURLY_TIME_SLOTS.map((hour) => {
+                  const checked = selectedTimes.includes(hour);
+                  return (
+                    <label
+                      key={hour}
+                      className={`flex items-center justify-center gap-1.5 px-2.5 py-2 min-h-[42px] rounded-lg border text-xs font-mono cursor-pointer transition-colors select-none ${
+                        checked
+                          ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500 font-semibold'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleHourSlot(hour)}
+                        className="sr-only"
+                      />
+                      {checked && <Check className="w-3 h-3 shrink-0" />}
+                      <span>{hour}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </CollapsibleSection>
+
+            {/* 4. Campo / Cancha específica para el rol (Colapsable) */}
+            <CollapsibleSection
+              title="Campo / Cancha donde se generará el rol"
+              summary={
+                fieldMode === 'ask'
+                  ? 'Preguntar al generar'
+                  : fieldMode === 'unassigned'
+                    ? 'Sin campo asignado'
+                    : `${selectedFieldIds.length} campo(s) específico(s)`
+              }
+              icon={<MapPin className="w-4 h-4 text-teal-600 dark:text-teal-400" />}
+              open={paramSectionsOpen.fields}
+              onToggle={() =>
+                setParamSectionsOpen((prev) => ({ ...prev, fields: !prev.fields }))
+              }
+              bodyClassName="p-4 bg-slate-50/50 dark:bg-slate-800/30 space-y-3"
+            >
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setFieldMode('ask')}
+                  className={`px-3 py-2 min-h-[40px] rounded-lg border font-medium transition-colors ${
+                    fieldMode === 'ask'
+                      ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  Preguntar al generar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFieldMode('specific')}
+                  className={`px-3 py-2 min-h-[40px] rounded-lg border font-medium transition-colors ${
+                    fieldMode === 'specific'
+                      ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  Campo específico ({selectedFieldIds.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFieldMode('unassigned')}
+                  className={`px-3 py-2 min-h-[40px] rounded-lg border font-medium transition-colors ${
+                    fieldMode === 'unassigned'
+                      ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  Sin campo asignado
+                </button>
+              </div>
+
+              {fieldMode === 'ask' && (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3.5 py-2.5">
+                  <span>
+                    El rol <strong>no</strong> se asignará automáticamente a los campos existentes: al presionar{' '}
+                    <strong>Generar Roles</strong> se te preguntará en qué campo específico deseas generarlo.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFieldMode('specific')}
+                    className="text-xs font-semibold text-electric-600 dark:text-blue-400 hover:underline shrink-0"
+                  >
+                    Preseleccionar campo ahora
+                  </button>
+                </div>
+              )}
+
+              {fieldMode === 'unassigned' && (
+                <div className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3.5 py-2.5">
+                  Los partidos se crearán con la cancha en <strong>Sin asignar</strong> (al confirmar al generar podrás cambiar de opinión si lo deseas).
+                </div>
+              )}
+
+              {fieldMode === 'specific' && (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Marca el o los campos específicos que se usarán:
+                    </span>
+                    {canCreateField && (
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickFieldForm((v) => !v)}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-electric-600 dark:text-blue-400 hover:underline"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        {showQuickFieldForm ? 'Cerrar registro rápido' : 'Registrar otro campo específico'}
+                      </button>
+                    )}
+                  </div>
+
+                  {showQuickFieldForm && canCreateField && (
+                    <form
+                      onSubmit={handleCreateQuickField}
+                      className="grid grid-cols-1 sm:grid-cols-4 gap-2 p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                    >
+                      <input
+                        type="text"
+                        required
+                        value={quickFieldName}
+                        onChange={(e) => setQuickFieldName(e.target.value)}
+                        placeholder="Nombre del campo (ej. Campo Norte)"
+                        className="px-2.5 py-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                      />
+                      <select
+                        value={quickFieldVenueId || venues[0]?.id || '__NEW_VENUE__'}
+                        onChange={(e) => setQuickFieldVenueId(e.target.value)}
+                        className="px-2.5 py-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                      >
+                        {venues.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            Sede: {v.name}
+                          </option>
+                        ))}
+                        <option value="__NEW_VENUE__">+ Nueva sede</option>
+                      </select>
+                      {(quickFieldVenueId === '__NEW_VENUE__' || venues.length === 0) ? (
+                        <input
+                          type="text"
+                          required
+                          value={quickVenueName}
+                          onChange={(e) => setQuickVenueName(e.target.value)}
+                          placeholder="Nombre de nueva sede"
+                          className="px-2.5 py-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={quickFieldSurface}
+                          onChange={(e) => setQuickFieldSurface(e.target.value)}
+                          placeholder="Superficie (ej. Pasto Sintético)"
+                          className="px-2.5 py-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                        />
+                      )}
+                      <button
+                        type="submit"
+                        disabled={busy}
+                        className="px-3 py-2 text-xs font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg"
+                      >
+                        {busy ? 'Guardando...' : 'Guardar campo'}
+                      </button>
+                    </form>
+                  )}
+
+                  {fields.length === 0 ? (
+                    <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
+                      No hay campos registrados aún. Registra uno arriba o genera el rol sin campo asignado.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {fields.map((f) => {
+                        const checked = selectedFieldIds.includes(f.id);
+                        const venueName = venueMap.get(f.venueId)?.name || 'Sede';
+                        return (
+                          <label
+                            key={f.id}
+                            className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                              checked
+                                ? 'bg-navy-900 dark:bg-electric-500/20 text-white dark:text-white border-navy-900 dark:border-electric-500'
+                                : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleSelectedField(f.id)}
+                              className="mt-0.5 shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-1.5">
+                                <span className="text-xs font-semibold truncate">{f.name}</span>
+                                <FieldStatusIcon status={f.status} className="w-3.5 h-3.5" />
+                              </div>
+                              <div
+                                className={`text-[11px] truncate ${
+                                  checked ? 'text-slate-200' : 'text-slate-500 dark:text-slate-400'
+                                }`}
+                              >
+                                {venueName} · {f.openTime}–{f.closeTime} · {f.status}
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CollapsibleSection>
+
+            {/* Dynamic Range & Capacity Diagnostics */}
+            {(!startDate || !endDate || endDate < startDate) && (
+              <div className="text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg px-3 py-2">
+                Verifica que la Fecha de fin sea igual o posterior a la Fecha de inicio.
+              </div>
+            )}
+            {startDate && endDate && endDate >= startDate && validPlayDates.length === 0 && (
+              <div className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
+                No hay días válidos para jugar entre {startDate} y {endDate} con los días de la semana seleccionados.
+              </div>
+            )}
+            {dynamicPreview &&
+              scheduleMode === 'weekly_all' &&
+              weekBuckets.length > 0 &&
+              dynamicPreview.rounds.length > weekBuckets.length * roundsPerWeek && (
+                <div className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
+                  El rol completo requiere {dynamicPreview.rounds.length} jornadas (1 cada semana), pero
+                  el rango seleccionado abarca {weekBuckets.length} semana(s) hábil(es). Las últimas
+                  jornadas compartirán semana o puedes ampliar la Fecha de fin.
+                </div>
+              )}
+
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2.5 pt-1">
+              <button
+                type="button"
+                disabled={
+                  busy ||
+                  !activeCategory ||
+                  !startDate ||
+                  !endDate ||
+                  endDate < startDate ||
+                  validPlayDates.length === 0 ||
+                  selectedTimes.length === 0
+                }
+                onClick={() =>
+                  handleGenerateClick(
+                    scheduleMode === 'weekly_all' && categoryMatches.length > 0
+                  )
+                }
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] rounded-lg bg-electric-500 hover:bg-electric-600 text-white text-sm font-medium disabled:opacity-50"
+              >
+                <CalendarDays className="w-4 h-4 shrink-0" />
+                {scheduleMode === 'single_week'
+                  ? `Generar Jornada ${targetRoundNumber} (Semana)`
+                  : categoryMatches.length > 0
+                    ? 'Generar Borrador Semanal Completo'
+                    : 'Generar Roles por Semana'}
+              </button>
+              {categoryMatches.length > 0 && scheduleMode === 'weekly_all' && (
+                <button
+                  type="button"
+                  disabled={
+                    busy ||
+                    !startDate ||
+                    !endDate ||
+                    endDate < startDate ||
+                    validPlayDates.length === 0 ||
+                    selectedTimes.length === 0
+                  }
+                  onClick={() => handleGenerateClick(true)}
+                  className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 min-h-[44px] rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 disabled:opacity-50"
+                >
+                  <RefreshCw className="w-4 h-4 shrink-0" />
+                  Reemplazar todo el calendario
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Editable Weekly Draft Workbench (Collapsible Jornadas + Mobile Cards) */}
+      {weeklyDraft && (() => {
+        const draftRoundNumbers = Array.from(
+          new Set(weeklyDraft.matches.map((m) => m.roundNumber))
+        ).sort((a, b) => a - b);
+        const allDraftCollapsed =
+          draftRoundNumbers.length > 0 &&
+          draftRoundNumbers.every((rn) => Boolean(draftRoundsCollapsed[rn]));
+
+        return (
+          <div className="bg-white dark:bg-slate-900 border-2 border-electric-500 dark:border-blue-500 rounded-xl overflow-hidden shadow-sm transition-colors">
+            <div className="px-4 sm:px-5 py-4 bg-blue-50/80 dark:bg-blue-950/40 border-b border-blue-200 dark:border-blue-900 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-electric-500 text-white text-[11px] font-semibold uppercase tracking-wide">
+                    Borrador Semanal Editable
+                  </span>
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {weeklyDraft.matches.length} partido(s) · {weeklyDraft.fieldSummaryLabel}
+                  </span>
+                  {draftConflicts.length > 0 ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-medium">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      {draftConflicts.length} observación(es)
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Sin conflictos
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                  Toca una jornada para expandir o contraer y ajustar equipos, fecha, hora, cancha o árbitro antes de guardar.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {draftRoundNumbers.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next: Record<number, boolean> = {};
+                      if (!allDraftCollapsed) {
+                        draftRoundNumbers.forEach((rn) => {
+                          next[rn] = true;
+                        });
+                      }
+                      setDraftRoundsCollapsed(next);
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-2 min-h-[40px] text-xs font-medium text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
+                  >
+                    {allDraftCollapsed ? (
+                      <>
+                        <ChevronsUpDown className="w-3.5 h-3.5" />
+                        Expandir jornadas
+                      </>
+                    ) : (
+                      <>
+                        <ChevronsDownUp className="w-3.5 h-3.5" />
+                        Contraer jornadas
+                      </>
+                    )}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setWeeklyDraft(null)}
+                  className="px-3.5 py-2 min-h-[40px] text-xs font-medium text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
+                >
+                  Descartar
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || weeklyDraft.matches.length === 0}
+                  onClick={handleSaveWeeklyDraft}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[40px] text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4" />
+                  {busy ? 'Guardando...' : 'Confirmar y Guardar'}
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-              {WEEKDAY_ORDER.map((day) => {
-                const active = allowedWeekdays.includes(day);
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => toggleWeekday(day)}
-                    className={`px-2.5 py-2 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${
-                      active
-                        ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    {active && <Check className="w-3 h-3 shrink-0" />}
-                    <span className="truncate">{WEEKDAY_SHORT_LABELS[day] || day}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Lista de Horarios Permitidos por Hora */}
-        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-electric-500" />
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                Horarios permitidos (lista por hora · {selectedTimes.length} seleccionados)
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setSelectedTimes(['08:00', '09:00', '10:00', '11:00', '12:00'])}
-                className="group inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <Sun className="w-3 h-3 text-amber-500 transition-transform duration-150 group-hover:scale-110" />
-                Mañana (08–12)
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedTimes(['13:00', '14:00', '15:00', '16:00', '17:00', '18:00'])
-                }
-                className="group inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <Clock className="w-3 h-3 text-orange-500 transition-transform duration-150 group-hover:scale-110" />
-                Tarde (13–18)
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedTimes(['19:00', '20:00', '21:00', '22:00'])}
-                className="group inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <Moon className="w-3 h-3 text-indigo-500 dark:text-indigo-400 transition-transform duration-150 group-hover:scale-110" />
-                Noche (19–22)
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedTimes([...HOURLY_TIME_SLOTS])}
-                className="group inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 transition-transform duration-150 group-hover:scale-110" />
-                Todos
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedTimes([])}
-                className="group inline-flex items-center gap-1 px-2.5 py-1 rounded border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-              >
-                <Trash2 className="w-3 h-3 transition-transform duration-150 group-hover:scale-110" />
-                Limpiar
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-9 gap-2">
-            {HOURLY_TIME_SLOTS.map((hour) => {
-              const checked = selectedTimes.includes(hour);
-              return (
-                <label
-                  key={hour}
-                  className={`flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs font-mono cursor-pointer transition-colors select-none ${
-                    checked
-                      ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500 font-semibold'
-                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleHourSlot(hour)}
-                    className="sr-only"
-                  />
-                  {checked && <Check className="w-3 h-3 shrink-0" />}
-                  <span>{hour}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Apartado: Campo / Cancha específica para el rol */}
-        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-electric-500" />
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                Campo / Cancha donde se generará el rol
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setFieldMode('ask')}
-                className={`px-2.5 py-1 rounded-md border font-medium transition-colors ${
-                  fieldMode === 'ask'
-                    ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
-                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                Preguntar al generar
-              </button>
-              <button
-                type="button"
-                onClick={() => setFieldMode('specific')}
-                className={`px-2.5 py-1 rounded-md border font-medium transition-colors ${
-                  fieldMode === 'specific'
-                    ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
-                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                Campo específico ({selectedFieldIds.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFieldMode('unassigned')}
-                className={`px-2.5 py-1 rounded-md border font-medium transition-colors ${
-                  fieldMode === 'unassigned'
-                    ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
-                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                Sin campo asignado
-              </button>
-            </div>
-          </div>
-
-          {fieldMode === 'ask' && (
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3.5 py-2.5">
-              <span>
-                El rol <strong>no</strong> se asignará automáticamente a los campos existentes: al presionar{' '}
-                <strong>Generar Roles</strong> se te preguntará en qué campo específico deseas generarlo.
-              </span>
-              <button
-                type="button"
-                onClick={() => setFieldMode('specific')}
-                className="text-xs font-semibold text-electric-600 dark:text-blue-400 hover:underline shrink-0"
-              >
-                Preseleccionar campo ahora
-              </button>
-            </div>
-          )}
-
-          {fieldMode === 'unassigned' && (
-            <div className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3.5 py-2.5">
-              Los partidos se crearán con la cancha en <strong>Sin asignar</strong> (al confirmar al generar podrás cambiar de opinión si lo deseas).
-            </div>
-          )}
-
-          {fieldMode === 'specific' && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Marca el o los campos específicos que se usarán (al generar también se te pedirá confirmar):
-                </span>
-                {canCreateField && (
-                  <button
-                    type="button"
-                    onClick={() => setShowQuickFieldForm((v) => !v)}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-electric-600 dark:text-blue-400 hover:underline"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    {showQuickFieldForm ? 'Cerrar registro rápido' : 'Registrar otro campo específico'}
-                  </button>
-                )}
-              </div>
-
-              {showQuickFieldForm && canCreateField && (
-                <form
-                  onSubmit={handleCreateQuickField}
-                  className="grid grid-cols-1 sm:grid-cols-4 gap-2 p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
-                >
-                  <input
-                    type="text"
-                    required
-                    value={quickFieldName}
-                    onChange={(e) => setQuickFieldName(e.target.value)}
-                    placeholder="Nombre del campo (ej. Campo Norte)"
-                    className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                  />
-                  <select
-                    value={quickFieldVenueId || venues[0]?.id || '__NEW_VENUE__'}
-                    onChange={(e) => setQuickFieldVenueId(e.target.value)}
-                    className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                  >
-                    {venues.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        Sede: {v.name}
-                      </option>
-                    ))}
-                    <option value="__NEW_VENUE__">+ Nueva sede</option>
-                  </select>
-                  {(quickFieldVenueId === '__NEW_VENUE__' || venues.length === 0) ? (
-                    <input
-                      type="text"
-                      required
-                      value={quickVenueName}
-                      onChange={(e) => setQuickVenueName(e.target.value)}
-                      placeholder="Nombre de nueva sede"
-                      className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      value={quickFieldSurface}
-                      onChange={(e) => setQuickFieldSurface(e.target.value)}
-                      placeholder="Superficie (ej. Pasto Sintético)"
-                      className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                    />
+            {draftConflicts.length > 0 && (
+              <div className="px-4 sm:px-5 py-2.5 bg-amber-50/70 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-200">
+                <ul className="list-disc pl-4 space-y-0.5">
+                  {draftConflicts.slice(0, 5).map((c) => (
+                    <li key={c.id}>{c.description}</li>
+                  ))}
+                  {draftConflicts.length > 5 && (
+                    <li>... y {draftConflicts.length - 5} observación(es) adicional(es).</li>
                   )}
-                  <button
-                    type="submit"
-                    disabled={busy}
-                    className="px-3 py-1.5 text-xs font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg"
-                  >
-                    {busy ? 'Guardando...' : 'Guardar campo'}
-                  </button>
-                </form>
-              )}
-
-              {fields.length === 0 ? (
-                <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
-                  No hay campos registrados aún. Registra uno arriba o genera el rol sin campo asignado.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {fields.map((f) => {
-                    const checked = selectedFieldIds.includes(f.id);
-                    const venueName = venueMap.get(f.venueId)?.name || 'Sede';
-                    return (
-                      <label
-                        key={f.id}
-                        className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                          checked
-                            ? 'bg-navy-900 dark:bg-electric-500/20 text-white dark:text-white border-navy-900 dark:border-electric-500'
-                            : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleSelectedField(f.id)}
-                          className="mt-0.5 shrink-0"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-1.5">
-                            <span className="text-xs font-semibold truncate">{f.name}</span>
-                            <FieldStatusIcon status={f.status} className="w-3.5 h-3.5" />
-                          </div>
-                          <div
-                            className={`text-[11px] truncate ${
-                              checked ? 'text-slate-200' : 'text-slate-500 dark:text-slate-400'
-                            }`}
-                          >
-                            {venueName} · {f.openTime}–{f.closeTime} · {f.status}
-                          </div>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Dynamic Range & Capacity Diagnostics */}
-        {(!startDate || !endDate || endDate < startDate) && (
-          <div className="text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg px-3 py-2">
-            Verifica que la Fecha de fin sea igual o posterior a la Fecha de inicio.
-          </div>
-        )}
-        {startDate && endDate && endDate >= startDate && validPlayDates.length === 0 && (
-          <div className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
-            No hay días válidos para jugar entre {startDate} y {endDate} con los días de la semana seleccionados.
-          </div>
-        )}
-        {dynamicPreview &&
-          scheduleMode === 'weekly_all' &&
-          weekBuckets.length > 0 &&
-          dynamicPreview.rounds.length > weekBuckets.length * roundsPerWeek && (
-            <div className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
-              El rol completo requiere {dynamicPreview.rounds.length} jornadas (1 cada semana), pero
-              el rango seleccionado abarca {weekBuckets.length} semana(s) hábil(es). Las últimas
-              jornadas compartirán semana o puedes ampliar la Fecha de fin.
-            </div>
-          )}
-
-        <div className="flex flex-wrap items-center gap-3 pt-1">
-          <button
-            type="button"
-            disabled={
-              busy ||
-              !activeCategory ||
-              !startDate ||
-              !endDate ||
-              endDate < startDate ||
-              validPlayDates.length === 0 ||
-              selectedTimes.length === 0
-            }
-            onClick={() =>
-              handleGenerateClick(
-                scheduleMode === 'weekly_all' && categoryMatches.length > 0
-              )
-            }
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-electric-500 hover:bg-electric-600 text-white text-sm font-medium disabled:opacity-50"
-          >
-            <CalendarDays className="w-4 h-4" />
-            {scheduleMode === 'single_week'
-              ? `Generar Jornada ${targetRoundNumber} (Semana)`
-              : categoryMatches.length > 0
-                ? 'Generar Borrador Semanal Completo'
-                : 'Generar Roles por Semana'}
-          </button>
-          {categoryMatches.length > 0 && scheduleMode === 'weekly_all' && (
-            <button
-              type="button"
-              disabled={
-                busy ||
-                !startDate ||
-                !endDate ||
-                endDate < startDate ||
-                validPlayDates.length === 0 ||
-                selectedTimes.length === 0
-              }
-              onClick={() => handleGenerateClick(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 disabled:opacity-50"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Reemplazar todo el calendario
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Editable Weekly Draft Workbench (Ajustes antes de guardar) */}
-      {weeklyDraft && (
-        <div className="bg-white dark:bg-slate-900 border-2 border-electric-500 dark:border-blue-500 rounded-xl overflow-hidden shadow-sm transition-colors">
-          <div className="px-5 py-4 bg-blue-50/80 dark:bg-blue-950/40 border-b border-blue-200 dark:border-blue-900 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2 py-0.5 rounded-md bg-electric-500 text-white text-[11px] font-semibold uppercase tracking-wide">
-                  Borrador Semanal Editable
-                </span>
-                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                  {weeklyDraft.matches.length} partido(s) · {weeklyDraft.fieldSummaryLabel}
-                </span>
-                {draftConflicts.length > 0 ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-medium">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    {draftConflicts.length} observación(es) de horario/cancha
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Sin conflictos
-                  </span>
-                )}
+                </ul>
               </div>
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
-                Ajusta directamente equipos, localía, fecha, hora, cancha, árbitro o jornada de cualquier encuentro antes de guardar en el calendario.
-              </p>
-            </div>
+            )}
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setWeeklyDraft(null)}
-                className="px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
-              >
-                Descartar borrador
-              </button>
-              <button
-                type="button"
-                disabled={busy || weeklyDraft.matches.length === 0}
-                onClick={handleSaveWeeklyDraft}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-50"
-              >
-                <Check className="w-4 h-4" />
-                {busy ? 'Guardando...' : 'Confirmar y Guardar Roles'}
-              </button>
-            </div>
-          </div>
-
-          {draftConflicts.length > 0 && (
-            <div className="px-5 py-2.5 bg-amber-50/70 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-200">
-              <ul className="list-disc pl-4 space-y-0.5">
-                {draftConflicts.slice(0, 5).map((c) => (
-                  <li key={c.id}>{c.description}</li>
-                ))}
-                {draftConflicts.length > 5 && (
-                  <li>... y {draftConflicts.length - 5} observación(es) adicional(es).</li>
-                )}
-              </ul>
-            </div>
-          )}
-
-          <div className="p-4 space-y-4">
-            {Array.from(new Set(weeklyDraft.matches.map((m) => m.roundNumber)))
-              .sort((a, b) => a - b)
-              .map((rn) => {
+            <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+              {draftRoundNumbers.map((rn) => {
                 const roundMatches = weeklyDraft.matches
                   .filter((m) => m.roundNumber === rn)
                   .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
                 const firstDate = roundMatches[0]?.date || startDate;
                 const weekStart = getWeekStartMonday(firstDate);
                 const weekEnd = addDaysToIsoDate(weekStart, 6);
+                const isRoundOpen = !draftRoundsCollapsed[rn];
 
                 return (
                   <div
                     key={rn}
                     className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden"
                   >
-                    <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-display font-bold text-sm text-navy-900 dark:text-white">
-                          Jornada {rn}
-                        </span>
-                        <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                          Semana del {weekStart} al {weekEnd} ({roundMatches.length} partido(s))
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <div
+                      className={`px-3.5 sm:px-4 py-2.5 bg-slate-50 dark:bg-slate-800/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+                        isRoundOpen ? 'border-b border-slate-200 dark:border-slate-800' : ''
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDraftRoundsCollapsed((prev) => ({ ...prev, [rn]: !prev[rn] }))
+                        }
+                        aria-expanded={isRoundOpen}
+                        className="flex-1 min-w-0 flex items-center justify-between gap-2 text-left min-h-[40px]"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-display font-bold text-sm text-navy-900 dark:text-white">
+                            Jornada {rn}
+                          </span>
+                          <span className="block sm:inline sm:ml-2 text-xs font-mono text-slate-500 dark:text-slate-400 truncate">
+                            {weekStart} al {weekEnd} · {roundMatches.length} partido(s)
+                          </span>
+                        </div>
+                        <ChevronDown
+                          className={`w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0 transition-transform duration-150 ${
+                            isRoundOpen ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] shrink-0">
                         <button
                           type="button"
                           onClick={() => handleShiftDraftRound(rn, -7)}
-                          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                          className="px-2.5 py-1.5 min-h-[34px] rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
                         >
                           -7 días
                         </button>
                         <button
                           type="button"
                           onClick={() => handleShiftDraftRound(rn, 7)}
-                          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                          className="px-2.5 py-1.5 min-h-[34px] rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
                         >
                           +7 días
                         </button>
                         <button
                           type="button"
                           onClick={() => handleAddDraftMatch(rn)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-electric-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-950/60 font-medium"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-electric-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-950/60 font-medium"
                         >
                           <Plus className="w-3 h-3" />
                           Agregar partido
@@ -1941,33 +2070,65 @@ export function ScheduleGeneratorPage() {
                       </div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                            <th className="py-2 px-3 text-left">#</th>
-                            <th className="py-2 px-3 text-left">Local vs Visitante</th>
-                            <th className="py-2 px-3 text-left">Fecha</th>
-                            <th className="py-2 px-3 text-left">Hora</th>
-                            <th className="py-2 px-3 text-left">Cancha</th>
-                            <th className="py-2 px-3 text-left">Árbitro</th>
-                            <th className="py-2 px-3 text-left">Jor.</th>
-                            <th className="py-2 px-3 text-right">Quitar</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {isRoundOpen && (
+                      <>
+                        {/* Mobile Editable Match Cards */}
+                        <div className="lg:hidden divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                           {roundMatches.map((dm) => {
                             const draftTeamOptions = categoryTeams;
                             const hourChoices = Array.from(
                               new Set([dm.time, ...HOURLY_TIME_SLOTS])
                             ).sort((a, b) => a.localeCompare(b));
                             return (
-                              <tr key={dm.tempId} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
-                                <td className="py-2 px-3 font-mono text-slate-500 dark:text-slate-400">
-                                  #{dm.matchNumber}
-                                </td>
-                                <td className="py-2 px-3">
-                                  <div className="flex items-center gap-1.5 min-w-[270px]">
+                              <div key={dm.tempId} className="p-3.5 space-y-2.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <span className="font-mono font-bold text-slate-600 dark:text-slate-300">
+                                      #{dm.matchNumber}
+                                    </span>
+                                    <span className="text-slate-400">·</span>
+                                    <label className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                                      <span>Jor.</span>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={100}
+                                        value={dm.roundNumber}
+                                        onChange={(e) =>
+                                          handleUpdateDraftMatch(dm.tempId, {
+                                            roundNumber: Math.max(1, Number(e.target.value) || 1),
+                                          })
+                                        }
+                                        className="w-12 px-1.5 py-1 border border-slate-200 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-center"
+                                      />
+                                    </label>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSwapDraftTeams(dm.tempId)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[36px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-electric-600 dark:text-blue-400 text-xs font-medium"
+                                    >
+                                      <ArrowLeftRight className="w-3.5 h-3.5" />
+                                      Invertir
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveDraftMatch(dm.tempId)}
+                                      title="Quitar encuentro del borrador"
+                                      className="p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <div>
+                                    <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">
+                                      Local
+                                    </span>
                                     <select
                                       value={dm.homeTeamId}
                                       onChange={(e) =>
@@ -1975,7 +2136,7 @@ export function ScheduleGeneratorPage() {
                                           homeTeamId: e.target.value,
                                         })
                                       }
-                                      className="flex-1 min-w-0 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium"
+                                      className="w-full px-2.5 py-2 min-h-[40px] text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium"
                                     >
                                       {dm.homeTeamId.startsWith('TBD') && (
                                         <option value={dm.homeTeamId}>{dm.homeTeamId}</option>
@@ -1986,14 +2147,11 @@ export function ScheduleGeneratorPage() {
                                         </option>
                                       ))}
                                     </select>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSwapDraftTeams(dm.tempId)}
-                                      title="Intercambiar Local ↔ Visitante"
-                                      className="p-1 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 shrink-0"
-                                    >
-                                      <ArrowLeftRight className="w-3.5 h-3.5" />
-                                    </button>
+                                  </div>
+                                  <div>
+                                    <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">
+                                      Visitante
+                                    </span>
                                     <select
                                       value={dm.awayTeamId}
                                       onChange={(e) =>
@@ -2001,7 +2159,7 @@ export function ScheduleGeneratorPage() {
                                           awayTeamId: e.target.value,
                                         })
                                       }
-                                      className="flex-1 min-w-0 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium"
+                                      className="w-full px-2.5 py-2 min-h-[40px] text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium"
                                     >
                                       {dm.awayTeamId.startsWith('TBD') && (
                                         <option value={dm.awayTeamId}>{dm.awayTeamId}</option>
@@ -2013,130 +2171,294 @@ export function ScheduleGeneratorPage() {
                                       ))}
                                     </select>
                                   </div>
-                                </td>
-                                <td className="py-2 px-3">
-                                  <div className="flex items-center gap-1">
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">
+                                      Fecha ({WEEKDAY_SHORT_LABELS[getWeekdayName(dm.date)] || ''})
+                                    </span>
                                     <input
                                       type="date"
                                       value={dm.date}
                                       onChange={(e) =>
                                         handleUpdateDraftMatch(dm.tempId, { date: e.target.value })
                                       }
-                                      className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
+                                      className="w-full px-2.5 py-2 min-h-[40px] text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
                                     />
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                                      {WEEKDAY_SHORT_LABELS[getWeekdayName(dm.date)] || ''}
-                                    </span>
                                   </div>
-                                </td>
-                                <td className="py-2 px-3">
-                                  <select
-                                    value={dm.time}
-                                    onChange={(e) =>
-                                      handleUpdateDraftMatch(dm.tempId, { time: e.target.value })
-                                    }
-                                    className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
-                                  >
-                                    {hourChoices.map((hr) => (
-                                      <option key={hr} value={hr}>
-                                        {hr}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </td>
-                                <td className="py-2 px-3">
-                                  <select
-                                    value={dm.fieldId || ''}
-                                    onChange={(e) =>
-                                      handleUpdateDraftMatch(dm.tempId, {
-                                        fieldId: e.target.value,
-                                      })
-                                    }
-                                    className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 max-w-[150px]"
-                                  >
-                                    <option value="">Sin asignar</option>
-                                    {fields.map((f) => (
-                                      <option key={f.id} value={f.id}>
-                                        {f.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </td>
-                                <td className="py-2 px-3">
-                                  <select
-                                    value={dm.refereeId || ''}
-                                    onChange={(e) =>
-                                      handleUpdateDraftMatch(dm.tempId, {
-                                        refereeId: e.target.value,
-                                      })
-                                    }
-                                    className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 max-w-[140px]"
-                                  >
-                                    <option value="">Sin asignar</option>
-                                    {referees.map((r) => (
-                                      <option key={r.id} value={r.id}>
-                                        {r.fullName}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </td>
-                                <td className="py-2 px-3">
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    max={100}
-                                    value={dm.roundNumber}
-                                    onChange={(e) =>
-                                      handleUpdateDraftMatch(dm.tempId, {
-                                        roundNumber: Math.max(1, Number(e.target.value) || 1),
-                                      })
-                                    }
-                                    className="w-14 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-center"
-                                  />
-                                </td>
-                                <td className="py-2 px-3 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveDraftMatch(dm.tempId)}
-                                    title="Quitar encuentro del borrador"
-                                    className="p-1 rounded text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
-                              </tr>
+                                  <div>
+                                    <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">
+                                      Hora
+                                    </span>
+                                    <select
+                                      value={dm.time}
+                                      onChange={(e) =>
+                                        handleUpdateDraftMatch(dm.tempId, { time: e.target.value })
+                                      }
+                                      className="w-full px-2.5 py-2 min-h-[40px] text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
+                                    >
+                                      {hourChoices.map((hr) => (
+                                        <option key={hr} value={hr}>
+                                          {hr}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">
+                                      Cancha
+                                    </span>
+                                    <select
+                                      value={dm.fieldId || ''}
+                                      onChange={(e) =>
+                                        handleUpdateDraftMatch(dm.tempId, {
+                                          fieldId: e.target.value,
+                                        })
+                                      }
+                                      className="w-full px-2.5 py-2 min-h-[40px] text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                                    >
+                                      <option value="">Sin asignar</option>
+                                      {fields.map((f) => (
+                                        <option key={f.id} value={f.id}>
+                                          {f.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">
+                                      Árbitro
+                                    </span>
+                                    <select
+                                      value={dm.refereeId || ''}
+                                      onChange={(e) =>
+                                        handleUpdateDraftMatch(dm.tempId, {
+                                          refereeId: e.target.value,
+                                        })
+                                      }
+                                      className="w-full px-2.5 py-2 min-h-[40px] text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                                    >
+                                      <option value="">Sin asignar</option>
+                                      {referees.map((r) => (
+                                        <option key={r.id} value={r.id}>
+                                          {r.fullName}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
                             );
                           })}
-                        </tbody>
-                      </table>
-                    </div>
+                        </div>
+
+                        {/* Desktop Inline Table Editor */}
+                        <div className="hidden lg:block overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                <th className="py-2 px-3 text-left">#</th>
+                                <th className="py-2 px-3 text-left">Local vs Visitante</th>
+                                <th className="py-2 px-3 text-left">Fecha</th>
+                                <th className="py-2 px-3 text-left">Hora</th>
+                                <th className="py-2 px-3 text-left">Cancha</th>
+                                <th className="py-2 px-3 text-left">Árbitro</th>
+                                <th className="py-2 px-3 text-left">Jor.</th>
+                                <th className="py-2 px-3 text-right">Quitar</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                              {roundMatches.map((dm) => {
+                                const draftTeamOptions = categoryTeams;
+                                const hourChoices = Array.from(
+                                  new Set([dm.time, ...HOURLY_TIME_SLOTS])
+                                ).sort((a, b) => a.localeCompare(b));
+                                return (
+                                  <tr key={dm.tempId} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                                    <td className="py-2 px-3 font-mono text-slate-500 dark:text-slate-400">
+                                      #{dm.matchNumber}
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <div className="flex items-center gap-1.5 min-w-[270px]">
+                                        <select
+                                          value={dm.homeTeamId}
+                                          onChange={(e) =>
+                                            handleUpdateDraftMatch(dm.tempId, {
+                                              homeTeamId: e.target.value,
+                                            })
+                                          }
+                                          className="flex-1 min-w-0 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium"
+                                        >
+                                          {dm.homeTeamId.startsWith('TBD') && (
+                                            <option value={dm.homeTeamId}>{dm.homeTeamId}</option>
+                                          )}
+                                          {draftTeamOptions.map((t) => (
+                                            <option key={t.id} value={t.id}>
+                                              {t.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSwapDraftTeams(dm.tempId)}
+                                          title="Intercambiar Local ↔ Visitante"
+                                          className="p-1 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 shrink-0"
+                                        >
+                                          <ArrowLeftRight className="w-3.5 h-3.5" />
+                                        </button>
+                                        <select
+                                          value={dm.awayTeamId}
+                                          onChange={(e) =>
+                                            handleUpdateDraftMatch(dm.tempId, {
+                                              awayTeamId: e.target.value,
+                                            })
+                                          }
+                                          className="flex-1 min-w-0 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium"
+                                        >
+                                          {dm.awayTeamId.startsWith('TBD') && (
+                                            <option value={dm.awayTeamId}>{dm.awayTeamId}</option>
+                                          )}
+                                          {draftTeamOptions.map((t) => (
+                                            <option key={t.id} value={t.id}>
+                                              {t.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <div className="flex items-center gap-1">
+                                        <input
+                                          type="date"
+                                          value={dm.date}
+                                          onChange={(e) =>
+                                            handleUpdateDraftMatch(dm.tempId, { date: e.target.value })
+                                          }
+                                          className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
+                                        />
+                                        <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                          {WEEKDAY_SHORT_LABELS[getWeekdayName(dm.date)] || ''}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <select
+                                        value={dm.time}
+                                        onChange={(e) =>
+                                          handleUpdateDraftMatch(dm.tempId, { time: e.target.value })
+                                        }
+                                        className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
+                                      >
+                                        {hourChoices.map((hr) => (
+                                          <option key={hr} value={hr}>
+                                            {hr}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <select
+                                        value={dm.fieldId || ''}
+                                        onChange={(e) =>
+                                          handleUpdateDraftMatch(dm.tempId, {
+                                            fieldId: e.target.value,
+                                          })
+                                        }
+                                        className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 max-w-[150px]"
+                                      >
+                                        <option value="">Sin asignar</option>
+                                        {fields.map((f) => (
+                                          <option key={f.id} value={f.id}>
+                                            {f.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <select
+                                        value={dm.refereeId || ''}
+                                        onChange={(e) =>
+                                          handleUpdateDraftMatch(dm.tempId, {
+                                            refereeId: e.target.value,
+                                          })
+                                        }
+                                        className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 max-w-[140px]"
+                                      >
+                                        <option value="">Sin asignar</option>
+                                        {referees.map((r) => (
+                                          <option key={r.id} value={r.id}>
+                                            {r.fullName}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={100}
+                                        value={dm.roundNumber}
+                                        onChange={(e) =>
+                                          handleUpdateDraftMatch(dm.tempId, {
+                                            roundNumber: Math.max(1, Number(e.target.value) || 1),
+                                          })
+                                        }
+                                        className="w-14 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-center"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-3 text-right">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveDraftMatch(dm.tempId)}
+                                        title="Quitar encuentro del borrador"
+                                        className="p-1 rounded text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* Conflict Detector Panel */}
+      {/* Conflict Detector Panel (Collapsible) */}
       {conflicts.length > 0 && (
-        <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-xl p-4 space-y-2">
-          <div className="flex items-center gap-2 text-red-800 dark:text-red-200 font-display font-semibold text-sm">
-            <AlertTriangle className="w-4 h-4" />
-            <span>
-              Detector de Conflictos previo a publicación ({conflicts.length} observaciones)
-            </span>
-          </div>
+        <CollapsibleSection
+          title={`Detector de Conflictos previo a publicación (${conflicts.length} observaciones)`}
+          summary={conflicts[0]?.description}
+          icon={<AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />}
+          open={conflictsOpen}
+          onToggle={() => setConflictsOpen((v) => !v)}
+          className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40"
+          headerClassName="bg-red-50/80 dark:bg-red-950/50"
+          bodyClassName="px-4 py-3 bg-red-50/40 dark:bg-red-950/30"
+        >
           <ul className="space-y-1 text-xs text-red-700 dark:text-red-300 list-disc pl-5">
             {conflicts.map((c) => (
               <li key={c.id}>{c.description}</li>
             ))}
           </ul>
-        </div>
+        </CollapsibleSection>
       )}
 
-      {/* Multi-view Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 transition-colors">
-        <div className="flex flex-wrap items-center gap-1">
+      {/* Multi-view Switcher (Horizontal Scroll on Mobile) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 sm:p-3 transition-colors">
+        <div className="flex items-center gap-1 overflow-x-auto pb-0.5 sm:pb-0">
           {(
             [
               {
@@ -2178,7 +2500,7 @@ export function ScheduleGeneratorPage() {
                 key={v.id}
                 type="button"
                 onClick={() => setViewMode(v.id)}
-                className={`group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`group inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
                   isActive
                     ? 'bg-navy-900 dark:bg-electric-500 text-white'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -2199,7 +2521,7 @@ export function ScheduleGeneratorPage() {
           <select
             value={filterTeamId}
             onChange={(e) => setFilterTeamId(e.target.value)}
-            className="px-3 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+            className="w-full sm:w-auto px-3 py-2 min-h-[40px] text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           >
             <option value="all">Todos los equipos</option>
             {categoryTeams.map((t) => (
@@ -2214,7 +2536,7 @@ export function ScheduleGeneratorPage() {
           <select
             value={filterFieldId}
             onChange={(e) => setFilterFieldId(e.target.value)}
-            className="px-3 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+            className="w-full sm:w-auto px-3 py-2 min-h-[40px] text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           >
             <option value="all">Todas las canchas</option>
             {fields.map((f) => (
@@ -2226,11 +2548,11 @@ export function ScheduleGeneratorPage() {
         )}
       </div>
 
-      {/* Matches Grid / Table */}
+      {/* Matches Grid / Table / Mobile Collapsible Cards */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-colors">
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
+        <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <h2 className="font-display font-semibold text-sm sm:text-base text-slate-900 dark:text-white">
               Encuentros Programados ({categoryMatches.length})
             </h2>
             <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
@@ -2239,12 +2561,35 @@ export function ScheduleGeneratorPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {viewMode === 'rounds' && categoryRoundsSummary.length > 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const allCollapsed = categoryRoundsSummary.every(
+                    (r) => Boolean(savedRoundsCollapsed[r.roundNumber])
+                  );
+                  const next: Record<number, boolean> = {};
+                  if (!allCollapsed) {
+                    categoryRoundsSummary.forEach((r) => {
+                      next[r.roundNumber] = true;
+                    });
+                  }
+                  setSavedRoundsCollapsed(next);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[38px] text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                <ChevronsUpDown className="w-3.5 h-3.5 text-slate-500" />
+                {categoryRoundsSummary.every((r) => Boolean(savedRoundsCollapsed[r.roundNumber]))
+                  ? 'Expandir jornadas'
+                  : 'Contraer jornadas'}
+              </button>
+            )}
             {activeCategory && (
               <button
                 type="button"
                 disabled={busy}
                 onClick={openNewMatchCreator}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[38px] text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5 text-electric-500" />
                 Agregar partido
@@ -2260,101 +2605,118 @@ export function ScheduleGeneratorPage() {
                     matchCount: activeCategoryAllMatches.length,
                   })
                 }
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-rose-200 dark:border-rose-900/70 bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[38px] text-xs font-medium rounded-lg border border-rose-200 dark:border-rose-900/70 bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                Eliminar rol completo
+                Eliminar rol
               </button>
             )}
           </div>
         </div>
 
-        {/* Round-level Modify, Shift Week & Delete Bar */}
+        {/* Round-level Modify, Shift Week & Delete Bar (Collapsible on Mobile) */}
         {activeCategory && categoryRoundsSummary.length > 0 && viewMode !== 'category' && (
-          <div className="px-5 py-3 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 mr-1">
-              Semanas / Jornadas:
-            </span>
-            {categoryRoundsSummary.map((rnd) => (
-              <div
-                key={rnd.roundNumber}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs"
-              >
-                <span className="font-semibold text-navy-900 dark:text-white">
-                  J{rnd.roundNumber}
-                </span>
-                <span className="text-slate-500 dark:text-slate-400 font-mono">
-                  ({rnd.matchCount}) · {rnd.firstDate}
-                </span>
-                <button
-                  type="button"
-                  disabled={busy}
-                  title={`Recorrer Jornada ${rnd.roundNumber} una semana atrás (-7 días)`}
-                  onClick={() => handleShiftSavedRoundWeek(rnd.roundNumber, -7)}
-                  className="px-1 py-0.5 rounded text-[10px] font-mono text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  -7d
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  title={`Recorrer Jornada ${rnd.roundNumber} una semana adelante (+7 días)`}
-                  onClick={() => handleShiftSavedRoundWeek(rnd.roundNumber, 7)}
-                  className="px-1 py-0.5 rounded text-[10px] font-mono text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  +7d
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  title={`Cambiar fecha de Jornada ${rnd.roundNumber}`}
-                  onClick={() => {
-                    setEditingRound({
-                      roundNumber: rnd.roundNumber,
-                      currentDate: rnd.firstDate,
-                      matchCount: rnd.matchCount,
-                    });
-                    setRoundNewDate(rnd.firstDate);
-                  }}
-                  className="p-1 rounded text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50"
-                >
-                  <Edit3 className="w-3 h-3" />
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  title={`Regenerar Jornada ${rnd.roundNumber}`}
-                  onClick={() => handleGenerateClick(false, rnd.roundNumber)}
-                  className="p-1 rounded text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  title={`Eliminar Jornada ${rnd.roundNumber}`}
-                  onClick={() =>
-                    setDeletingTarget({
-                      type: 'round',
-                      roundNumber: rnd.roundNumber,
-                      matchCount: rnd.matchCount,
-                    })
-                  }
-                  className="p-1 rounded text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
+          <div className="bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setRoundToolsBarOpen((v) => !v)}
+              aria-expanded={roundToolsBarOpen}
+              className="w-full px-4 sm:px-5 py-2.5 flex items-center justify-between gap-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-200 min-h-[42px]"
+            >
+              <span>
+                Herramientas rápidas por semana / jornada ({categoryRoundsSummary.length} jornadas)
+              </span>
+              <ChevronDown
+                className={`w-4 h-4 text-slate-500 transition-transform duration-150 ${
+                  roundToolsBarOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {roundToolsBarOpen && (
+              <div className="px-4 sm:px-5 pb-3 pt-1 flex flex-wrap items-center gap-2">
+                {categoryRoundsSummary.map((rnd) => (
+                  <div
+                    key={rnd.roundNumber}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs"
+                  >
+                    <span className="font-semibold text-navy-900 dark:text-white">
+                      J{rnd.roundNumber}
+                    </span>
+                    <span className="text-slate-500 dark:text-slate-400 font-mono">
+                      ({rnd.matchCount}) · {rnd.firstDate}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      title={`Recorrer Jornada ${rnd.roundNumber} una semana atrás (-7 días)`}
+                      onClick={() => handleShiftSavedRoundWeek(rnd.roundNumber, -7)}
+                      className="px-1.5 py-1 rounded text-[10px] font-mono text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                      -7d
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      title={`Recorrer Jornada ${rnd.roundNumber} una semana adelante (+7 días)`}
+                      onClick={() => handleShiftSavedRoundWeek(rnd.roundNumber, 7)}
+                      className="px-1.5 py-1 rounded text-[10px] font-mono text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                      +7d
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      title={`Cambiar fecha de Jornada ${rnd.roundNumber}`}
+                      onClick={() => {
+                        setEditingRound({
+                          roundNumber: rnd.roundNumber,
+                          currentDate: rnd.firstDate,
+                          matchCount: rnd.matchCount,
+                        });
+                        setRoundNewDate(rnd.firstDate);
+                      }}
+                      className="p-1.5 rounded text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50"
+                    >
+                      <Edit3 className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      title={`Regenerar Jornada ${rnd.roundNumber}`}
+                      onClick={() => handleGenerateClick(false, rnd.roundNumber)}
+                      className="p-1.5 rounded text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      title={`Eliminar Jornada ${rnd.roundNumber}`}
+                      onClick={() =>
+                        setDeletingTarget({
+                          type: 'round',
+                          roundNumber: rnd.roundNumber,
+                          matchCount: rnd.matchCount,
+                        })
+                      }
+                      className="p-1.5 rounded text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
 
         {categoryMatches.length === 0 ? (
-          <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
+          <div className="p-8 sm:p-10 text-center text-sm text-slate-500 dark:text-slate-400">
             No hay encuentros generados para esta selección. Configura los parámetros arriba y presiona "Generar Roles por Semana" o agrega un partido manual.
           </div>
         ) : viewMode === 'rounds' ? (
-          <div className="p-4 space-y-4">
+          <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
             {Array.from(new Set(categoryMatches.map((m) => m.roundNumber)))
               .sort((a, b) => a - b)
               .map((rn) => {
@@ -2362,26 +2724,47 @@ export function ScheduleGeneratorPage() {
                 const firstDate = roundList[0]?.date || startDate;
                 const weekStart = getWeekStartMonday(firstDate);
                 const weekEnd = addDaysToIsoDate(weekStart, 6);
+                const isRoundOpen = !savedRoundsCollapsed[rn];
+
                 return (
                   <div
                     key={rn}
                     className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden"
                   >
-                    <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-display font-bold text-sm text-navy-900 dark:text-white">
-                          Jornada {rn}
-                        </span>
-                        <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                          Semana del {weekStart} al {weekEnd} · {roundList.length} partido(s)
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <div
+                      className={`px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800/60 flex flex-col lg:flex-row lg:items-center justify-between gap-2 ${
+                        isRoundOpen ? 'border-b border-slate-200 dark:border-slate-800' : ''
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSavedRoundsCollapsed((prev) => ({ ...prev, [rn]: !prev[rn] }))
+                        }
+                        aria-expanded={isRoundOpen}
+                        className="flex-1 min-w-0 flex items-center justify-between gap-2 text-left min-h-[40px]"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-display font-bold text-sm text-navy-900 dark:text-white">
+                            Jornada {rn}
+                          </span>
+                          <span className="block sm:inline sm:ml-2 text-xs font-mono text-slate-500 dark:text-slate-400 truncate">
+                            Semana {weekStart} al {weekEnd} · {roundList.length} partido(s)
+                          </span>
+                        </div>
+                        <ChevronDown
+                          className={`w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0 transition-transform duration-150 ${
+                            isRoundOpen ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] shrink-0">
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => handleShiftSavedRoundWeek(rn, -7)}
-                          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                          className="px-2.5 py-1.5 min-h-[34px] rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
                         >
                           -7 días
                         </button>
@@ -2389,7 +2772,7 @@ export function ScheduleGeneratorPage() {
                           type="button"
                           disabled={busy}
                           onClick={() => handleShiftSavedRoundWeek(rn, 7)}
-                          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                          className="px-2.5 py-1.5 min-h-[34px] rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
                         >
                           +7 días
                         </button>
@@ -2404,306 +2787,566 @@ export function ScheduleGeneratorPage() {
                             });
                             setRoundNewDate(firstDate);
                           }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 font-medium"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 font-medium"
                         >
                           <Edit3 className="w-3 h-3" />
-                          Cambiar fecha
+                          Fecha
                         </button>
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => handleGenerateClick(false, rn)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 font-medium"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 font-medium"
                         >
                           <RefreshCw className="w-3 h-3" />
-                          Regenerar jornada
+                          Regenerar
                         </button>
                       </div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-white dark:bg-slate-900 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                            <th className="py-2.5 px-4 text-left font-medium">#</th>
-                            <th className="py-2.5 px-4 text-left font-medium">Fecha y Hora</th>
-                            <th className="py-2.5 px-4 text-left font-medium">Local vs Visitante</th>
-                            <th className="py-2.5 px-4 text-left font-medium">Cancha</th>
-                            <th className="py-2.5 px-4 text-left font-medium">Árbitro</th>
-                            <th className="py-2.5 px-4 text-left font-medium">Estado</th>
-                            <th className="py-2.5 px-4 text-right font-medium">Acciones</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                          {roundList.map((m) => (
-                            <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                              <td className="py-2.5 px-4 font-mono tabular-nums text-slate-500 dark:text-slate-400">
-                                {m.matchNumber}
-                              </td>
-                              <td className="py-2.5 px-4 font-mono tabular-nums text-slate-800 dark:text-slate-200 whitespace-nowrap text-xs">
-                                <span className="inline-flex items-center gap-1.5">
-                                  <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                                  <span>
-                                    {WEEKDAY_SHORT_LABELS[getWeekdayName(m.date)] || ''} {m.date} ·{' '}
-                                    {m.time}
-                                  </span>
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-4 font-semibold text-slate-900 dark:text-slate-100">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <TeamCrest
-                                    name={teamMap.get(m.homeTeamId)?.name || m.homeTeamId}
-                                    shortCode={teamMap.get(m.homeTeamId)?.shortCode || 'LOC'}
-                                    primaryColor={teamMap.get(m.homeTeamId)?.primaryColor}
-                                    secondaryColor={teamMap.get(m.homeTeamId)?.secondaryColor}
-                                    crestUrl={teamMap.get(m.homeTeamId)?.crestUrl}
-                                    size="sm"
-                                  />
-                                  <span>{teamMap.get(m.homeTeamId)?.name || m.homeTeamId}</span>
-                                  <span className="text-xs font-normal text-slate-400 dark:text-slate-500">
-                                    vs
-                                  </span>
-                                  <TeamCrest
-                                    name={teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
-                                    shortCode={teamMap.get(m.awayTeamId)?.shortCode || 'VIS'}
-                                    primaryColor={teamMap.get(m.awayTeamId)?.primaryColor}
-                                    secondaryColor={teamMap.get(m.awayTeamId)?.secondaryColor}
-                                    crestUrl={teamMap.get(m.awayTeamId)?.crestUrl}
-                                    size="sm"
-                                  />
-                                  <span>{teamMap.get(m.awayTeamId)?.name || m.awayTeamId}</span>
-                                </div>
-                              </td>
-                              <td className="py-2.5 px-4 text-xs">
+                    {isRoundOpen && (
+                      <>
+                        {/* Mobile Collapsible Match Cards */}
+                        <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                          {roundList.map((m) => {
+                            const isMatchOpen = Boolean(expandedSavedMatchIds[m.id]);
+                            const home = teamMap.get(m.homeTeamId);
+                            const away = teamMap.get(m.awayTeamId);
+                            return (
+                              <div key={m.id}>
                                 <button
                                   type="button"
-                                  disabled={busy}
-                                  onClick={() => openMatchEditor(m)}
-                                  title="Clic para cambiar la cancha de este partido"
-                                  className="group inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 hover:text-teal-700 dark:hover:text-teal-300 transition-colors cursor-pointer"
+                                  onClick={() =>
+                                    setExpandedSavedMatchIds((prev) => ({
+                                      ...prev,
+                                      [m.id]: !prev[m.id],
+                                    }))
+                                  }
+                                  aria-expanded={isMatchOpen}
+                                  className="w-full px-3.5 py-3 text-left space-y-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                                 >
-                                  <MapPin
-                                    className={`w-3.5 h-3.5 shrink-0 ${
-                                      m.fieldId
-                                        ? 'text-teal-600 dark:text-teal-400'
-                                        : 'text-slate-400 dark:text-slate-500'
-                                    }`}
-                                  />
-                                  <span>
-                                    {m.fieldId
-                                      ? fieldMap.get(m.fieldId)?.name || 'Sin asignar'
-                                      : 'Sin asignar'}
-                                  </span>
+                                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                                    <span>
+                                      #{m.matchNumber} · {WEEKDAY_SHORT_LABELS[getWeekdayName(m.date)] || ''}{' '}
+                                      {m.date} · {m.time}
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-sans font-medium text-slate-700 dark:text-slate-300">
+                                        {m.status}
+                                      </span>
+                                      <ChevronDown
+                                        className={`w-4 h-4 text-slate-400 transition-transform duration-150 ${
+                                          isMatchOpen ? 'rotate-180 text-electric-500' : ''
+                                        }`}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                      <TeamCrest
+                                        name={home?.name || m.homeTeamId}
+                                        shortCode={home?.shortCode || 'LOC'}
+                                        primaryColor={home?.primaryColor}
+                                        secondaryColor={home?.secondaryColor}
+                                        crestUrl={home?.crestUrl}
+                                        size="sm"
+                                      />
+                                      <span className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                        {home?.name || m.homeTeamId}
+                                      </span>
+                                    </div>
+                                    <span className="text-[11px] text-slate-400 shrink-0 px-1">vs</span>
+                                    <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
+                                      <span className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 truncate text-right">
+                                        {away?.name || m.awayTeamId}
+                                      </span>
+                                      <TeamCrest
+                                        name={away?.name || m.awayTeamId}
+                                        shortCode={away?.shortCode || 'VIS'}
+                                        primaryColor={away?.primaryColor}
+                                        secondaryColor={away?.secondaryColor}
+                                        crestUrl={away?.crestUrl}
+                                        size="sm"
+                                      />
+                                    </div>
+                                  </div>
                                 </button>
-                              </td>
-                              <td className="py-2.5 px-4 text-xs">
-                                <button
-                                  type="button"
-                                  disabled={busy}
-                                  onClick={() => openMatchEditor(m)}
-                                  title="Clic para asignar o cambiar el árbitro"
-                                  className="group inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-300 transition-colors cursor-pointer"
-                                >
-                                  <Flag
-                                    className={`w-3.5 h-3.5 shrink-0 ${
-                                      m.refereeId
-                                        ? 'text-amber-600 dark:text-amber-400'
-                                        : 'text-slate-400 dark:text-slate-500'
-                                    }`}
-                                  />
-                                  <span>
-                                    {m.refereeId
-                                      ? refMap.get(m.refereeId)?.fullName || 'Sin asignar'
-                                      : 'Sin asignar'}
-                                  </span>
-                                </button>
-                              </td>
-                              <td className="py-2.5 px-4 text-xs">
-                                <MatchStatusIndicator
-                                  status={m.status}
-                                  onClick={() => openMatchEditor(m)}
-                                  title="Clic para editar el estado del partido"
-                                />
-                              </td>
-                              <td className="py-2.5 px-4 text-right whitespace-nowrap">
-                                <div className="inline-flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    disabled={busy}
-                                    title="Intercambiar Local ↔ Visitante"
-                                    onClick={() => handleQuickSwapSavedMatch(m)}
-                                    className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
-                                  >
-                                    <ArrowLeftRight className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={busy}
-                                    onClick={() => openMatchEditor(m)}
-                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md"
-                                  >
-                                    <Edit3 className="w-3.5 h-3.5" />
-                                    Modificar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={busy}
-                                    onClick={() => setDeletingTarget({ type: 'match', match: m })}
-                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    Eliminar
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+
+                                {isMatchOpen && (
+                                  <div className="px-3.5 pb-3 pt-2 bg-slate-50/80 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                      <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80">
+                                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">
+                                          Cancha
+                                        </span>
+                                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                                          {m.fieldId
+                                            ? fieldMap.get(m.fieldId)?.name || 'Sin asignar'
+                                            : 'Sin asignar'}
+                                        </span>
+                                      </div>
+                                      <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80">
+                                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">
+                                          Árbitro
+                                        </span>
+                                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                                          {m.refereeId
+                                            ? refMap.get(m.refereeId)?.fullName || 'Sin asignar'
+                                            : 'Sin asignar'}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-2">
+                                      <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => handleQuickSwapSavedMatch(m)}
+                                        className="inline-flex items-center justify-center gap-1 px-2 py-2 min-h-[40px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium text-slate-700 dark:text-slate-200"
+                                      >
+                                        <ArrowLeftRight className="w-3.5 h-3.5" />
+                                        Invertir
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => openMatchEditor(m)}
+                                        className="inline-flex items-center justify-center gap-1 px-2 py-2 min-h-[40px] rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-xs font-medium text-electric-600 dark:text-blue-400"
+                                      >
+                                        <Edit3 className="w-3.5 h-3.5" />
+                                        Modificar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => setDeletingTarget({ type: 'match', match: m })}
+                                        className="inline-flex items-center justify-center gap-1 px-2 py-2 min-h-[40px] rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 text-xs font-medium text-rose-600 dark:text-rose-400"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        Eliminar
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Desktop Full Table */}
+                        <div className="hidden md:block overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-white dark:bg-slate-900 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                <th className="py-2.5 px-4 text-left font-medium">#</th>
+                                <th className="py-2.5 px-4 text-left font-medium">Fecha y Hora</th>
+                                <th className="py-2.5 px-4 text-left font-medium">Local vs Visitante</th>
+                                <th className="py-2.5 px-4 text-left font-medium">Cancha</th>
+                                <th className="py-2.5 px-4 text-left font-medium">Árbitro</th>
+                                <th className="py-2.5 px-4 text-left font-medium">Estado</th>
+                                <th className="py-2.5 px-4 text-right font-medium">Acciones</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                              {roundList.map((m) => (
+                                <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                  <td className="py-2.5 px-4 font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                                    {m.matchNumber}
+                                  </td>
+                                  <td className="py-2.5 px-4 font-mono tabular-nums text-slate-800 dark:text-slate-200 whitespace-nowrap text-xs">
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                      <span>
+                                        {WEEKDAY_SHORT_LABELS[getWeekdayName(m.date)] || ''} {m.date} ·{' '}
+                                        {m.time}
+                                      </span>
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-4 font-semibold text-slate-900 dark:text-slate-100">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <TeamCrest
+                                        name={teamMap.get(m.homeTeamId)?.name || m.homeTeamId}
+                                        shortCode={teamMap.get(m.homeTeamId)?.shortCode || 'LOC'}
+                                        primaryColor={teamMap.get(m.homeTeamId)?.primaryColor}
+                                        secondaryColor={teamMap.get(m.homeTeamId)?.secondaryColor}
+                                        crestUrl={teamMap.get(m.homeTeamId)?.crestUrl}
+                                        size="sm"
+                                      />
+                                      <span>{teamMap.get(m.homeTeamId)?.name || m.homeTeamId}</span>
+                                      <span className="text-xs font-normal text-slate-400 dark:text-slate-500">
+                                        vs
+                                      </span>
+                                      <TeamCrest
+                                        name={teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
+                                        shortCode={teamMap.get(m.awayTeamId)?.shortCode || 'VIS'}
+                                        primaryColor={teamMap.get(m.awayTeamId)?.primaryColor}
+                                        secondaryColor={teamMap.get(m.awayTeamId)?.secondaryColor}
+                                        crestUrl={teamMap.get(m.awayTeamId)?.crestUrl}
+                                        size="sm"
+                                      />
+                                      <span>{teamMap.get(m.awayTeamId)?.name || m.awayTeamId}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-4 text-xs">
+                                    <button
+                                      type="button"
+                                      disabled={busy}
+                                      onClick={() => openMatchEditor(m)}
+                                      title="Clic para cambiar la cancha de este partido"
+                                      className="group inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 hover:text-teal-700 dark:hover:text-teal-300 transition-colors cursor-pointer"
+                                    >
+                                      <MapPin
+                                        className={`w-3.5 h-3.5 shrink-0 ${
+                                          m.fieldId
+                                            ? 'text-teal-600 dark:text-teal-400'
+                                            : 'text-slate-400 dark:text-slate-500'
+                                        }`}
+                                      />
+                                      <span>
+                                        {m.fieldId
+                                          ? fieldMap.get(m.fieldId)?.name || 'Sin asignar'
+                                          : 'Sin asignar'}
+                                      </span>
+                                    </button>
+                                  </td>
+                                  <td className="py-2.5 px-4 text-xs">
+                                    <button
+                                      type="button"
+                                      disabled={busy}
+                                      onClick={() => openMatchEditor(m)}
+                                      title="Clic para asignar o cambiar el árbitro"
+                                      className="group inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-300 transition-colors cursor-pointer"
+                                    >
+                                      <Flag
+                                        className={`w-3.5 h-3.5 shrink-0 ${
+                                          m.refereeId
+                                            ? 'text-amber-600 dark:text-amber-400'
+                                            : 'text-slate-400 dark:text-slate-500'
+                                        }`}
+                                      />
+                                      <span>
+                                        {m.refereeId
+                                          ? refMap.get(m.refereeId)?.fullName || 'Sin asignar'
+                                          : 'Sin asignar'}
+                                      </span>
+                                    </button>
+                                  </td>
+                                  <td className="py-2.5 px-4 text-xs">
+                                    <MatchStatusIndicator
+                                      status={m.status}
+                                      onClick={() => openMatchEditor(m)}
+                                      title="Clic para editar el estado del partido"
+                                    />
+                                  </td>
+                                  <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                                    <div className="inline-flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        disabled={busy}
+                                        title="Intercambiar Local ↔ Visitante"
+                                        onClick={() => handleQuickSwapSavedMatch(m)}
+                                        className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
+                                      >
+                                        <ArrowLeftRight className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => openMatchEditor(m)}
+                                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md"
+                                      >
+                                        <Edit3 className="w-3.5 h-3.5" />
+                                        Modificar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => setDeletingTarget({ type: 'match', match: m })}
+                                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        Eliminar
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
-                  <th className="py-3 px-4 text-left font-medium">#</th>
-                  <th className="py-3 px-4 text-left font-medium">Jornada / Fase</th>
-                  <th className="py-3 px-4 text-left font-medium">Fecha y Hora</th>
-                  <th className="py-3 px-4 text-left font-medium">Local vs Visitante</th>
-                  <th className="py-3 px-4 text-left font-medium">Cancha</th>
-                  <th className="py-3 px-4 text-left font-medium">Árbitro</th>
-                  <th className="py-3 px-4 text-left font-medium">Estado</th>
-                  <th className="py-3 px-4 text-right font-medium">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {categoryMatches.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <td className="py-3 px-4 font-mono tabular-nums text-slate-500 dark:text-slate-400">
-                      {m.matchNumber}
-                    </td>
-                    <td className="py-3 px-4 text-xs text-slate-700 dark:text-slate-300">
-                      J{m.roundNumber} · {m.stage}
-                      {viewMode === 'category' ? ` (${catMap.get(m.categoryId)?.name})` : ''}
-                    </td>
-                    <td className="py-3 px-4 font-mono tabular-nums text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                        <span>
-                          {m.date} · {m.time}
+          <>
+            {/* Mobile Collapsible Flat Match Cards (for calendar, category, team, field views) */}
+            <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+              {categoryMatches.map((m) => {
+                const isMatchOpen = Boolean(expandedSavedMatchIds[m.id]);
+                const home = teamMap.get(m.homeTeamId);
+                const away = teamMap.get(m.awayTeamId);
+                return (
+                  <div key={m.id}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedSavedMatchIds((prev) => ({ ...prev, [m.id]: !prev[m.id] }))
+                      }
+                      aria-expanded={isMatchOpen}
+                      className="w-full px-4 py-3 text-left space-y-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                        <span className="truncate">
+                          #{m.matchNumber} · J{m.roundNumber} · {m.date} · {m.time}
                         </span>
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <TeamCrest
-                          name={teamMap.get(m.homeTeamId)?.name || m.homeTeamId}
-                          shortCode={teamMap.get(m.homeTeamId)?.shortCode || 'LOC'}
-                          primaryColor={teamMap.get(m.homeTeamId)?.primaryColor}
-                          secondaryColor={teamMap.get(m.homeTeamId)?.secondaryColor}
-                          crestUrl={teamMap.get(m.homeTeamId)?.crestUrl}
-                          size="sm"
-                        />
-                        <span>{teamMap.get(m.homeTeamId)?.name || m.homeTeamId}</span>
-                        <span className="text-xs font-normal text-slate-400 dark:text-slate-500">vs</span>
-                        <TeamCrest
-                          name={teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
-                          shortCode={teamMap.get(m.awayTeamId)?.shortCode || 'VIS'}
-                          primaryColor={teamMap.get(m.awayTeamId)?.primaryColor}
-                          secondaryColor={teamMap.get(m.awayTeamId)?.secondaryColor}
-                          crestUrl={teamMap.get(m.awayTeamId)?.crestUrl}
-                          size="sm"
-                        />
-                        <span>{teamMap.get(m.awayTeamId)?.name || m.awayTeamId}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="font-sans font-medium text-slate-700 dark:text-slate-300">
+                            {m.status}
+                          </span>
+                          <ChevronDown
+                            className={`w-4 h-4 text-slate-400 transition-transform duration-150 ${
+                              isMatchOpen ? 'rotate-180 text-electric-500' : ''
+                            }`}
+                          />
+                        </div>
                       </div>
-                    </td>
-                    <td className="py-3 px-4 text-xs">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => openMatchEditor(m)}
-                        title="Clic para cambiar la cancha de este partido"
-                        className="group inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 hover:text-teal-700 dark:hover:text-teal-300 transition-colors cursor-pointer"
-                      >
-                        <MapPin
-                          className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 group-hover:scale-110 ${
-                            m.fieldId
-                              ? 'text-teal-600 dark:text-teal-400'
-                              : 'text-slate-400 dark:text-slate-500'
-                          }`}
-                        />
-                        <span>
-                          {m.fieldId ? fieldMap.get(m.fieldId)?.name || 'Sin asignar' : 'Sin asignar'}
+
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <TeamCrest
+                            name={home?.name || m.homeTeamId}
+                            shortCode={home?.shortCode || 'LOC'}
+                            primaryColor={home?.primaryColor}
+                            secondaryColor={home?.secondaryColor}
+                            crestUrl={home?.crestUrl}
+                            size="sm"
+                          />
+                          <span className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                            {home?.name || m.homeTeamId}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-400 shrink-0 px-1">vs</span>
+                        <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
+                          <span className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 truncate text-right">
+                            {away?.name || m.awayTeamId}
+                          </span>
+                          <TeamCrest
+                            name={away?.name || m.awayTeamId}
+                            shortCode={away?.shortCode || 'VIS'}
+                            primaryColor={away?.primaryColor}
+                            secondaryColor={away?.secondaryColor}
+                            crestUrl={away?.crestUrl}
+                            size="sm"
+                          />
+                        </div>
+                      </div>
+                    </button>
+
+                    {isMatchOpen && (
+                      <div className="px-4 pb-3 pt-2 bg-slate-50/80 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80">
+                            <span className="block text-[10px] text-slate-500 dark:text-slate-400">
+                              Cancha
+                            </span>
+                            <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                              {m.fieldId
+                                ? fieldMap.get(m.fieldId)?.name || 'Sin asignar'
+                                : 'Sin asignar'}
+                            </span>
+                          </div>
+                          <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80">
+                            <span className="block text-[10px] text-slate-500 dark:text-slate-400">
+                              Árbitro
+                            </span>
+                            <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                              {m.refereeId
+                                ? refMap.get(m.refereeId)?.fullName || 'Sin asignar'
+                                : 'Sin asignar'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => handleQuickSwapSavedMatch(m)}
+                            className="inline-flex items-center justify-center gap-1 px-2 py-2 min-h-[40px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium text-slate-700 dark:text-slate-200"
+                          >
+                            <ArrowLeftRight className="w-3.5 h-3.5" />
+                            Invertir
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => openMatchEditor(m)}
+                            className="inline-flex items-center justify-center gap-1 px-2 py-2 min-h-[40px] rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-xs font-medium text-electric-600 dark:text-blue-400"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            Modificar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setDeletingTarget({ type: 'match', match: m })}
+                            className="inline-flex items-center justify-center gap-1 px-2 py-2 min-h-[40px] rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 text-xs font-medium text-rose-600 dark:text-rose-400"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Eliminar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                    <th className="py-3 px-4 text-left font-medium">#</th>
+                    <th className="py-3 px-4 text-left font-medium">Jornada / Fase</th>
+                    <th className="py-3 px-4 text-left font-medium">Fecha y Hora</th>
+                    <th className="py-3 px-4 text-left font-medium">Local vs Visitante</th>
+                    <th className="py-3 px-4 text-left font-medium">Cancha</th>
+                    <th className="py-3 px-4 text-left font-medium">Árbitro</th>
+                    <th className="py-3 px-4 text-left font-medium">Estado</th>
+                    <th className="py-3 px-4 text-right font-medium">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {categoryMatches.map((m) => (
+                    <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="py-3 px-4 font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                        {m.matchNumber}
+                      </td>
+                      <td className="py-3 px-4 text-xs text-slate-700 dark:text-slate-300">
+                        J{m.roundNumber} · {m.stage}
+                        {viewMode === 'category' ? ` (${catMap.get(m.categoryId)?.name})` : ''}
+                      </td>
+                      <td className="py-3 px-4 font-mono tabular-nums text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                          <span>
+                            {m.date} · {m.time}
+                          </span>
                         </span>
-                      </button>
-                    </td>
-                    <td className="py-3 px-4 text-xs">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => openMatchEditor(m)}
-                        title="Clic para asignar o cambiar el árbitro"
-                        className="group inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-300 transition-colors cursor-pointer"
-                      >
-                        <Flag
-                          className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 group-hover:scale-110 ${
-                            m.refereeId
-                              ? 'text-amber-600 dark:text-amber-400'
-                              : 'text-slate-400 dark:text-slate-500'
-                          }`}
-                        />
-                        <span>
-                          {m.refereeId ? refMap.get(m.refereeId)?.fullName || 'Sin asignar' : 'Sin asignar'}
-                        </span>
-                      </button>
-                    </td>
-                    <td className="py-3 px-4 text-xs">
-                      <MatchStatusIndicator
-                        status={m.status}
-                        onClick={() => openMatchEditor(m)}
-                        title="Clic para editar el estado del partido"
-                      />
-                    </td>
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          title="Intercambiar Local ↔ Visitante"
-                          onClick={() => handleQuickSwapSavedMatch(m)}
-                          className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
-                        >
-                          <ArrowLeftRight className="w-3.5 h-3.5" />
-                        </button>
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <TeamCrest
+                            name={teamMap.get(m.homeTeamId)?.name || m.homeTeamId}
+                            shortCode={teamMap.get(m.homeTeamId)?.shortCode || 'LOC'}
+                            primaryColor={teamMap.get(m.homeTeamId)?.primaryColor}
+                            secondaryColor={teamMap.get(m.homeTeamId)?.secondaryColor}
+                            crestUrl={teamMap.get(m.homeTeamId)?.crestUrl}
+                            size="sm"
+                          />
+                          <span>{teamMap.get(m.homeTeamId)?.name || m.homeTeamId}</span>
+                          <span className="text-xs font-normal text-slate-400 dark:text-slate-500">vs</span>
+                          <TeamCrest
+                            name={teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
+                            shortCode={teamMap.get(m.awayTeamId)?.shortCode || 'VIS'}
+                            primaryColor={teamMap.get(m.awayTeamId)?.primaryColor}
+                            secondaryColor={teamMap.get(m.awayTeamId)?.secondaryColor}
+                            crestUrl={teamMap.get(m.awayTeamId)?.crestUrl}
+                            size="sm"
+                          />
+                          <span>{teamMap.get(m.awayTeamId)?.name || m.awayTeamId}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-xs">
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => openMatchEditor(m)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md"
+                          title="Clic para cambiar la cancha de este partido"
+                          className="group inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 hover:text-teal-700 dark:hover:text-teal-300 transition-colors cursor-pointer"
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          Modificar
+                          <MapPin
+                            className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 group-hover:scale-110 ${
+                              m.fieldId
+                                ? 'text-teal-600 dark:text-teal-400'
+                                : 'text-slate-400 dark:text-slate-500'
+                            }`}
+                          />
+                          <span>
+                            {m.fieldId ? fieldMap.get(m.fieldId)?.name || 'Sin asignar' : 'Sin asignar'}
+                          </span>
                         </button>
+                      </td>
+                      <td className="py-3 px-4 text-xs">
                         <button
                           type="button"
                           disabled={busy}
-                          onClick={() => setDeletingTarget({ type: 'match', match: m })}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md"
+                          onClick={() => openMatchEditor(m)}
+                          title="Clic para asignar o cambiar el árbitro"
+                          className="group inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-300 transition-colors cursor-pointer"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          Eliminar
+                          <Flag
+                            className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 group-hover:scale-110 ${
+                              m.refereeId
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-slate-400 dark:text-slate-500'
+                            }`}
+                          />
+                          <span>
+                            {m.refereeId ? refMap.get(m.refereeId)?.fullName || 'Sin asignar' : 'Sin asignar'}
+                          </span>
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      </td>
+                      <td className="py-3 px-4 text-xs">
+                        <MatchStatusIndicator
+                          status={m.status}
+                          onClick={() => openMatchEditor(m)}
+                          title="Clic para editar el estado del partido"
+                        />
+                      </td>
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            title="Intercambiar Local ↔ Visitante"
+                            onClick={() => handleQuickSwapSavedMatch(m)}
+                            className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
+                          >
+                            <ArrowLeftRight className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => openMatchEditor(m)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            Modificar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setDeletingTarget({ type: 'match', match: m })}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
