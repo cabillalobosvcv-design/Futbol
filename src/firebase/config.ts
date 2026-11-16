@@ -1,5 +1,14 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getApps, initializeApp } from 'firebase/app';
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  GoogleAuthProvider,
+  inMemoryPersistence,
+  sendEmailVerification,
+  setPersistence,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
 import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -10,6 +19,49 @@ export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+export async function provisionAuthUserWithPassword(params: {
+  email: string;
+  password: string;
+  displayName: string;
+}): Promise<{ uid: string; verificationSent: boolean }> {
+  const secondaryName = 'sigd-user-provision';
+  const secondaryApp =
+    getApps().find((a) => a.name === secondaryName) ||
+    initializeApp(firebaseConfig, secondaryName);
+  const secondaryAuth = getAuth(secondaryApp);
+  await setPersistence(secondaryAuth, inMemoryPersistence);
+
+  try {
+    const cred = await createUserWithEmailAndPassword(
+      secondaryAuth,
+      params.email.trim().toLowerCase(),
+      params.password
+    );
+    if (params.displayName.trim()) {
+      await updateProfile(cred.user, {
+        displayName: params.displayName.trim().slice(0, 120),
+      });
+    }
+    let verificationSent = false;
+    try {
+      await sendEmailVerification(cred.user);
+      verificationSent = true;
+    } catch {
+      verificationSent = false;
+    }
+    const uid = cred.user.uid;
+    await signOut(secondaryAuth);
+    return { uid, verificationSent };
+  } catch (err) {
+    try {
+      await signOut(secondaryAuth);
+    } catch {
+      // ignore cleanup error
+    }
+    throw err;
+  }
+}
 
 export enum OperationType {
   CREATE = 'create',

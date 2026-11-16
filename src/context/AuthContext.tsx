@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
   onAuthStateChanged,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
   type User,
@@ -17,7 +19,10 @@ interface AuthContextValue {
   authReady: boolean;
   signingIn: boolean;
   authError: string | null;
-  signInWithGoogle: () => Promise<void>;
+  clearAuthError: () => void;
+  signInWithGoogle: () => Promise<boolean>;
+  signInWithEmail: (email: string, password: string) => Promise<boolean>;
+  resendVerificationEmail: () => Promise<boolean>;
   signOut: () => Promise<void>;
 }
 
@@ -49,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (snap.exists()) {
           const data = snap.data() as Omit<UserProfile, 'id'>;
-          if (data.role === 'publico' && inviteId) {
+          if (data.role === 'publico' && inviteId && user.emailVerified) {
             const inviteRef = doc(db, 'userInvites', inviteId);
             const inviteSnap = await getDoc(inviteRef);
             if (inviteSnap.exists()) {
@@ -84,6 +89,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           setProfile({ id: snap.id, ...data });
         } else {
+          // If email is not yet verified, Firestore rules prevent creating a new user profile;
+          // expose a read-only local profile until the user verifies their email.
+          if (!user.emailVerified) {
+            setProfile({
+              id: user.uid,
+              uid: user.uid,
+              displayName: user.displayName || user.email || 'Usuario SIGD',
+              email: (user.email || '').toLowerCase(),
+              photoUrl: user.photoURL || '',
+              role: 'publico',
+              assignedCategoryIds: [],
+              assignedTeamId: '',
+              active: true,
+            });
+            return;
+          }
+
           let invitedData: Omit<UserInvite, 'id'> | null = null;
           if (inviteId) {
             const inviteRef = doc(db, 'userInvites', inviteId);
@@ -158,16 +180,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsub();
   }, []);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (): Promise<boolean> => {
     setSigningIn(true);
     setAuthError(null);
     try {
       await signInWithPopup(auth, googleProvider);
+      return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'No se pudo iniciar sesión con Google.';
       setAuthError(msg);
+      return false;
     } finally {
       setSigningIn(false);
+    }
+  };
+
+  const signInWithEmail = async (email: string, password: string): Promise<boolean> => {
+    setSigningIn(true);
+    setAuthError(null);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      return true;
+    } catch (err) {
+      const code = (err as { code?: string })?.code || '';
+      if (
+        code === 'auth/invalid-credential' ||
+        code === 'auth/wrong-password' ||
+        code === 'auth/user-not-found'
+      ) {
+        setAuthError('Correo o contraseña incorrectos.');
+      } else if (code === 'auth/too-many-requests') {
+        setAuthError('Demasiados intentos fallidos. Espera unos minutos e intenta de nuevo.');
+      } else if (code === 'auth/user-disabled') {
+        setAuthError('Esta cuenta se encuentra deshabilitada.');
+      } else if (code === 'auth/operation-not-allowed') {
+        setAuthError(
+          'El inicio de sesión con Correo y Contraseña aún no está habilitado en Firebase Console.'
+        );
+      } else {
+        setAuthError('No se pudo iniciar sesión con correo y contraseña.');
+      }
+      return false;
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const resendVerificationEmail = async (): Promise<boolean> => {
+    if (!auth.currentUser) return false;
+    try {
+      await sendEmailVerification(auth.currentUser);
+      return true;
+    } catch {
+      return false;
     }
   };
 
@@ -187,7 +252,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authReady,
         signingIn,
         authError,
+        clearAuthError: () => setAuthError(null),
         signInWithGoogle,
+        signInWithEmail,
+        resendVerificationEmail,
         signOut,
       }}
     >

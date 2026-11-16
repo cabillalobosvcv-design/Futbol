@@ -430,6 +430,49 @@ export async function registerOrInviteUser(params: {
   }
 }
 
+export async function createProvisionedUserProfile(params: {
+  uid: string;
+  displayName: string;
+  email: string;
+  role: UserRole;
+  assignedCategoryIds: string[];
+  assignedTeamId?: string;
+  active: boolean;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `users/${params.uid}`;
+  const normalizedEmail = params.email.trim().toLowerCase().slice(0, 160);
+  const cleanName = params.displayName.trim().slice(0, 120);
+  try {
+    await setDoc(
+      doc(db, 'users', params.uid),
+      cleanPayload({
+        uid: params.uid,
+        displayName: cleanName,
+        email: normalizedEmail,
+        photoUrl: '',
+        role: params.role,
+        assignedCategoryIds: params.assignedCategoryIds.slice(0, 20),
+        assignedTeamId: (params.assignedTeamId || '').slice(0, 128),
+        active: params.active,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'CREATE_USER_WITH_PASSWORD',
+      entity: 'users',
+      entityId: params.uid,
+      summary: `Alta de usuario con contraseña generada: ${cleanName} (${normalizedEmail}) · rol ${params.role}.`,
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, path);
+  }
+}
+
 export async function updateUserInvite(params: {
   invite: UserInvite;
   role: UserRole;
