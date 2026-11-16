@@ -70,6 +70,7 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
   const { profile, role } = useAuth();
   const {
     organizations,
+    sportRules,
     tournaments,
     categories,
     teams,
@@ -115,6 +116,8 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
   // Form states
   const [homeScore, setHomeScore] = useState<number>(0);
   const [awayScore, setAwayScore] = useState<number>(0);
+  const [penaltyHomeScore, setPenaltyHomeScore] = useState<number>(0);
+  const [penaltyAwayScore, setPenaltyAwayScore] = useState<number>(0);
   const [periodScores, setPeriodScores] = useState<PeriodScore[]>([
     { period: '1er Tiempo', home: 0, away: 0 },
     { period: '2do Tiempo', home: 0, away: 0 },
@@ -238,6 +241,8 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
     const evs = matchEvents.filter((e) => e.matchId === activeMatch.id);
     setHomeScore(res?.homeScore ?? activeMatch.homeScore ?? 0);
     setAwayScore(res?.awayScore ?? activeMatch.awayScore ?? 0);
+    setPenaltyHomeScore(res?.penaltyHomeScore ?? 0);
+    setPenaltyAwayScore(res?.penaltyAwayScore ?? 0);
     setPeriodScores(
       res?.periodScores && res.periodScores.length > 0
         ? res.periodScores
@@ -277,6 +282,27 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
     (existingResult?.validationStatus === 'aprobado' || activeMatch?.status === 'Finalizado');
 
   const isEditable = canSubmit && !isLockedForReferee;
+
+  const activeTournament = activeMatch
+    ? tournamentMap.get(activeMatch.tournamentId)
+    : undefined;
+  const activeTournamentRule = activeTournament
+    ? sportRules.find((r) => r.tournamentId === activeTournament.id) ||
+      sportRules.find((r) => r.sportId === activeTournament.sportId && !r.tournamentId)
+    : undefined;
+  const isDrawPenaltyRuleActive = Boolean(
+    activeTournament?.drawPenaltyShootout ?? activeTournamentRule?.drawPenaltyShootout
+  );
+  const drawBasePts = activeTournamentRule?.drawPoints ?? activeTournament?.drawPoints ?? 1;
+  const penaltyBonusPts =
+    activeTournament?.drawPenaltyWinBonusPoints ??
+    activeTournamentRule?.drawPenaltyWinBonusPoints ??
+    1;
+  const isRegularDraw = Number(homeScore) === Number(awayScore);
+  const showPenaltyShootoutPanel =
+    Boolean(activeMatch) &&
+    isRegularDraw &&
+    (isDrawPenaltyRuleActive || Boolean(existingResult?.penaltyWinnerTeamId));
 
   const eventSummaryCounts = useMemo(() => {
     let goals = 0;
@@ -375,6 +401,30 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
 
   const handlePersistToDatabase = async (mode: 'en_juego' | 'borrador' | 'pendiente') => {
     if (!profile || !activeMatch || !isEditable) return;
+
+    const cleanHomeScore = Math.max(0, Math.min(99, Number(homeScore) || 0));
+    const cleanAwayScore = Math.max(0, Math.min(99, Number(awayScore) || 0));
+    const cleanPenHome = Math.max(0, Math.min(99, Number(penaltyHomeScore) || 0));
+    const cleanPenAway = Math.max(0, Math.min(99, Number(penaltyAwayScore) || 0));
+    const isTieWithPenaltyRule =
+      cleanHomeScore === cleanAwayScore &&
+      (isDrawPenaltyRuleActive || Boolean(existingResult?.penaltyWinnerTeamId));
+
+    if (mode === 'pendiente' && cleanHomeScore === cleanAwayScore && isDrawPenaltyRuleActive && cleanPenHome === cleanPenAway) {
+      setFeedback(null);
+      setErrorMsg(
+        'El reglamento del torneo establece que en caso de empate se juega por un punto extra en penales. Captura el marcador de la tanda de penales para definir al ganador.'
+      );
+      return;
+    }
+
+    const penaltyWinnerTeamId =
+      isTieWithPenaltyRule && cleanPenHome !== cleanPenAway
+        ? cleanPenHome > cleanPenAway
+          ? activeMatch.homeTeamId
+          : activeMatch.awayTeamId
+        : undefined;
+
     setBusyMode(mode);
     setFeedback(null);
     setErrorMsg(null);
@@ -398,8 +448,11 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
       await submitMatchSheetForValidation({
         match: activeMatch,
         existingResult,
-        homeScore: Math.max(0, Math.min(99, Number(homeScore) || 0)),
-        awayScore: Math.max(0, Math.min(99, Number(awayScore) || 0)),
+        homeScore: cleanHomeScore,
+        awayScore: cleanAwayScore,
+        penaltyHomeScore: penaltyWinnerTeamId ? cleanPenHome : undefined,
+        penaltyAwayScore: penaltyWinnerTeamId ? cleanPenAway : undefined,
+        penaltyWinnerTeamId,
         periodScores,
         observations,
         events: payloadEvents,
@@ -672,7 +725,11 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                       </span>
                       {res ? (
                         <span className="font-mono font-bold text-navy-900 dark:text-blue-400 tabular-nums">
-                          {res.homeScore} - {res.awayScore} ({res.validationStatus})
+                          {res.homeScore} - {res.awayScore}
+                          {res.penaltyHomeScore !== undefined && res.penaltyAwayScore !== undefined
+                            ? ` (p.${res.penaltyHomeScore}-${res.penaltyAwayScore})`
+                            : ''}{' '}
+                          ({res.validationStatus})
                         </span>
                       ) : m.homeScore !== undefined && m.awayScore !== undefined ? (
                         <span className="font-mono font-bold text-slate-700 dark:text-slate-300 tabular-nums">
@@ -877,6 +934,72 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                   </div>
                 </div>
               </div>
+
+              {/* Penalty Shootout Extra Point Panel */}
+              {showPenaltyShootoutPanel && activeMatch && (
+                <div className="p-4 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/30 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wide">
+                        Desempate por Punto Extra en Penales
+                      </h3>
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5">
+                        Empate en tiempo regular ({drawBasePts} pt c/u). El ganador de la tanda suma +{penaltyBonusPts} pt adicional ({drawBasePts + penaltyBonusPts} pts totales).
+                      </p>
+                    </div>
+                    {penaltyHomeScore !== penaltyAwayScore ? (
+                      <span className="px-2.5 py-1 rounded-md bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
+                        Ganador (+{penaltyBonusPts} pt extra):{' '}
+                        {penaltyHomeScore > penaltyAwayScore
+                          ? teamMap.get(activeMatch.homeTeamId)?.name || 'Local'
+                          : teamMap.get(activeMatch.awayTeamId)?.name || 'Visitante'}
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-md bg-amber-200/80 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 text-[11px] font-medium">
+                        Define el marcador de penales (no puede quedar empatado)
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+                    <div className="flex items-center justify-between sm:justify-center gap-2 bg-white/90 dark:bg-slate-900/80 border border-amber-200 dark:border-amber-800/70 rounded-lg px-3 py-2">
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">
+                        Pen. {teamMap.get(activeMatch.homeTeamId)?.shortCode || 'LOC'}
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={99}
+                        disabled={!isEditable}
+                        value={penaltyHomeScore}
+                        onChange={(e) =>
+                          setPenaltyHomeScore(Math.max(0, Math.min(99, Number(e.target.value) || 0)))
+                        }
+                        className="w-16 text-center py-1 text-lg font-mono font-bold border border-amber-300 dark:border-amber-700 rounded bg-white dark:bg-slate-900 text-slate-900 dark:text-white tabular-nums"
+                      />
+                    </div>
+                    <div className="text-center text-xs font-mono font-semibold text-amber-800 dark:text-amber-300">
+                      PENALES
+                    </div>
+                    <div className="flex items-center justify-between sm:justify-center gap-2 bg-white/90 dark:bg-slate-900/80 border border-amber-200 dark:border-amber-800/70 rounded-lg px-3 py-2">
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">
+                        Pen. {teamMap.get(activeMatch.awayTeamId)?.shortCode || 'VIS'}
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={99}
+                        disabled={!isEditable}
+                        value={penaltyAwayScore}
+                        onChange={(e) =>
+                          setPenaltyAwayScore(Math.max(0, Math.min(99, Number(e.target.value) || 0)))
+                        }
+                        className="w-16 text-center py-1 text-lg font-mono font-bold border border-amber-300 dark:border-amber-700 rounded bg-white dark:bg-slate-900 text-slate-900 dark:text-white tabular-nums"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Period Scores */}
               <div className="space-y-2.5">

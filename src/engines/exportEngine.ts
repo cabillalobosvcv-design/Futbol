@@ -230,10 +230,23 @@ export async function exportMatchSheetPdf(params: {
     align: 'right',
   });
 
+  const hScore = result?.homeScore ?? match.homeScore ?? 0;
+  const aScore = result?.awayScore ?? match.awayScore ?? 0;
+  const hasPenalties =
+    hScore === aScore &&
+    result?.penaltyHomeScore !== undefined &&
+    result?.penaltyAwayScore !== undefined;
+  const penaltyWinnerLabel =
+    result?.penaltyWinnerTeamId === match.homeTeamId
+      ? homeTeamName
+      : result?.penaltyWinnerTeamId === match.awayTeamId
+        ? awayTeamName
+        : '';
+
   // Match summary block
   doc.setTextColor(15, 23, 42);
   doc.setFillColor(241, 245, 249);
-  doc.roundedRect(14, 40, pageWidth - 28, 30, 3, 3, 'F');
+  doc.roundedRect(14, 40, pageWidth - 28, hasPenalties ? 36 : 30, 3, 3, 'F');
 
   if (homeLogoDataUrl) {
     doc.setFillColor(255, 255, 255);
@@ -248,23 +261,34 @@ export async function exportMatchSheetPdf(params: {
 
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  const hScore = result?.homeScore ?? match.homeScore ?? 0;
-  const aScore = result?.awayScore ?? match.awayScore ?? 0;
   doc.text(`${homeTeamName}   ${hScore} - ${aScore}   ${awayTeamName}`, pageWidth / 2, 52, {
     align: 'center',
     maxWidth: pageWidth - 80,
   });
+  if (hasPenalties) {
+    doc.setFontSize(8.5);
+    doc.setTextColor(180, 83, 9);
+    doc.text(
+      `Tanda de Penales (Punto Extra): ${result?.penaltyHomeScore} - ${result?.penaltyAwayScore}${
+        penaltyWinnerLabel ? ` · Ganador: ${penaltyWinnerLabel}` : ''
+      }`,
+      pageWidth / 2,
+      59,
+      { align: 'center', maxWidth: pageWidth - 76 }
+    );
+    doc.setTextColor(15, 23, 42);
+  }
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.text(
     `Fecha: ${match.date}  |  Hora: ${match.time}  |  Cancha: ${fieldName}  |  Árbitro: ${refereeName}`,
     pageWidth / 2,
-    64,
+    hasPenalties ? 70 : 64,
     { align: 'center', maxWidth: pageWidth - 36 }
   );
 
   // Period scores
-  let currentY = 78;
+  let currentY = hasPenalties ? 84 : 78;
   if (result?.periodScores && result.periodScores.length > 0) {
     autoTable(doc, {
       startY: currentY,

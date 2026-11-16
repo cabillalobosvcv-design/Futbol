@@ -54,6 +54,7 @@ export function computeFootballCategoryMetrics(params: {
       played: number;
       wins: number;
       draws: number;
+      penaltyWins: number;
       losses: number;
       goalsFor: number;
       goalsAgainst: number;
@@ -68,6 +69,7 @@ export function computeFootballCategoryMetrics(params: {
       played: 0,
       wins: 0,
       draws: 0,
+      penaltyWins: 0,
       losses: 0,
       goalsFor: 0,
       goalsAgainst: 0,
@@ -125,18 +127,48 @@ export function computeFootballCategoryMetrics(params: {
     } else {
       home.draws += 1;
       away.draws += 1;
-      home.points += tournament.drawPoints;
-      away.points += tournament.drawPoints;
-      addH2H(match.homeTeamId, match.awayTeamId, tournament.drawPoints, tournament.drawPoints, hs, as);
+      let homeDrawPts = tournament.drawPoints;
+      let awayDrawPts = tournament.drawPoints;
+
+      if (tournament.drawPenaltyShootout) {
+        const bonus = tournament.drawPenaltyWinBonusPoints ?? 1;
+        let winnerId = res.penaltyWinnerTeamId;
+        if (
+          !winnerId &&
+          res.penaltyHomeScore !== undefined &&
+          res.penaltyAwayScore !== undefined &&
+          res.penaltyHomeScore !== res.penaltyAwayScore
+        ) {
+          winnerId =
+            res.penaltyHomeScore > res.penaltyAwayScore ? match.homeTeamId : match.awayTeamId;
+        }
+        if (winnerId === match.homeTeamId) {
+          homeDrawPts += bonus;
+          home.penaltyWins += 1;
+        } else if (winnerId === match.awayTeamId) {
+          awayDrawPts += bonus;
+          away.penaltyWins += 1;
+        }
+      }
+
+      home.points += homeDrawPts;
+      away.points += awayDrawPts;
+      addH2H(match.homeTeamId, match.awayTeamId, homeDrawPts, awayDrawPts, hs, as);
     }
   }
 
   const teamStats: Omit<TeamStatistic, 'id' | 'updatedAt'>[] = [];
   const rawStandings: Omit<Standing, 'id' | 'updatedAt'>[] = [];
 
+  const maxPointsPerMatch = Math.max(
+    tournament.winPoints,
+    tournament.drawPoints +
+      (tournament.drawPenaltyShootout ? tournament.drawPenaltyWinBonusPoints ?? 1 : 0)
+  );
+
   teamAcc.forEach((acc, teamId) => {
     const gd = acc.goalsFor - acc.goalsAgainst;
-    const maxPossiblePoints = acc.played * tournament.winPoints;
+    const maxPossiblePoints = acc.played * maxPointsPerMatch;
     const winRate = acc.played > 0 ? Number(((acc.wins / acc.played) * 100).toFixed(1)) : 0;
     const effectivenessRate =
       maxPossiblePoints > 0 ? Number(((acc.points / maxPossiblePoints) * 100).toFixed(1)) : 0;
@@ -150,6 +182,7 @@ export function computeFootballCategoryMetrics(params: {
       played: acc.played,
       wins: acc.wins,
       draws: acc.draws,
+      penaltyWins: acc.penaltyWins,
       losses: acc.losses,
       goalsFor: acc.goalsFor,
       goalsAgainst: acc.goalsAgainst,
@@ -171,6 +204,7 @@ export function computeFootballCategoryMetrics(params: {
       played: acc.played,
       wins: acc.wins,
       draws: acc.draws,
+      penaltyWins: acc.penaltyWins,
       losses: acc.losses,
       goalsFor: acc.goalsFor,
       goalsAgainst: acc.goalsAgainst,

@@ -132,13 +132,15 @@ service cloud.firestore {
 
     function isValidSportRule(data) {
       return data.keys().hasAll(['sportId', 'name', 'winPoints', 'drawPoints', 'lossPoints', 'tiebreakers', 'minRestHours', 'updatedAt'])
-        && data.keys().hasOnly(['sportId', 'tournamentId', 'name', 'winPoints', 'drawPoints', 'lossPoints', 'tiebreakers', 'minRestHours', 'matchDurationMinutes', 'maxPlayersOnField', 'yellowCardsSuspensionLimit', 'updatedAt'])
+        && data.keys().hasOnly(['sportId', 'tournamentId', 'name', 'winPoints', 'drawPoints', 'lossPoints', 'drawPenaltyShootout', 'drawPenaltyWinBonusPoints', 'tiebreakers', 'minRestHours', 'matchDurationMinutes', 'maxPlayersOnField', 'yellowCardsSuspensionLimit', 'updatedAt'])
         && isValidId(data.sportId)
         && (!('tournamentId' in data) || data.tournamentId == '' || isValidId(data.tournamentId))
         && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
         && data.winPoints is int && data.winPoints >= 0 && data.winPoints <= 10
         && data.drawPoints is int && data.drawPoints >= 0 && data.drawPoints <= 10
         && data.lossPoints is int && data.lossPoints >= 0 && data.lossPoints <= 10
+        && (!('drawPenaltyShootout' in data) || data.drawPenaltyShootout is bool)
+        && (!('drawPenaltyWinBonusPoints' in data) || (data.drawPenaltyWinBonusPoints is int && data.drawPenaltyWinBonusPoints >= 0 && data.drawPenaltyWinBonusPoints <= 10))
         && data.tiebreakers is list && data.tiebreakers.size() >= 1 && data.tiebreakers.size() <= 10 && data.tiebreakers[0] is string
         && data.minRestHours is int && data.minRestHours >= 0 && data.minRestHours <= 240
         && isOptionalInt(data, 'matchDurationMinutes')
@@ -162,7 +164,7 @@ service cloud.firestore {
 
     function isValidTournament(data) {
       return data.keys().hasAll(['name', 'sportId', 'seasonId', 'format', 'winPoints', 'drawPoints', 'lossPoints', 'tiebreakers', 'schedulePublished', 'status', 'createdBy', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['name', 'sportId', 'seasonId', 'organizationId', 'format', 'doubleRound', 'teamsPerGroup', 'qualifiersPerGroup', 'winPoints', 'drawPoints', 'lossPoints', 'tiebreakers', 'minRestHours', 'schedulePublished', 'status', 'championTeamId', 'championTeamName', 'startDate', 'endDate', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'sportId', 'seasonId', 'organizationId', 'format', 'doubleRound', 'teamsPerGroup', 'qualifiersPerGroup', 'winPoints', 'drawPoints', 'lossPoints', 'drawPenaltyShootout', 'drawPenaltyWinBonusPoints', 'tiebreakers', 'minRestHours', 'schedulePublished', 'status', 'championTeamId', 'championTeamName', 'startDate', 'endDate', 'createdBy', 'createdAt', 'updatedAt'])
         && data.name is string && data.name.size() >= 2 && data.name.size() <= 140
         && isValidId(data.sportId)
         && isValidId(data.seasonId)
@@ -174,6 +176,8 @@ service cloud.firestore {
         && data.winPoints is int && data.winPoints >= 0 && data.winPoints <= 10
         && data.drawPoints is int && data.drawPoints >= 0 && data.drawPoints <= 10
         && data.lossPoints is int && data.lossPoints >= 0 && data.lossPoints <= 10
+        && (!('drawPenaltyShootout' in data) || data.drawPenaltyShootout is bool)
+        && (!('drawPenaltyWinBonusPoints' in data) || (data.drawPenaltyWinBonusPoints is int && data.drawPenaltyWinBonusPoints >= 0 && data.drawPenaltyWinBonusPoints <= 10))
         && data.tiebreakers is list && data.tiebreakers.size() >= 1 && data.tiebreakers.size() <= 10
         && isOptionalInt(data, 'minRestHours')
         && data.schedulePublished is bool
@@ -350,7 +354,7 @@ service cloud.firestore {
 
     function isValidMatchResult(data) {
       return data.keys().hasAll(['matchId', 'tournamentId', 'categoryId', 'homeScore', 'awayScore', 'validationStatus', 'submittedByUid', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['matchId', 'tournamentId', 'categoryId', 'homeTeamId', 'awayTeamId', 'homeScore', 'awayScore', 'periodScores', 'observations', 'refereeId', 'submittedByUid', 'validationStatus', 'approvedByUid', 'correctionHistory', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['matchId', 'tournamentId', 'categoryId', 'homeTeamId', 'awayTeamId', 'homeScore', 'awayScore', 'penaltyHomeScore', 'penaltyAwayScore', 'penaltyWinnerTeamId', 'periodScores', 'observations', 'refereeId', 'submittedByUid', 'validationStatus', 'approvedByUid', 'correctionHistory', 'createdAt', 'updatedAt'])
         && isValidId(data.matchId)
         && isValidId(data.tournamentId)
         && isValidId(data.categoryId)
@@ -358,6 +362,9 @@ service cloud.firestore {
         && isOptionalString(data, 'awayTeamId', 128)
         && data.homeScore is int && data.homeScore >= 0 && data.homeScore <= 99
         && data.awayScore is int && data.awayScore >= 0 && data.awayScore <= 99
+        && (!('penaltyHomeScore' in data) || (data.penaltyHomeScore is int && data.penaltyHomeScore >= 0 && data.penaltyHomeScore <= 99))
+        && (!('penaltyAwayScore' in data) || (data.penaltyAwayScore is int && data.penaltyAwayScore >= 0 && data.penaltyAwayScore <= 99))
+        && isOptionalString(data, 'penaltyWinnerTeamId', 128)
         && (!('periodScores' in data) || (data.periodScores is list && data.periodScores.size() <= 10))
         && isOptionalString(data, 'observations', 2000)
         && isOptionalString(data, 'refereeId', 128)
@@ -389,11 +396,12 @@ service cloud.firestore {
 
     function isValidTeamStatistic(data) {
       return data.keys().hasAll(['tournamentId', 'categoryId', 'teamId', 'played', 'wins', 'draws', 'losses', 'goalsFor', 'goalsAgainst', 'goalDifference', 'points', 'updatedAt'])
-        && data.keys().hasOnly(['tournamentId', 'categoryId', 'teamId', 'played', 'wins', 'draws', 'losses', 'goalsFor', 'goalsAgainst', 'goalDifference', 'points', 'winRate', 'effectivenessRate', 'avgGoalsFor', 'avgGoalsAgainst', 'cleanSheets', 'updatedAt'])
+        && data.keys().hasOnly(['tournamentId', 'categoryId', 'teamId', 'played', 'wins', 'draws', 'penaltyWins', 'losses', 'goalsFor', 'goalsAgainst', 'goalDifference', 'points', 'winRate', 'effectivenessRate', 'avgGoalsFor', 'avgGoalsAgainst', 'cleanSheets', 'updatedAt'])
         && isValidId(data.tournamentId)
         && isValidId(data.categoryId)
         && isValidId(data.teamId)
         && data.played is int && data.wins is int && data.draws is int && data.losses is int
+        && (!('penaltyWins' in data) || (data.penaltyWins is int && data.penaltyWins >= 0 && data.penaltyWins <= 1000))
         && data.goalsFor is int && data.goalsAgainst is int && data.goalDifference is int && data.points is int
         && data.updatedAt is timestamp;
     }
@@ -412,12 +420,13 @@ service cloud.firestore {
 
     function isValidStanding(data) {
       return data.keys().hasAll(['tournamentId', 'categoryId', 'teamId', 'position', 'played', 'wins', 'draws', 'losses', 'goalsFor', 'goalsAgainst', 'goalDifference', 'points', 'updatedAt'])
-        && data.keys().hasOnly(['tournamentId', 'categoryId', 'groupId', 'teamId', 'position', 'played', 'wins', 'draws', 'losses', 'goalsFor', 'goalsAgainst', 'goalDifference', 'points', 'updatedAt'])
+        && data.keys().hasOnly(['tournamentId', 'categoryId', 'groupId', 'teamId', 'position', 'played', 'wins', 'draws', 'penaltyWins', 'losses', 'goalsFor', 'goalsAgainst', 'goalDifference', 'points', 'updatedAt'])
         && isValidId(data.tournamentId)
         && isValidId(data.categoryId)
         && isOptionalString(data, 'groupId', 128)
         && isValidId(data.teamId)
         && data.position is int && data.played is int && data.wins is int && data.draws is int && data.losses is int
+        && (!('penaltyWins' in data) || (data.penaltyWins is int && data.penaltyWins >= 0 && data.penaltyWins <= 1000))
         && data.goalsFor is int && data.goalsAgainst is int && data.goalDifference is int && data.points is int
         && data.updatedAt is timestamp;
     }
@@ -755,7 +764,7 @@ service cloud.firestore {
           isCoordinator()
           || (isReferee() && existing().validationStatus != 'aprobado'
             && incoming().validationStatus in ['borrador', 'pendiente']
-            && incoming().diff(existing()).affectedKeys().hasOnly(['homeScore', 'awayScore', 'periodScores', 'observations', 'validationStatus', 'correctionHistory', 'updatedAt']))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['homeScore', 'awayScore', 'penaltyHomeScore', 'penaltyAwayScore', 'penaltyWinnerTeamId', 'periodScores', 'observations', 'validationStatus', 'correctionHistory', 'updatedAt']))
         );
       allow delete: if isAdminGeneral() && isValidId(resultId);
     }

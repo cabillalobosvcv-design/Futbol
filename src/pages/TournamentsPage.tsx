@@ -87,6 +87,8 @@ export function TournamentsPage() {
   const [tWinPts, setTWinPts] = useState(3);
   const [tDrawPts, setTDrawPts] = useState(1);
   const [tLossPts, setTLossPts] = useState(0);
+  const [tDrawPenaltyShootout, setTDrawPenaltyShootout] = useState(true);
+  const [tDrawPenaltyBonus, setTDrawPenaltyBonus] = useState(1);
   const [tMinRest, setTMinRest] = useState(24);
   const [tTiebreakers, setTTiebreakers] = useState<TiebreakerCriterion[]>([
     'points',
@@ -116,6 +118,8 @@ export function TournamentsPage() {
   const [etWinPts, setEtWinPts] = useState(3);
   const [etDrawPts, setEtDrawPts] = useState(1);
   const [etLossPts, setEtLossPts] = useState(0);
+  const [etDrawPenaltyShootout, setEtDrawPenaltyShootout] = useState(false);
+  const [etDrawPenaltyBonus, setEtDrawPenaltyBonus] = useState(1);
   const [etMinRest, setEtMinRest] = useState(24);
   const [etStatus, setEtStatus] = useState<Tournament['status']>('inscripciones');
   const [etTiebreakers, setEtTiebreakers] = useState<TiebreakerCriterion[]>(['points']);
@@ -307,6 +311,10 @@ export function TournamentsPage() {
         winPoints: Number(tWinPts),
         drawPoints: Number(tDrawPts),
         lossPoints: Number(tLossPts),
+        drawPenaltyShootout: tDrawPenaltyShootout,
+        drawPenaltyWinBonusPoints: tDrawPenaltyShootout
+          ? Math.min(10, Math.max(0, Math.round(Number(tDrawPenaltyBonus) || 0)))
+          : 0,
         tiebreakers: tTiebreakers,
         minRestHours: Number(tMinRest),
         schedulePublished: false,
@@ -342,6 +350,8 @@ export function TournamentsPage() {
     setEtWinPts(t.winPoints);
     setEtDrawPts(t.drawPoints);
     setEtLossPts(t.lossPoints);
+    setEtDrawPenaltyShootout(Boolean(t.drawPenaltyShootout));
+    setEtDrawPenaltyBonus(t.drawPenaltyWinBonusPoints ?? 1);
     setEtMinRest(t.minRestHours ?? 24);
     setEtStatus(t.status);
     setEtTiebreakers(t.tiebreakers?.length ? [...t.tiebreakers] : ['points']);
@@ -368,6 +378,10 @@ export function TournamentsPage() {
           winPoints: Number(etWinPts),
           drawPoints: Number(etDrawPts),
           lossPoints: Number(etLossPts),
+          drawPenaltyShootout: etDrawPenaltyShootout,
+          drawPenaltyWinBonusPoints: etDrawPenaltyShootout
+            ? Math.min(10, Math.max(0, Math.round(Number(etDrawPenaltyBonus) || 0)))
+            : 0,
           tiebreakers: etTiebreakers.length > 0 ? etTiebreakers : ['points'],
           minRestHours: Number(etMinRest),
           status: etStatus,
@@ -670,7 +684,24 @@ export function TournamentsPage() {
                   </label>
                   <select
                     value={tSportId || sports[0]?.id || ''}
-                    onChange={(e) => setTSportId(e.target.value)}
+                    onChange={(e) => {
+                      const nextSportId = e.target.value;
+                      setTSportId(nextSportId);
+                      const baseRule = sportRules.find(
+                        (r) => r.sportId === nextSportId && !r.tournamentId
+                      );
+                      const nextSport = sports.find((s) => s.id === nextSportId);
+                      if (baseRule) {
+                        setTWinPts(baseRule.winPoints);
+                        setTDrawPts(baseRule.drawPoints);
+                        setTLossPts(baseRule.lossPoints);
+                        setTDrawPenaltyShootout(Boolean(baseRule.drawPenaltyShootout));
+                        setTDrawPenaltyBonus(baseRule.drawPenaltyWinBonusPoints ?? 1);
+                      } else if (nextSport) {
+                        setTDrawPenaltyShootout(nextSport.engineType === 'football');
+                        setTDrawPenaltyBonus(1);
+                      }
+                    }}
                     className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   >
                     {sports.map((s) => (
@@ -815,6 +846,35 @@ export function TournamentsPage() {
                     />
                   </div>
                 </div>
+
+                <div className="mt-2.5 p-2.5 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/25 flex flex-wrap items-center justify-between gap-2">
+                  <label className="flex items-center gap-2 text-xs text-slate-800 dark:text-slate-100 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tDrawPenaltyShootout}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setTDrawPenaltyShootout(checked);
+                        if (checked && tDrawPenaltyBonus <= 0) setTDrawPenaltyBonus(1);
+                      }}
+                      className="rounded border-amber-400"
+                    />
+                    <span>Empate: +1 pt extra al ganador en penales</span>
+                  </label>
+                  {tDrawPenaltyShootout && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-slate-600 dark:text-slate-300">Extra:</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={tDrawPenaltyBonus}
+                        onChange={(e) => setTDrawPenaltyBonus(Number(e.target.value))}
+                        className="w-14 px-2 py-1 text-xs font-mono font-bold text-center border border-amber-300 dark:border-amber-700 rounded bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-300 tabular-nums"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -905,7 +965,8 @@ export function TournamentsPage() {
                       <div>
                         <span className="text-slate-400 dark:text-slate-500 block">Puntuación</span>
                         <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 tabular-nums">
-                          V:{t.winPoints} · E:{t.drawPoints} · D:{t.lossPoints}
+                          V:{t.winPoints} · E:{t.drawPoints}
+                          {t.drawPenaltyShootout ? ` (+${t.drawPenaltyWinBonusPoints ?? 1} Pen)` : ''} · D:{t.lossPoints}
                         </span>
                       </div>
                       <div>
@@ -1243,6 +1304,9 @@ export function TournamentsPage() {
                       <span>{rule.name}</span>
                       <span className="font-mono tabular-nums">
                         {rule.winPoints}/{rule.drawPoints}/{rule.lossPoints} pts
+                        {rule.drawPenaltyShootout
+                          ? ` (+${rule.drawPenaltyWinBonusPoints ?? 1} pen)`
+                          : ''}
                       </span>
                     </div>
                   )}
@@ -1468,6 +1532,35 @@ export function TournamentsPage() {
                   className="w-full px-2.5 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                 />
               </div>
+            </div>
+
+            <div className="p-2.5 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/25 flex flex-wrap items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-xs text-slate-800 dark:text-slate-100 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={etDrawPenaltyShootout}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setEtDrawPenaltyShootout(checked);
+                    if (checked && etDrawPenaltyBonus <= 0) setEtDrawPenaltyBonus(1);
+                  }}
+                  className="rounded border-amber-400"
+                />
+                <span>Empate: punto extra al ganador en penales</span>
+              </label>
+              {etDrawPenaltyShootout && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-600 dark:text-slate-300">Extra:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={etDrawPenaltyBonus}
+                    onChange={(e) => setEtDrawPenaltyBonus(Number(e.target.value))}
+                    className="w-14 px-2 py-1 text-xs font-mono font-bold text-center border border-amber-300 dark:border-amber-700 rounded bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-300 tabular-nums"
+                  />
+                </div>
+              )}
             </div>
 
             <div>

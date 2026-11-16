@@ -1,6 +1,7 @@
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -175,19 +176,24 @@ export async function bootstrapDefaultCatalog(actorUid: string, actorName: strin
         updatedAt: serverTimestamp(),
       });
 
-      batch.set(doc(db, 'sportRules', `rule_${s.id}`), {
-        sportId: s.id,
-        name: s.defaultRule.name,
-        winPoints: s.defaultRule.winPoints,
-        drawPoints: s.defaultRule.drawPoints,
-        lossPoints: s.defaultRule.lossPoints,
-        tiebreakers: s.defaultRule.tiebreakers,
-        minRestHours: s.defaultRule.minRestHours,
-        matchDurationMinutes: s.defaultRule.matchDurationMinutes,
-        maxPlayersOnField: s.defaultRule.maxPlayersOnField,
-        yellowCardsSuspensionLimit: s.defaultRule.yellowCardsSuspensionLimit,
-        updatedAt: serverTimestamp(),
-      });
+      batch.set(
+        doc(db, 'sportRules', `rule_${s.id}`),
+        cleanPayload({
+          sportId: s.id,
+          name: s.defaultRule.name,
+          winPoints: s.defaultRule.winPoints,
+          drawPoints: s.defaultRule.drawPoints,
+          lossPoints: s.defaultRule.lossPoints,
+          drawPenaltyShootout: Boolean(s.defaultRule.drawPenaltyShootout),
+          drawPenaltyWinBonusPoints: s.defaultRule.drawPenaltyWinBonusPoints ?? 1,
+          tiebreakers: s.defaultRule.tiebreakers,
+          minRestHours: s.defaultRule.minRestHours,
+          matchDurationMinutes: s.defaultRule.matchDurationMinutes,
+          maxPlayersOnField: s.defaultRule.maxPlayersOnField,
+          yellowCardsSuspensionLimit: s.defaultRule.yellowCardsSuspensionLimit,
+          updatedAt: serverTimestamp(),
+        })
+      );
     }
 
     await batch.commit();
@@ -813,6 +819,9 @@ export async function submitMatchSheetForValidation(params: {
   existingResult?: MatchResult;
   homeScore: number;
   awayScore: number;
+  penaltyHomeScore?: number;
+  penaltyAwayScore?: number;
+  penaltyWinnerTeamId?: string;
   periodScores: { period: string; home: number; away: number }[];
   observations: string;
   events: Omit<MatchEvent, 'id' | 'createdAt'>[];
@@ -827,6 +836,17 @@ export async function submitMatchSheetForValidation(params: {
 
   const resultId = params.existingResult?.id || `res_${params.match.id}`;
   const path = `matchResults/${resultId}`;
+  const isDraw = params.homeScore === params.awayScore;
+  const hasPenaltyResult =
+    isDraw &&
+    params.penaltyHomeScore !== undefined &&
+    params.penaltyAwayScore !== undefined &&
+    Boolean(params.penaltyWinnerTeamId);
+
+  const penaltySuffix = hasPenaltyResult
+    ? ` (pen. ${params.penaltyHomeScore}-${params.penaltyAwayScore})`
+    : '';
+
   try {
     // Delete old events for this match first
     const oldEvents = await getDocs(
@@ -851,12 +871,17 @@ export async function submitMatchSheetForValidation(params: {
       : [];
 
     if (params.existingResult && mode === 'pendiente') {
+      const prevPen =
+        params.existingResult.penaltyHomeScore !== undefined &&
+        params.existingResult.penaltyAwayScore !== undefined
+          ? ` (pen. ${params.existingResult.penaltyHomeScore}-${params.existingResult.penaltyAwayScore})`
+          : '';
       correctionHistory.push({
         correctedAt: new Date().toISOString(),
         correctedByUid: params.actorUid,
         correctedByName: params.actorName,
-        previousScore: `${params.existingResult.homeScore}-${params.existingResult.awayScore}`,
-        newScore: `${params.homeScore}-${params.awayScore}`,
+        previousScore: `${params.existingResult.homeScore}-${params.existingResult.awayScore}${prevPen}`,
+        newScore: `${params.homeScore}-${params.awayScore}${penaltySuffix}`,
         reason: 'Acta enviada/actualizada para validación oficial',
       });
     }
@@ -867,6 +892,9 @@ export async function submitMatchSheetForValidation(params: {
         cleanPayload({
           homeScore: params.homeScore,
           awayScore: params.awayScore,
+          penaltyHomeScore: hasPenaltyResult ? params.penaltyHomeScore : deleteField(),
+          penaltyAwayScore: hasPenaltyResult ? params.penaltyAwayScore : deleteField(),
+          penaltyWinnerTeamId: hasPenaltyResult ? params.penaltyWinnerTeamId : deleteField(),
           periodScores: params.periodScores,
           observations: params.observations.slice(0, 2000),
           validationStatus: targetValidationStatus,
@@ -885,6 +913,13 @@ export async function submitMatchSheetForValidation(params: {
           awayTeamId: params.match.awayTeamId,
           homeScore: params.homeScore,
           awayScore: params.awayScore,
+          ...(hasPenaltyResult
+            ? {
+                penaltyHomeScore: params.penaltyHomeScore,
+                penaltyAwayScore: params.penaltyAwayScore,
+                penaltyWinnerTeamId: params.penaltyWinnerTeamId,
+              }
+            : {}),
           periodScores: params.periodScores,
           observations: params.observations.slice(0, 2000),
           refereeId: params.match.refereeId,
@@ -910,7 +945,7 @@ export async function submitMatchSheetForValidation(params: {
       await sendNotification({
         isBroadcast: true,
         title: `Acta pendiente de validación · Partido #${params.match.matchNumber}`,
-        message: `Marcador capturado (${params.homeScore}-${params.awayScore}) por ${params.actorName}. Requiere aprobación oficial.`,
+        message: `Marcador capturado (${params.homeScore}-${params.awayScore}${penaltySuffix}) por ${params.actorName}. Requiere aprobación oficial.`,
         type: 'warning',
         entityType: 'matches',
         entityId: params.match.id,
@@ -931,10 +966,10 @@ export async function submitMatchSheetForValidation(params: {
       entityId: resultId,
       summary:
         mode === 'pendiente'
-          ? `Acta #${params.match.matchNumber} enviada a validación (${params.homeScore}-${params.awayScore}).`
+          ? `Acta #${params.match.matchNumber} enviada a validación (${params.homeScore}-${params.awayScore}${penaltySuffix}).`
           : mode === 'en_juego'
-            ? `Marcador en vivo guardado para partido #${params.match.matchNumber} (${params.homeScore}-${params.awayScore}).`
-            : `Borrador arbitral guardado para partido #${params.match.matchNumber} (${params.homeScore}-${params.awayScore}).`,
+            ? `Marcador en vivo guardado para partido #${params.match.matchNumber} (${params.homeScore}-${params.awayScore}${penaltySuffix}).`
+            : `Borrador arbitral guardado para partido #${params.match.matchNumber} (${params.homeScore}-${params.awayScore}${penaltySuffix}).`,
     });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
@@ -1071,6 +1106,8 @@ export async function saveTournamentSportRule(params: {
   winPoints: number;
   drawPoints: number;
   lossPoints: number;
+  drawPenaltyShootout: boolean;
+  drawPenaltyWinBonusPoints: number;
   tiebreakers: TiebreakerCriterion[];
   minRestHours: number;
   matchDurationMinutes?: number;
@@ -1097,6 +1134,8 @@ export async function saveTournamentSportRule(params: {
       winPoints: params.winPoints,
       drawPoints: params.drawPoints,
       lossPoints: params.lossPoints,
+      drawPenaltyShootout: params.drawPenaltyShootout,
+      drawPenaltyWinBonusPoints: params.drawPenaltyWinBonusPoints,
       tiebreakers: params.tiebreakers.slice(0, 10),
       minRestHours: params.minRestHours,
       matchDurationMinutes: params.matchDurationMinutes,
@@ -1115,6 +1154,8 @@ export async function saveTournamentSportRule(params: {
       winPoints: params.winPoints,
       drawPoints: params.drawPoints,
       lossPoints: params.lossPoints,
+      drawPenaltyShootout: params.drawPenaltyShootout,
+      drawPenaltyWinBonusPoints: params.drawPenaltyWinBonusPoints,
       tiebreakers: params.tiebreakers.slice(0, 10),
       minRestHours: params.minRestHours,
       updatedAt: serverTimestamp(),
@@ -1129,6 +1170,8 @@ export async function saveTournamentSportRule(params: {
         winPoints: params.winPoints,
         drawPoints: params.drawPoints,
         lossPoints: params.lossPoints,
+        drawPenaltyShootout: params.drawPenaltyShootout,
+        drawPenaltyWinBonusPoints: params.drawPenaltyWinBonusPoints,
         tiebreakers: params.tiebreakers.slice(0, 10),
         minRestHours: params.minRestHours,
       };
@@ -1176,13 +1219,17 @@ export async function saveTournamentSportRule(params: {
       }
     }
 
+    const penaltyLabel = params.drawPenaltyShootout
+      ? ` (+${params.drawPenaltyWinBonusPoints} penales)`
+      : '';
+
     await createAuditLog({
       actorUid: params.actorUid,
       actorName: params.actorName,
       action: 'SAVE_TOURNAMENT_RULES',
       entity: 'sportRules',
       entityId: targetRuleId,
-      summary: `Reglamento configurado para ${params.tournament.name}: V:${params.winPoints}/E:${params.drawPoints}/D:${params.lossPoints} · Desempates: ${params.tiebreakers.join(' > ')}.`,
+      summary: `Reglamento configurado para ${params.tournament.name}: V:${params.winPoints}/E:${params.drawPoints}${penaltyLabel}/D:${params.lossPoints} · Desempates: ${params.tiebreakers.join(' > ')}.`,
     });
 
     return targetRuleId;
@@ -1807,6 +1854,8 @@ export async function updateBaseSportRule(params: {
   winPoints: number;
   drawPoints: number;
   lossPoints: number;
+  drawPenaltyShootout: boolean;
+  drawPenaltyWinBonusPoints: number;
   tiebreakers: TiebreakerCriterion[];
   minRestHours: number;
   matchDurationMinutes: number;
@@ -1826,6 +1875,8 @@ export async function updateBaseSportRule(params: {
         winPoints: params.winPoints,
         drawPoints: params.drawPoints,
         lossPoints: params.lossPoints,
+        drawPenaltyShootout: params.drawPenaltyShootout,
+        drawPenaltyWinBonusPoints: params.drawPenaltyWinBonusPoints,
         tiebreakers: params.tiebreakers.slice(0, 10),
         minRestHours: params.minRestHours,
         matchDurationMinutes: params.matchDurationMinutes,
@@ -1835,13 +1886,17 @@ export async function updateBaseSportRule(params: {
       })
     );
 
+    const penaltyLabel = params.drawPenaltyShootout
+      ? ` (+${params.drawPenaltyWinBonusPoints} pen.)`
+      : '';
+
     await createAuditLog({
       actorUid: params.actorUid,
       actorName: params.actorName,
       action: 'UPDATE_SPORT_RULE',
       entity: 'sportRules',
       entityId: params.rule.id,
-      summary: `Reglamento base actualizado: ${params.name.trim()} (${params.winPoints}V/${params.drawPoints}E/${params.lossPoints}D).`,
+      summary: `Reglamento base actualizado: ${params.name.trim()} (${params.winPoints}V/${params.drawPoints}E${penaltyLabel}/${params.lossPoints}D).`,
     });
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, path);

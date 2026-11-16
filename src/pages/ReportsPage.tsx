@@ -170,25 +170,46 @@ export function ReportsPage() {
         const list = standings
           .filter((s) => (!activeCategory ? true : s.categoryId === activeCategory.id))
           .sort((a, b) => a.position - b.position);
+        const includePen =
+          Boolean(activeTournament?.drawPenaltyShootout) ||
+          list.some((s) => (s.penaltyWins ?? 0) > 0);
         return {
           title: `Tabla de Posiciones — ${cName}`,
           subtitle: tName,
           organizationName: orgName,
           organizationLogoUrl: orgLogoUrl,
           fileName: `Posiciones_${cName}`.replace(/\s+/g, '_'),
-          headers: ['POS', 'EQUIPO', 'PJ', 'PG', 'PE', 'PP', 'GF', 'GC', 'DG', 'PTS'],
-          rows: list.map((s) => [
-            s.position,
-            teamMap.get(s.teamId)?.name || s.teamId,
-            s.played,
-            s.wins,
-            s.draws,
-            s.losses,
-            s.goalsFor,
-            s.goalsAgainst,
-            s.goalDifference,
-            s.points,
-          ]),
+          headers: includePen
+            ? ['POS', 'EQUIPO', 'PJ', 'PG', 'PE', 'PEN', 'PP', 'GF', 'GC', 'DG', 'PTS']
+            : ['POS', 'EQUIPO', 'PJ', 'PG', 'PE', 'PP', 'GF', 'GC', 'DG', 'PTS'],
+          rows: list.map((s) =>
+            includePen
+              ? [
+                  s.position,
+                  teamMap.get(s.teamId)?.name || s.teamId,
+                  s.played,
+                  s.wins,
+                  s.draws,
+                  s.penaltyWins ?? 0,
+                  s.losses,
+                  s.goalsFor,
+                  s.goalsAgainst,
+                  s.goalDifference,
+                  s.points,
+                ]
+              : [
+                  s.position,
+                  teamMap.get(s.teamId)?.name || s.teamId,
+                  s.played,
+                  s.wins,
+                  s.draws,
+                  s.losses,
+                  s.goalsFor,
+                  s.goalsAgainst,
+                  s.goalDifference,
+                  s.points,
+                ]
+          ),
         };
       }
 

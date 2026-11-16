@@ -128,6 +128,8 @@ export interface SportRule {
   winPoints: number;
   drawPoints: number;
   lossPoints: number;
+  drawPenaltyShootout?: boolean;
+  drawPenaltyWinBonusPoints?: number;
   tiebreakers: TiebreakerCriterion[];
   minRestHours: number;
   matchDurationMinutes?: number;
@@ -161,6 +163,8 @@ export interface Tournament {
   winPoints: number;
   drawPoints: number;
   lossPoints: number;
+  drawPenaltyShootout?: boolean;
+  drawPenaltyWinBonusPoints?: number;
   tiebreakers: TiebreakerCriterion[];
   minRestHours?: number;
   schedulePublished: boolean;
@@ -346,6 +350,9 @@ export interface MatchResult {
   awayTeamId?: string;
   homeScore: number;
   awayScore: number;
+  penaltyHomeScore?: number;
+  penaltyAwayScore?: number;
+  penaltyWinnerTeamId?: string;
   periodScores?: PeriodScore[];
   observations?: string;
   refereeId?: string;
@@ -382,6 +389,7 @@ export interface TeamStatistic {
   played: number;
   wins: number;
   draws: number;
+  penaltyWins?: number;
   losses: number;
   goalsFor: number;
   goalsAgainst: number;
@@ -424,6 +432,7 @@ export interface Standing {
   played: number;
   wins: number;
   draws: number;
+  penaltyWins?: number;
   losses: number;
   goalsFor: number;
   goalsAgainst: number;

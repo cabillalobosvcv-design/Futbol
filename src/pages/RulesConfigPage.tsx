@@ -57,6 +57,8 @@ export function RulesConfigPage() {
   const [winPoints, setWinPoints] = useState(3);
   const [drawPoints, setDrawPoints] = useState(1);
   const [lossPoints, setLossPoints] = useState(0);
+  const [drawPenaltyShootout, setDrawPenaltyShootout] = useState(true);
+  const [drawPenaltyWinBonusPoints, setDrawPenaltyWinBonusPoints] = useState(1);
   const [tiebreakers, setTiebreakers] = useState<TiebreakerCriterion[]>([
     'points',
     'goal_difference',
@@ -80,6 +82,8 @@ export function RulesConfigPage() {
   const [baseWinPoints, setBaseWinPoints] = useState(3);
   const [baseDrawPoints, setBaseDrawPoints] = useState(1);
   const [baseLossPoints, setBaseLossPoints] = useState(0);
+  const [baseDrawPenaltyShootout, setBaseDrawPenaltyShootout] = useState(true);
+  const [baseDrawPenaltyBonus, setBaseDrawPenaltyBonus] = useState(1);
   const [baseTiebreakers, setBaseTiebreakers] = useState<TiebreakerCriterion[]>([...ALL_TIEBREAKERS]);
   const [baseMinRestHours, setBaseMinRestHours] = useState(24);
   const [baseMatchDuration, setBaseMatchDuration] = useState(90);
@@ -122,6 +126,18 @@ export function RulesConfigPage() {
     setWinPoints(specificRule?.winPoints ?? trn.winPoints ?? fallbackRule?.winPoints ?? 3);
     setDrawPoints(specificRule?.drawPoints ?? trn.drawPoints ?? fallbackRule?.drawPoints ?? 1);
     setLossPoints(specificRule?.lossPoints ?? trn.lossPoints ?? fallbackRule?.lossPoints ?? 0);
+    setDrawPenaltyShootout(
+      specificRule?.drawPenaltyShootout ??
+        trn.drawPenaltyShootout ??
+        fallbackRule?.drawPenaltyShootout ??
+        false
+    );
+    setDrawPenaltyWinBonusPoints(
+      specificRule?.drawPenaltyWinBonusPoints ??
+        trn.drawPenaltyWinBonusPoints ??
+        fallbackRule?.drawPenaltyWinBonusPoints ??
+        1
+    );
 
     const activeTb =
       specificRule?.tiebreakers?.length
@@ -181,11 +197,19 @@ export function RulesConfigPage() {
     });
   };
 
-  const applyPreset = (win: number, draw: number, loss: number) => {
+  const applyPreset = (
+    win: number,
+    draw: number,
+    loss: number,
+    penaltyShootout = false,
+    penaltyBonus = 1
+  ) => {
     if (!canManageRules) return;
     setWinPoints(win);
     setDrawPoints(draw);
     setLossPoints(loss);
+    setDrawPenaltyShootout(penaltyShootout);
+    setDrawPenaltyWinBonusPoints(penaltyBonus);
   };
 
   const handleSaveRule = async (e: React.FormEvent) => {
@@ -207,6 +231,10 @@ export function RulesConfigPage() {
 
     setSaving(true);
     try {
+      const cleanBonus = drawPenaltyShootout
+        ? Math.min(10, Math.max(0, Math.round(Number(drawPenaltyWinBonusPoints))))
+        : 0;
+
       await saveTournamentSportRule({
         ruleId: tournamentSpecificRule?.id || `rule_trn_${activeTournament.id}`,
         isNew: !tournamentSpecificRule,
@@ -216,6 +244,8 @@ export function RulesConfigPage() {
         winPoints: Math.min(10, Math.max(0, Math.round(Number(winPoints)))),
         drawPoints: Math.min(10, Math.max(0, Math.round(Number(drawPoints)))),
         lossPoints: Math.min(10, Math.max(0, Math.round(Number(lossPoints)))),
+        drawPenaltyShootout,
+        drawPenaltyWinBonusPoints: cleanBonus,
         tiebreakers,
         minRestHours: Math.min(240, Math.max(0, Math.round(Number(minRestHours)))),
         matchDurationMinutes: Math.min(300, Math.max(10, Math.round(Number(matchDurationMinutes)))),
@@ -231,8 +261,9 @@ export function RulesConfigPage() {
         actorName: profile.displayName,
       });
 
+      const penSummary = drawPenaltyShootout ? ` (+${cleanBonus} pen.)` : '';
       setMsg(
-        `Reglamento guardado en sportRules para "${activeTournament.name}" (${winPoints}V / ${drawPoints}E / ${lossPoints}D) y sincronizado con las tablas de posiciones.`
+        `Reglamento guardado en sportRules para "${activeTournament.name}" (${winPoints}V / ${drawPoints}E${penSummary} / ${lossPoints}D) y sincronizado con las tablas de posiciones.`
       );
     } catch {
       setErrMsg('No se pudo guardar el reglamento. Verifica tus permisos e intenta nuevamente.');
@@ -270,6 +301,8 @@ export function RulesConfigPage() {
     setBaseWinPoints(rule.winPoints);
     setBaseDrawPoints(rule.drawPoints);
     setBaseLossPoints(rule.lossPoints);
+    setBaseDrawPenaltyShootout(Boolean(rule.drawPenaltyShootout));
+    setBaseDrawPenaltyBonus(rule.drawPenaltyWinBonusPoints ?? 1);
     setBaseTiebreakers(
       rule.tiebreakers?.length ? [...rule.tiebreakers] : [...ALL_TIEBREAKERS]
     );
@@ -320,6 +353,10 @@ export function RulesConfigPage() {
         winPoints: Math.min(10, Math.max(0, Math.round(Number(baseWinPoints)))),
         drawPoints: Math.min(10, Math.max(0, Math.round(Number(baseDrawPoints)))),
         lossPoints: Math.min(10, Math.max(0, Math.round(Number(baseLossPoints)))),
+        drawPenaltyShootout: baseDrawPenaltyShootout,
+        drawPenaltyWinBonusPoints: baseDrawPenaltyShootout
+          ? Math.min(10, Math.max(0, Math.round(Number(baseDrawPenaltyBonus))))
+          : 0,
         tiebreakers: baseTiebreakers,
         minRestHours: Math.min(240, Math.max(0, Math.round(Number(baseMinRestHours)))),
         matchDurationMinutes: Math.min(300, Math.max(10, Math.round(Number(baseMatchDuration)))),
@@ -461,7 +498,8 @@ export function RulesConfigPage() {
                         {sp?.name || t.sportId} · {sea?.name || t.seasonId}
                       </p>
                       <p className="text-[11px] font-mono text-slate-600 dark:text-slate-300 mt-1 tabular-nums">
-                        V:{t.winPoints} · E:{t.drawPoints} · D:{t.lossPoints}
+                        V:{t.winPoints} · E:{t.drawPoints}
+                        {t.drawPenaltyShootout ? ` (+${t.drawPenaltyWinBonusPoints ?? 1} Pen)` : ''} · D:{t.lossPoints}
                       </p>
                     </button>
                   );
@@ -537,21 +575,28 @@ export function RulesConfigPage() {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => applyPreset(3, 1, 0)}
+                      onClick={() => applyPreset(3, 1, 0, true, 1)}
+                      className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+                    >
+                      Empate + Penales (3 / 1 + 1 Pen)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset(3, 1, 0, false, 0)}
                       className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                     >
                       Estándar (3 / 1 / 0)
                     </button>
                     <button
                       type="button"
-                      onClick={() => applyPreset(2, 1, 0)}
+                      onClick={() => applyPreset(2, 1, 0, false, 0)}
                       className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                     >
                       Clásico (2 / 1 / 0)
                     </button>
                     <button
                       type="button"
-                      onClick={() => applyPreset(2, 0, 1)}
+                      onClick={() => applyPreset(2, 0, 1, false, 0)}
                       className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                     >
                       FIBA (2 / 0 / 1)
@@ -606,6 +651,57 @@ export function RulesConfigPage() {
                     className="w-full px-3 py-2 text-base font-mono font-bold border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 tabular-nums disabled:opacity-60"
                   />
                 </div>
+              </div>
+
+              <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/25 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      disabled={!canManageRules}
+                      checked={drawPenaltyShootout}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setDrawPenaltyShootout(checked);
+                        if (checked && drawPenaltyWinBonusPoints <= 0) {
+                          setDrawPenaltyWinBonusPoints(1);
+                        }
+                      }}
+                      className="mt-0.5 rounded border-amber-400 dark:border-amber-600 text-amber-600 focus:ring-amber-500"
+                    />
+                    <div>
+                      <span className="block text-xs font-semibold text-slate-900 dark:text-white">
+                        Empate con punto extra en tanda de penales
+                      </span>
+                      <span className="block text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                        Al empatar en tiempo regular se otorga {drawPoints} punto a cada equipo y se disputa otro punto adicional en penales.
+                      </span>
+                    </div>
+                  </label>
+
+                  {drawPenaltyShootout && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <label className="text-xs font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                        Punto extra en penales:
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        disabled={!canManageRules}
+                        value={drawPenaltyWinBonusPoints}
+                        onChange={(e) => setDrawPenaltyWinBonusPoints(Number(e.target.value))}
+                        className="w-16 px-2.5 py-1.5 text-sm font-mono font-bold text-center border border-amber-300 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-300 tabular-nums disabled:opacity-60"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {drawPenaltyShootout && (
+                  <div className="text-[11px] font-mono text-amber-900 dark:text-amber-200 bg-white/80 dark:bg-slate-900/70 border border-amber-200/80 dark:border-amber-800/60 rounded-lg px-3 py-2">
+                    Regla activa: Empate = {drawPoints} pt c/u · Ganador de penales = {drawPoints + (Number(drawPenaltyWinBonusPoints) || 1)} pts totales ({drawPoints} base + {Number(drawPenaltyWinBonusPoints) || 1} extra) · Perdedor de penales = {drawPoints} pt.
+                  </div>
+                )}
               </div>
             </div>
 
@@ -875,7 +971,14 @@ export function RulesConfigPage() {
                         )}
                       </td>
                       <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-800 dark:text-slate-200 tabular-nums">
-                        {rule.winPoints}V / {rule.drawPoints}E / {rule.lossPoints}D
+                        <span>
+                          {rule.winPoints}V / {rule.drawPoints}E / {rule.lossPoints}D
+                        </span>
+                        {rule.drawPenaltyShootout && (
+                          <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[10px]">
+                            +{rule.drawPenaltyWinBonusPoints ?? 1} Pen
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-300">
                         {rule.tiebreakers
@@ -1013,6 +1116,35 @@ export function RulesConfigPage() {
                   className="w-full px-3 py-2 text-sm font-mono font-bold border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 tabular-nums"
                 />
               </div>
+            </div>
+
+            <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/25 flex flex-wrap items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-800 dark:text-slate-100 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={baseDrawPenaltyShootout}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setBaseDrawPenaltyShootout(checked);
+                    if (checked && baseDrawPenaltyBonus <= 0) setBaseDrawPenaltyBonus(1);
+                  }}
+                  className="rounded border-amber-400"
+                />
+                <span>Empate + punto extra en penales</span>
+              </label>
+              {baseDrawPenaltyShootout && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-600 dark:text-slate-300">Extra:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={baseDrawPenaltyBonus}
+                    onChange={(e) => setBaseDrawPenaltyBonus(Number(e.target.value))}
+                    className="w-14 px-2 py-1 text-xs font-mono font-bold text-center border border-amber-300 dark:border-amber-700 rounded bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-300 tabular-nums"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -1183,7 +1315,11 @@ export function RulesConfigPage() {
                 {deletingTableRule.name}
               </p>
               <p className="text-slate-600 dark:text-slate-300 font-mono">
-                {deletingTableRule.winPoints}V / {deletingTableRule.drawPoints}E / {deletingTableRule.lossPoints}D
+                {deletingTableRule.winPoints}V / {deletingTableRule.drawPoints}E
+                {deletingTableRule.drawPenaltyShootout
+                  ? ` (+${deletingTableRule.drawPenaltyWinBonusPoints ?? 1} Pen)`
+                  : ''}{' '}
+                / {deletingTableRule.lossPoints}D
               </p>
             </div>
 

@@ -533,8 +533,15 @@ export function PublicPortalPage() {
                           />
                         </div>
                       </div>
-                      <div className="px-3 py-1.5 rounded-lg bg-navy-900 dark:bg-slate-800 border border-transparent dark:border-slate-700 text-white font-mono font-bold text-base tabular-nums shrink-0">
-                        {res?.homeScore ?? m.homeScore ?? 0} - {res?.awayScore ?? m.awayScore ?? 0}
+                      <div className="px-3 py-1.5 rounded-lg bg-navy-900 dark:bg-slate-800 border border-transparent dark:border-slate-700 text-white font-mono font-bold text-base tabular-nums shrink-0 text-right">
+                        <span>
+                          {res?.homeScore ?? m.homeScore ?? 0} - {res?.awayScore ?? m.awayScore ?? 0}
+                        </span>
+                        {res?.penaltyHomeScore !== undefined && res?.penaltyAwayScore !== undefined && (
+                          <span className="block text-[10px] font-medium text-amber-300">
+                            pen. {res.penaltyHomeScore}-{res.penaltyAwayScore}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
@@ -728,9 +735,16 @@ export function PublicPortalPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="px-3.5 py-1.5 rounded-lg bg-navy-900 dark:bg-slate-800 border border-transparent dark:border-slate-700 text-white font-mono font-bold text-lg tabular-nums">
-                        {res.homeScore} - {res.awayScore}
-                      </span>
+                      <div className="px-3.5 py-1.5 rounded-lg bg-navy-900 dark:bg-slate-800 border border-transparent dark:border-slate-700 text-white font-mono font-bold text-lg tabular-nums text-right">
+                        <span>
+                          {res.homeScore} - {res.awayScore}
+                        </span>
+                        {res.penaltyHomeScore !== undefined && res.penaltyAwayScore !== undefined && (
+                          <span className="block text-[11px] font-medium text-amber-300">
+                            Penales: {res.penaltyHomeScore} - {res.penaltyAwayScore}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -740,85 +754,103 @@ export function PublicPortalPage() {
         </div>
       )}
 
-      {activeTab === 'posiciones' && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
-              Tabla Oficial de Posiciones
-            </h2>
-            <span className="text-xs text-slate-500 dark:text-slate-400">Actualizada tras validación oficial</span>
+      {activeTab === 'posiciones' && (() => {
+        const showPenCol = filteredStandings.some(
+          (st) => (st.penaltyWins ?? 0) > 0 || tournamentMap.get(st.tournamentId)?.drawPenaltyShootout
+        );
+        return (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
+                Tabla Oficial de Posiciones
+              </h2>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Actualizada tras validación oficial</span>
+            </div>
+            {filteredStandings.length === 0 ? (
+              <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                No hay posiciones calculadas para los filtros seleccionados.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
+                      <th className="py-3 px-4 text-left font-semibold">POS</th>
+                      <th className="py-3 px-4 text-left font-semibold">EQUIPO</th>
+                      <th className="py-3 px-3 text-left font-semibold">CATEGORÍA</th>
+                      <th className="py-3 px-2.5 text-right font-semibold">PJ</th>
+                      <th className="py-3 px-2.5 text-right font-semibold">PG</th>
+                      <th className="py-3 px-2.5 text-right font-semibold">PE</th>
+                      {showPenCol && (
+                        <th
+                          className="py-3 px-2.5 text-right font-semibold text-amber-700 dark:text-amber-400"
+                          title="Ganados en Penales (+1 pt extra)"
+                        >
+                          PEN
+                        </th>
+                      )}
+                      <th className="py-3 px-2.5 text-right font-semibold">PP</th>
+                      <th className="py-3 px-2.5 text-right font-semibold">GF</th>
+                      <th className="py-3 px-2.5 text-right font-semibold">GC</th>
+                      <th className="py-3 px-2.5 text-right font-semibold">DG</th>
+                      <th className="py-3 px-4 text-right font-semibold">PTS</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredStandings.map((st) => {
+                      const team = teamMap.get(st.teamId);
+                      return (
+                        <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          <td className="py-3 px-4 font-mono font-bold tabular-nums text-navy-900 dark:text-white">
+                            {st.position}
+                          </td>
+                          <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
+                            <div className="flex items-center gap-2.5">
+                              <TeamCrest
+                                name={team?.name || st.teamId}
+                                shortCode={team?.shortCode || 'EQ'}
+                                primaryColor={team?.primaryColor}
+                                secondaryColor={team?.secondaryColor}
+                                crestUrl={team?.crestUrl}
+                                size="sm"
+                              />
+                              <span>{team?.name || st.teamId}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-slate-500 dark:text-slate-400 text-xs">
+                            {categoryMap.get(st.categoryId)?.name}
+                          </td>
+                          <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.played}</td>
+                          <td className="py-3 px-2.5 text-right font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
+                            {st.wins}
+                          </td>
+                          <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.draws}</td>
+                          {showPenCol && (
+                            <td className="py-3 px-2.5 text-right font-mono tabular-nums text-amber-700 dark:text-amber-400">
+                              {st.penaltyWins ?? 0}
+                            </td>
+                          )}
+                          <td className="py-3 px-2.5 text-right font-mono tabular-nums text-red-600 dark:text-red-400">
+                            {st.losses}
+                          </td>
+                          <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.goalsFor}</td>
+                          <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.goalsAgainst}</td>
+                          <td className="py-3 px-2.5 text-right font-mono tabular-nums">
+                            {st.goalDifference > 0 ? `+${st.goalDifference}` : st.goalDifference}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-bold tabular-nums text-navy-900 dark:text-white">
+                            {st.points}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-          {filteredStandings.length === 0 ? (
-            <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
-              No hay posiciones calculadas para los filtros seleccionados.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
-                    <th className="py-3 px-4 text-left font-semibold">POS</th>
-                    <th className="py-3 px-4 text-left font-semibold">EQUIPO</th>
-                    <th className="py-3 px-3 text-left font-semibold">CATEGORÍA</th>
-                    <th className="py-3 px-2.5 text-right font-semibold">PJ</th>
-                    <th className="py-3 px-2.5 text-right font-semibold">PG</th>
-                    <th className="py-3 px-2.5 text-right font-semibold">PE</th>
-                    <th className="py-3 px-2.5 text-right font-semibold">PP</th>
-                    <th className="py-3 px-2.5 text-right font-semibold">GF</th>
-                    <th className="py-3 px-2.5 text-right font-semibold">GC</th>
-                    <th className="py-3 px-2.5 text-right font-semibold">DG</th>
-                    <th className="py-3 px-4 text-right font-semibold">PTS</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredStandings.map((st) => {
-                    const team = teamMap.get(st.teamId);
-                    return (
-                      <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                        <td className="py-3 px-4 font-mono font-bold tabular-nums text-navy-900 dark:text-white">
-                          {st.position}
-                        </td>
-                        <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
-                          <div className="flex items-center gap-2.5">
-                            <TeamCrest
-                              name={team?.name || st.teamId}
-                              shortCode={team?.shortCode || 'EQ'}
-                              primaryColor={team?.primaryColor}
-                              secondaryColor={team?.secondaryColor}
-                              crestUrl={team?.crestUrl}
-                              size="sm"
-                            />
-                            <span>{team?.name || st.teamId}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-slate-500 dark:text-slate-400 text-xs">
-                          {categoryMap.get(st.categoryId)?.name}
-                        </td>
-                        <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.played}</td>
-                        <td className="py-3 px-2.5 text-right font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
-                          {st.wins}
-                        </td>
-                        <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.draws}</td>
-                        <td className="py-3 px-2.5 text-right font-mono tabular-nums text-red-600 dark:text-red-400">
-                          {st.losses}
-                        </td>
-                        <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.goalsFor}</td>
-                        <td className="py-3 px-2.5 text-right font-mono tabular-nums">{st.goalsAgainst}</td>
-                        <td className="py-3 px-2.5 text-right font-mono tabular-nums">
-                          {st.goalDifference > 0 ? `+${st.goalDifference}` : st.goalDifference}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold tabular-nums text-navy-900 dark:text-white">
-                          {st.points}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {activeTab === 'goleadores' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">

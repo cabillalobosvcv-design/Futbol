@@ -16,6 +16,8 @@ export interface DefaultSportSeed {
     winPoints: number;
     drawPoints: number;
     lossPoints: number;
+    drawPenaltyShootout?: boolean;
+    drawPenaltyWinBonusPoints?: number;
     tiebreakers: TiebreakerCriterion[];
     minRestHours: number;
     matchDurationMinutes: number;
@@ -48,6 +50,8 @@ export const DEFAULT_SPORTS_CATALOG: DefaultSportSeed[] = [
       winPoints: 3,
       drawPoints: 1,
       lossPoints: 0,
+      drawPenaltyShootout: true,
+      drawPenaltyWinBonusPoints: 1,
       tiebreakers: ['points', 'goal_difference', 'goals_for', 'head_to_head', 'wins'],
       minRestHours: 24,
       matchDurationMinutes: 90,
@@ -76,6 +80,8 @@ export const DEFAULT_SPORTS_CATALOG: DefaultSportSeed[] = [
       winPoints: 3,
       drawPoints: 1,
       lossPoints: 0,
+      drawPenaltyShootout: true,
+      drawPenaltyWinBonusPoints: 1,
       tiebreakers: ['points', 'goal_difference', 'goals_for', 'head_to_head'],
       minRestHours: 12,
       matchDurationMinutes: 50,
