@@ -5,6 +5,7 @@ import {
   GoogleAuthProvider,
   inMemoryPersistence,
   sendEmailVerification,
+  sendPasswordResetEmail,
   setPersistence,
   signOut,
   updateProfile,
@@ -61,6 +62,10 @@ export async function provisionAuthUserWithPassword(params: {
     }
     throw err;
   }
+}
+
+export async function sendUserPasswordReset(email: string): Promise<void> {
+  await sendPasswordResetEmail(auth, email.trim().toLowerCase());
 }
 
 export enum OperationType {

@@ -473,27 +473,153 @@ export async function createProvisionedUserProfile(params: {
   }
 }
 
+export async function updateUserProfileDetails(params: {
+  targetUser: UserProfile;
+  displayName: string;
+  email: string;
+  role: UserRole;
+  assignedCategoryIds: string[];
+  assignedTeamId?: string;
+  active: boolean;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `users/${params.targetUser.uid}`;
+  const cleanName = params.displayName.trim().slice(0, 120);
+  const cleanEmail = params.email.trim().toLowerCase().slice(0, 160);
+  const cleanCategoryIds =
+    params.role === 'coordinador' ? params.assignedCategoryIds.slice(0, 20) : [];
+  const cleanTeamId =
+    params.role === 'representante' ? (params.assignedTeamId || '').slice(0, 128) : '';
+
+  try {
+    await updateDoc(
+      doc(db, 'users', params.targetUser.uid),
+      cleanPayload({
+        displayName: cleanName,
+        email: cleanEmail,
+        role: params.role,
+        assignedCategoryIds: cleanCategoryIds,
+        assignedTeamId: cleanTeamId,
+        active: params.active,
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'UPDATE_USER_PROFILE',
+      entity: 'users',
+      entityId: params.targetUser.uid,
+      summary: `Usuario modificado: ${cleanName} (${cleanEmail}) · rol ${params.role} · estado ${params.active ? 'activo' : 'suspendido'}.`,
+    });
+    if (params.targetUser.uid !== params.actorUid) {
+      await sendNotification({
+        recipientUid: params.targetUser.uid,
+        isBroadcast: false,
+        title: 'Actualización de perfil y permisos en SIGD',
+        message: `Un administrador actualizó tu cuenta: rol ${params.role}, estado ${params.active ? 'activo' : 'suspendido'}.`,
+        type: params.active ? 'info' : 'warning',
+        entityType: 'users',
+        entityId: params.targetUser.uid,
+        createdByUid: params.actorUid,
+      });
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+export async function deleteUserAccountRecord(params: {
+  targetUser: UserProfile;
+  existingInvites?: UserInvite[];
+  referees?: Referee[];
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `users/${params.targetUser.uid}`;
+  try {
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'users', params.targetUser.uid));
+
+    // Remove any matching invite records (by inviteId, claimedUid, or email) so they are not orphaned
+    const normalizedEmail = params.targetUser.email.trim().toLowerCase();
+    const matchingInvites = (params.existingInvites || []).filter(
+      (inv) =>
+        inv.id === params.targetUser.inviteId ||
+        inv.claimedUid === params.targetUser.uid ||
+        inv.email.trim().toLowerCase() === normalizedEmail
+    );
+    for (const inv of matchingInvites) {
+      batch.delete(doc(db, 'userInvites', inv.id));
+    }
+
+    // Unlink any referee profile tied to this userUid
+    const linkedReferees = (params.referees || []).filter(
+      (r) => r.userUid === params.targetUser.uid
+    );
+    for (const refItem of linkedReferees) {
+      batch.update(doc(db, 'referees', refItem.id), {
+        userUid: '',
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
+
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'DELETE_USER',
+      entity: 'users',
+      entityId: params.targetUser.uid,
+      summary: `Usuario eliminado del sistema: ${params.targetUser.displayName} (${params.targetUser.email}) · rol ${params.targetUser.role}.`,
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
+}
+
 export async function updateUserInvite(params: {
   invite: UserInvite;
+  displayName?: string;
   role: UserRole;
+  assignedCategoryIds?: string[];
+  assignedTeamId?: string;
   active: boolean;
   actorUid: string;
   actorName: string;
 }): Promise<void> {
   const path = `userInvites/${params.invite.id}`;
+  const cleanName = (params.displayName ?? params.invite.displayName).trim().slice(0, 120);
+  const cleanCategoryIds =
+    params.role === 'coordinador'
+      ? (params.assignedCategoryIds ?? params.invite.assignedCategoryIds ?? []).slice(0, 20)
+      : [];
+  const cleanTeamId =
+    params.role === 'representante'
+      ? (params.assignedTeamId ?? params.invite.assignedTeamId ?? '').slice(0, 128)
+      : '';
+
   try {
-    await updateDoc(doc(db, 'userInvites', params.invite.id), {
-      role: params.role,
-      active: params.active,
-      updatedAt: serverTimestamp(),
-    });
+    await updateDoc(
+      doc(db, 'userInvites', params.invite.id),
+      cleanPayload({
+        displayName: cleanName,
+        role: params.role,
+        assignedCategoryIds: cleanCategoryIds,
+        assignedTeamId: cleanTeamId,
+        active: params.active,
+        updatedAt: serverTimestamp(),
+      })
+    );
     await createAuditLog({
       actorUid: params.actorUid,
       actorName: params.actorName,
       action: 'UPDATE_USER_INVITE',
       entity: 'userInvites',
       entityId: params.invite.id,
-      summary: `Pre-registro de ${params.invite.displayName} (${params.invite.email}) actualizado: rol ${params.role}, estado ${params.active ? 'activo' : 'suspendido'}.`,
+      summary: `Pre-registro de ${cleanName} (${params.invite.email}) actualizado: rol ${params.role}, estado ${params.active ? 'activo' : 'suspendido'}.`,
     });
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, path);

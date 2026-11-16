@@ -6,28 +6,43 @@ import {
   CheckCircle2,
   Clock,
   Copy,
+  Edit3,
   Eye,
   EyeOff,
   History,
   KeyRound,
+  Mail,
   RefreshCw,
+  Search,
   ShieldCheck,
   Trash2,
   UserPlus,
   Users,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
-import { provisionAuthUserWithPassword } from '../firebase/config';
+import {
+  provisionAuthUserWithPassword,
+  sendUserPasswordReset,
+} from '../firebase/config';
 import {
   createProvisionedUserProfile,
+  deleteUserAccountRecord,
   deleteUserInvite,
   registerOrInviteUser,
   sendNotification,
   updateUserInvite,
+  updateUserProfileDetails,
   updateUserRoleAndScope,
 } from '../services/firestoreService';
-import { ROLE_LABELS, ROLE_PERMISSIONS, type UserInvite, type UserRole } from '../types/sigd';
+import {
+  ROLE_LABELS,
+  ROLE_PERMISSIONS,
+  type UserInvite,
+  type UserProfile,
+  type UserRole,
+} from '../types/sigd';
 
 function generateSecurePassword(length = 12): string {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -67,7 +82,7 @@ function generateSecurePassword(length = 12): string {
 
 export function UsersPermissionsPage() {
   const { profile, role } = useAuth();
-  const { users, userInvites, auditLogs, categories, teams } = useSigdData();
+  const { users, userInvites, auditLogs, categories, teams, referees } = useSigdData();
 
   const [tab, setTab] = useState<'users' | 'notifications' | 'audit'>('users');
   const [notifTitle, setNotifTitle] = useState('');
@@ -98,6 +113,23 @@ export function UsersPermissionsPage() {
   const [providerSetupNotice, setProviderSetupNotice] = useState(false);
   const [confirmDeleteInviteId, setConfirmDeleteInviteId] = useState<string | null>(null);
 
+  // Search / filter + Modify / Delete user state
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | UserRole>('all');
+  const [editTarget, setEditTarget] = useState<
+    | { kind: 'user'; user: UserProfile }
+    | { kind: 'invite'; invite: UserInvite }
+    | null
+  >(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editRole, setEditRole] = useState<UserRole>('coordinador');
+  const [editActive, setEditActive] = useState(true);
+  const [editCategoryIds, setEditCategoryIds] = useState<string[]>([]);
+  const [editTeamId, setEditTeamId] = useState('');
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<UserProfile | null>(null);
+
   const canManageUsers = ROLE_PERMISSIONS.canManageUsers(role);
 
   const pendingInvites = useMemo(() => {
@@ -107,6 +139,19 @@ export function UsersPermissionsPage() {
       (inv) => !inv.claimedUid && !activeEmails.has(inv.email.trim().toLowerCase())
     );
   }, [canManageUsers, userInvites, users]);
+
+  const filteredUsers = useMemo(() => {
+    const q = userSearch.trim().toLowerCase();
+    return users.filter((u) => {
+      if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false;
+      if (!q) return true;
+      return (
+        u.displayName.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        ROLE_LABELS[u.role].toLowerCase().includes(q)
+      );
+    });
+  }, [users, userSearch, userRoleFilter]);
 
   const toggleCategorySelection = (categoryId: string) => {
     setNewCategoryIds((prev) =>
@@ -372,6 +417,150 @@ export function UsersPermissionsPage() {
       });
       setConfirmDeleteInviteId(null);
       setMsg(`Pre-registro eliminado para ${invite.email}.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openEditUser = (u: UserProfile) => {
+    setEditTarget({ kind: 'user', user: u });
+    setEditName(u.displayName);
+    setEditEmail(u.email);
+    setEditRole(u.role);
+    setEditActive(u.active);
+    setEditCategoryIds(u.assignedCategoryIds || []);
+    setEditTeamId(u.assignedTeamId || '');
+    setResetEmailSent(false);
+    setErrMsg(null);
+  };
+
+  const openEditInvite = (inv: UserInvite) => {
+    setEditTarget({ kind: 'invite', invite: inv });
+    setEditName(inv.displayName);
+    setEditEmail(inv.email);
+    setEditRole(inv.role);
+    setEditActive(inv.active);
+    setEditCategoryIds(inv.assignedCategoryIds || []);
+    setEditTeamId(inv.assignedTeamId || '');
+    setResetEmailSent(false);
+    setErrMsg(null);
+  };
+
+  const toggleEditCategorySelection = (categoryId: string) => {
+    setEditCategoryIds((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : prev.length < 20
+          ? [...prev, categoryId]
+          : prev
+    );
+  };
+
+  const handleSaveUserModification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile || !canManageUsers || !editTarget) return;
+
+    const cleanName = editName.trim();
+    const cleanEmail = editEmail.trim().toLowerCase();
+    if (cleanName.length < 2) {
+      setErrMsg('El nombre completo debe tener al menos 2 caracteres.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setErrMsg('Ingresa un correo electrónico válido.');
+      return;
+    }
+
+    setBusy(true);
+    setMsg(null);
+    setErrMsg(null);
+    try {
+      if (editTarget.kind === 'user') {
+        const isSelf = editTarget.user.uid === profile.uid;
+        await updateUserProfileDetails({
+          targetUser: editTarget.user,
+          displayName: cleanName,
+          email: cleanEmail,
+          role: isSelf ? editTarget.user.role : editRole,
+          assignedCategoryIds:
+            (isSelf ? editTarget.user.role : editRole) === 'coordinador'
+              ? editCategoryIds
+              : [],
+          assignedTeamId:
+            (isSelf ? editTarget.user.role : editRole) === 'representante'
+              ? editTeamId
+              : '',
+          active: isSelf ? editTarget.user.active : editActive,
+          actorUid: profile.uid,
+          actorName: profile.displayName,
+        });
+        setMsg(`Usuario ${cleanName} modificado correctamente.`);
+      } else {
+        await updateUserInvite({
+          invite: editTarget.invite,
+          displayName: cleanName,
+          role: editRole,
+          assignedCategoryIds: editRole === 'coordinador' ? editCategoryIds : [],
+          assignedTeamId: editRole === 'representante' ? editTeamId : '',
+          active: editActive,
+          actorUid: profile.uid,
+          actorName: profile.displayName,
+        });
+        setMsg(`Pre-registro de ${cleanName} actualizado correctamente.`);
+      }
+      setEditTarget(null);
+    } catch {
+      setErrMsg('No se pudieron guardar los cambios del usuario.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSendPasswordResetForUser = async () => {
+    if (!editTarget || editTarget.kind !== 'user') return;
+    setBusy(true);
+    setErrMsg(null);
+    try {
+      await sendUserPasswordReset(editEmail || editTarget.user.email);
+      setResetEmailSent(true);
+      setMsg(`Correo de restablecimiento de contraseña enviado a ${editEmail || editTarget.user.email}.`);
+    } catch {
+      setErrMsg(
+        'No se pudo enviar el correo de restablecimiento. Verifica que el usuario tenga acceso por correo/contraseña habilitado.'
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!profile || !canManageUsers || !deletingUser) return;
+    if (
+      deletingUser.uid === profile.uid ||
+      deletingUser.email.trim().toLowerCase() === 'cabillalobosv.cv@gmail.com'
+    ) {
+      setErrMsg('No es posible eliminar la cuenta del administrador principal ni tu propia sesión activa.');
+      setDeletingUser(null);
+      return;
+    }
+
+    setBusy(true);
+    setMsg(null);
+    setErrMsg(null);
+    try {
+      const removedName = deletingUser.displayName;
+      const removedEmail = deletingUser.email;
+      await deleteUserAccountRecord({
+        targetUser: deletingUser,
+        existingInvites: userInvites,
+        referees,
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+      });
+      setDeletingUser(null);
+      setMsg(`Usuario ${removedName} (${removedEmail}) eliminado del sistema.`);
+    } catch {
+      setErrMsg('No se pudo eliminar el usuario. Verifica tus permisos e intenta nuevamente.');
     } finally {
       setBusy(false);
     }
@@ -786,11 +975,39 @@ export function UsersPermissionsPage() {
           )}
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-colors">
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-electric-500" />
-              <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
-                Usuarios Registrados
-              </h2>
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-electric-500" />
+                <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
+                  Usuarios Registrados ({filteredUsers.length}
+                  {filteredUsers.length !== users.length ? ` de ${users.length}` : ''})
+                </h2>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    placeholder="Buscar nombre o correo..."
+                    className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
+                  />
+                </div>
+                <select
+                  value={userRoleFilter}
+                  onChange={(e) => setUserRoleFilter(e.target.value as 'all' | UserRole)}
+                  className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                >
+                  <option value="all">Todos los roles</option>
+                  {(Object.keys(ROLE_LABELS) as UserRole[]).map((rKey) => (
+                    <option key={rKey} value={rKey}>
+                      {ROLE_LABELS[rKey]}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -799,66 +1016,139 @@ export function UsersPermissionsPage() {
                     <th className="py-3 px-4 text-left font-semibold">Usuario</th>
                     <th className="py-3 px-4 text-left font-semibold">Correo</th>
                     <th className="py-3 px-4 text-left font-semibold">Rol Asignado</th>
+                    <th className="py-3 px-4 text-left font-semibold">Alcance</th>
                     <th className="py-3 px-4 text-left font-semibold">Estado</th>
+                    {canManageUsers && (
+                      <th className="py-3 px-4 text-right font-semibold">Acciones</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
-                        {u.displayName}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-mono text-xs">
-                        {u.email}
-                      </td>
-                      <td className="py-3 px-4">
-                        {canManageUsers ? (
-                          <select
-                            disabled={busy}
-                            value={u.role}
-                            onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
-                            className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                          >
-                            {(Object.keys(ROLE_LABELS) as UserRole[]).map((rKey) => (
-                              <option key={rKey} value={rKey}>
-                                {ROLE_LABELS[rKey]}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                            {ROLE_LABELS[u.role]}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-xs">
-                        {canManageUsers && profile?.uid !== u.uid ? (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => handleToggleUserActive(u)}
-                            className={`px-2.5 py-1 rounded-md font-medium border transition-colors ${
-                              u.active
-                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'
-                                : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50'
-                            }`}
-                          >
-                            {u.active ? 'Activo' : 'Suspendido'}
-                          </button>
-                        ) : (
-                          <span
-                            className={`font-medium ${
-                              u.active
-                                ? 'text-emerald-700 dark:text-emerald-400'
-                                : 'text-rose-700 dark:text-rose-400'
-                            }`}
-                          >
-                            {u.active ? 'Activo' : 'Suspendido'}
-                          </span>
-                        )}
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={canManageUsers ? 6 : 5}
+                        className="py-8 text-center text-xs text-slate-500 dark:text-slate-400"
+                      >
+                        No hay usuarios que coincidan con el filtro aplicado.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredUsers.map((u) => {
+                      const isSelf = profile?.uid === u.uid;
+                      const isProtectedAdmin =
+                        u.email.trim().toLowerCase() === 'cabillalobosv.cv@gmail.com';
+                      const assignedTeam = teams.find((t) => t.id === u.assignedTeamId);
+                      const assignedCatsCount = u.assignedCategoryIds?.length || 0;
+
+                      return (
+                        <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
+                            <div className="flex items-center gap-2">
+                              <span>{u.displayName}</span>
+                              {isSelf && (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                  Tú
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-mono text-xs">
+                            {u.email}
+                          </td>
+                          <td className="py-3 px-4">
+                            {canManageUsers && !isSelf ? (
+                              <select
+                                disabled={busy}
+                                value={u.role}
+                                onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
+                                className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                              >
+                                {(Object.keys(ROLE_LABELS) as UserRole[]).map((rKey) => (
+                                  <option key={rKey} value={rKey}>
+                                    {ROLE_LABELS[rKey]}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                {ROLE_LABELS[u.role]}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-300">
+                            {u.role === 'coordinador' ? (
+                              assignedCatsCount > 0 ? (
+                                <span>{assignedCatsCount} categoría(s)</span>
+                              ) : (
+                                <span className="text-slate-400 dark:text-slate-500">Todas / Sin asignar</span>
+                              )
+                            ) : u.role === 'representante' ? (
+                              assignedTeam ? (
+                                <span>{assignedTeam.name}</span>
+                              ) : (
+                                <span className="text-slate-400 dark:text-slate-500">Sin equipo</span>
+                              )
+                            ) : (
+                              <span className="text-slate-400 dark:text-slate-500">General</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-xs">
+                            {canManageUsers && !isSelf ? (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => handleToggleUserActive(u)}
+                                className={`px-2.5 py-1 rounded-md font-medium border transition-colors ${
+                                  u.active
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'
+                                    : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50'
+                                }`}
+                              >
+                                {u.active ? 'Activo' : 'Suspendido'}
+                              </button>
+                            ) : (
+                              <span
+                                className={`font-medium ${
+                                  u.active
+                                    ? 'text-emerald-700 dark:text-emerald-400'
+                                    : 'text-rose-700 dark:text-rose-400'
+                                }`}
+                              >
+                                {u.active ? 'Activo' : 'Suspendido'}
+                              </span>
+                            )}
+                          </td>
+                          {canManageUsers && (
+                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => openEditUser(u)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-navy-900 dark:text-blue-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                  Modificar
+                                </button>
+                                {!isSelf && !isProtectedAdmin && (
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => setDeletingUser(u)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Eliminar
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -927,7 +1217,7 @@ export function UsersPermissionsPage() {
                             {inv.active ? 'Pendiente (Activo)' : 'Suspendido'}
                           </button>
                         </td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
                           {confirmDeleteInviteId === inv.id ? (
                             <div className="inline-flex items-center gap-2">
                               <button
@@ -948,15 +1238,26 @@ export function UsersPermissionsPage() {
                               </button>
                             </div>
                           ) : (
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => setConfirmDeleteInviteId(inv.id)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Revocar
-                            </button>
+                            <div className="inline-flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => openEditInvite(inv)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-navy-900 dark:text-blue-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                Modificar
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => setConfirmDeleteInviteId(inv.id)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Eliminar
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -1116,6 +1417,257 @@ export function UsersPermissionsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+      {/* Modal Modificar Usuario */}
+      {canManageUsers && editTarget && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveUserModification}
+            className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h3 className="font-display font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                  <Edit3 className="w-4 h-4 text-electric-500" />
+                  {editTarget.kind === 'user' ? 'Modificar Usuario' : 'Modificar Pre-registro'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Actualiza datos de perfil, rol operativo y alcance de permisos.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditTarget(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Nombre completo
+                </label>
+                <input
+                  type="text"
+                  required
+                  maxLength={120}
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Correo electrónico
+                </label>
+                <input
+                  type="email"
+                  required
+                  maxLength={160}
+                  disabled={editTarget.kind === 'invite'}
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full px-3 py-2 text-sm font-mono border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 disabled:opacity-60"
+                />
+                {editTarget.kind === 'invite' && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    Para cambiar el correo de un pre-registro pendiente, elimínalo y créalo de nuevo.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Rol asignado
+                </label>
+                <select
+                  disabled={editTarget.kind === 'user' && editTarget.user.uid === profile?.uid}
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value as UserRole)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 disabled:opacity-60"
+                >
+                  {(Object.keys(ROLE_LABELS) as UserRole[]).map((rKey) => (
+                    <option key={rKey} value={rKey}>
+                      {ROLE_LABELS[rKey]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Estado de acceso
+                </label>
+                <select
+                  disabled={editTarget.kind === 'user' && editTarget.user.uid === profile?.uid}
+                  value={editActive ? 'active' : 'suspended'}
+                  onChange={(e) => setEditActive(e.target.value === 'active')}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 disabled:opacity-60"
+                >
+                  <option value="active">Activo</option>
+                  <option value="suspended">Suspendido</option>
+                </select>
+              </div>
+            </div>
+
+            {editRole === 'coordinador' && categories.length > 0 && (
+              <div className="pt-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Categorías asignadas
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((cat) => {
+                    const selected = editCategoryIds.includes(cat.id);
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => toggleEditCategorySelection(cat.id)}
+                        className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                          selected
+                            ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                            : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {cat.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {editRole === 'representante' && (
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Equipo asignado
+                </label>
+                <select
+                  value={editTeamId}
+                  onChange={(e) => setEditTeamId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                >
+                  <option value="">Sin equipo específico</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {editTarget.kind === 'user' && (
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs">
+                  <p className="font-semibold text-slate-800 dark:text-slate-200">
+                    Contraseña de acceso
+                  </p>
+                  <p className="text-slate-500 dark:text-slate-400">
+                    Envía un enlace seguro al correo del usuario para que defina una nueva contraseña.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy || resetEmailSent}
+                  onClick={handleSendPasswordResetForUser}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 disabled:opacity-60"
+                >
+                  <Mail className="w-3.5 h-3.5 text-electric-500" />
+                  {resetEmailSent ? 'Enlace enviado' : 'Enviar restablecimiento'}
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setEditTarget(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-electric-500 hover:bg-electric-600 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
+              >
+                <Check className="w-3.5 h-3.5" />
+                {busy ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal Confirmar Eliminación de Usuario */}
+      {canManageUsers && deletingUser && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base text-slate-900 dark:text-white">
+                    Eliminar Usuario
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Esta acción revoca su perfil y permisos en la base de datos.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingUser(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 text-xs space-y-1">
+              <p className="font-semibold text-slate-900 dark:text-white">
+                {deletingUser.displayName}
+              </p>
+              <p className="font-mono text-slate-600 dark:text-slate-300">
+                {deletingUser.email}
+              </p>
+              <p className="text-rose-700 dark:text-rose-300">
+                Rol actual: {ROLE_LABELS[deletingUser.role]}
+              </p>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              Se eliminará el registro de usuario, cualquier pre-registro asociado y su vínculo arbitral si existe. El movimiento quedará registrado en Auditoría.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setDeletingUser(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleConfirmDeleteUser}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {busy ? 'Eliminando...' : 'Eliminar usuario'}
+              </button>
+            </div>
           </div>
         </div>
       )}
