@@ -2,6 +2,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   query,
   serverTimestamp,
@@ -24,6 +25,7 @@ import type {
   Player,
   Referee,
   Sport,
+  SportRule,
   Team,
   TiebreakerCriterion,
   Tournament,
@@ -1664,5 +1666,148 @@ export async function deleteCategorySchedule(params: {
   }
 }
 
+export async function getRefereePrivateContact(
+  refereeId: string
+): Promise<{ phone: string; email: string }> {
+  try {
+    const snap = await getDoc(doc(db, 'referees', refereeId, 'private', 'contact'));
+    if (!snap.exists()) return { phone: '', email: '' };
+    const data = snap.data() as { phone?: string; email?: string };
+    return {
+      phone: typeof data.phone === 'string' ? data.phone : '',
+      email: typeof data.email === 'string' ? data.email : '',
+    };
+  } catch {
+    return { phone: '', email: '' };
+  }
+}
 
+export async function deleteRefereeWithPrivateContact(params: {
+  referee: Referee;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `referees/${params.referee.id}`;
+  try {
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'referees', params.referee.id, 'private', 'contact'));
+    batch.delete(doc(db, 'referees', params.referee.id));
+    await batch.commit();
 
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'DELETE_REFEREE',
+      entity: 'referees',
+      entityId: params.referee.id,
+      summary: `Árbitro eliminado del padrón: ${params.referee.fullName}.`,
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
+}
+
+export async function updateBaseSportRule(params: {
+  rule: SportRule;
+  name: string;
+  winPoints: number;
+  drawPoints: number;
+  lossPoints: number;
+  tiebreakers: TiebreakerCriterion[];
+  minRestHours: number;
+  matchDurationMinutes: number;
+  maxPlayersOnField: number;
+  yellowCardsSuspensionLimit: number;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `sportRules/${params.rule.id}`;
+  try {
+    await updateDoc(
+      doc(db, 'sportRules', params.rule.id),
+      cleanPayload({
+        sportId: params.rule.sportId,
+        tournamentId: params.rule.tournamentId || '',
+        name: params.name.trim().slice(0, 120),
+        winPoints: params.winPoints,
+        drawPoints: params.drawPoints,
+        lossPoints: params.lossPoints,
+        tiebreakers: params.tiebreakers.slice(0, 10),
+        minRestHours: params.minRestHours,
+        matchDurationMinutes: params.matchDurationMinutes,
+        maxPlayersOnField: params.maxPlayersOnField,
+        yellowCardsSuspensionLimit: params.yellowCardsSuspensionLimit,
+        updatedAt: serverTimestamp(),
+      })
+    );
+
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'UPDATE_SPORT_RULE',
+      entity: 'sportRules',
+      entityId: params.rule.id,
+      summary: `Reglamento base actualizado: ${params.name.trim()} (${params.winPoints}V/${params.drawPoints}E/${params.lossPoints}D).`,
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+export async function deleteNotificationDoc(params: {
+  notificationId: string;
+  title: string;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `notifications/${params.notificationId}`;
+  try {
+    await deleteDoc(doc(db, 'notifications', params.notificationId));
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'DELETE_NOTIFICATION',
+      entity: 'notifications',
+      entityId: params.notificationId,
+      summary: `Notificación eliminada: ${params.title}.`,
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
+}
+
+export async function deleteMatchResultActa(params: {
+  match: Match;
+  result: MatchResult;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `matchResults/${params.result.id}`;
+  try {
+    const oldEventsSnap = await getDocs(
+      query(collection(db, 'matchEvents'), where('matchId', '==', params.match.id))
+    );
+
+    const batch = writeBatch(db);
+    oldEventsSnap.docs.forEach((d) => batch.delete(d.ref));
+    batch.delete(doc(db, 'matchResults', params.result.id));
+    batch.update(doc(db, 'matches', params.match.id), {
+      status: 'Programado',
+      homeScore: 0,
+      awayScore: 0,
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'DELETE_MATCH_RESULT',
+      entity: 'matchResults',
+      entityId: params.result.id,
+      summary: `Acta digital eliminada del partido #${params.match.matchNumber} (estado restablecido a Programado).`,
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
+}

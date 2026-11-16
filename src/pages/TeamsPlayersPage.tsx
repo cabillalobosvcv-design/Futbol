@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
+  Edit3,
   FolderKanban,
   Image as ImageIcon,
   Link2,
@@ -11,18 +12,26 @@ import {
   Upload,
   UserPlus,
   Users,
+  X,
 } from 'lucide-react';
 import { TeamCrest } from '../components/TeamCrest';
 import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
 import {
   createAuditLog,
+  deleteEntityDoc,
   makeId,
   saveEntityDoc,
   updateTeamCrestUrl,
   uploadTeamLogo,
 } from '../services/firestoreService';
-import { ROLE_PERMISSIONS, type PlayerPosition, type Team } from '../types/sigd';
+import {
+  ROLE_PERMISSIONS,
+  type Category,
+  type Player,
+  type PlayerPosition,
+  type Team,
+} from '../types/sigd';
 
 type Tab = 'categories' | 'teams' | 'players';
 
@@ -40,6 +49,7 @@ export function TeamsPlayersPage() {
   const [saving, setSaving] = useState(false);
 
   const canManage = ROLE_PERMISSIONS.canManageTeamsAndPlayers(role);
+  const canDeleteEntity = ROLE_PERMISSIONS.canManageTournaments(role);
 
   // Category form
   const [cTournamentId, setCTournamentId] = useState('');
@@ -70,6 +80,37 @@ export function TeamsPlayersPage() {
   const [plNumber, setPlNumber] = useState(10);
   const [plPosition, setPlPosition] = useState<PlayerPosition>('Delantero');
   const [plBirthYear, setPlBirthYear] = useState(2002);
+
+  // Edit / Delete states — Categories
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [ecName, setEcName] = useState('');
+  const [ecBranchId, setEcBranchId] = useState('branch_varonil');
+  const [ecMinAge, setEcMinAge] = useState(15);
+  const [ecMaxAge, setEcMaxAge] = useState(99);
+  const [ecPublished, setEcPublished] = useState(false);
+  const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
+
+  // Edit / Delete states — Teams
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [etmCategoryId, setEtmCategoryId] = useState('');
+  const [etmName, setEtmName] = useState('');
+  const [etmCode, setEtmCode] = useState('');
+  const [etmCoach, setEtmCoach] = useState('');
+  const [etmLogoUrl, setEtmLogoUrl] = useState('');
+  const [etmUploadingLogo, setEtmUploadingLogo] = useState(false);
+  const [etmActive, setEtmActive] = useState(true);
+  const editTeamLogoInputRef = useRef<HTMLInputElement | null>(null);
+  const [deletingTeam, setDeletingTeam] = useState<Team | null>(null);
+
+  // Edit / Delete states — Players
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  const [eplTeamId, setEplTeamId] = useState('');
+  const [eplName, setEplName] = useState('');
+  const [eplNumber, setEplNumber] = useState(10);
+  const [eplPosition, setEplPosition] = useState<PlayerPosition>('Delantero');
+  const [eplBirthYear, setEplBirthYear] = useState(2002);
+  const [eplActive, setEplActive] = useState(true);
+  const [deletingPlayer, setDeletingPlayer] = useState<Player | null>(null);
 
   const tournamentMap = useMemo(() => new Map(tournaments.map((t) => [t.id, t])), [tournaments]);
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
@@ -289,8 +330,272 @@ export function TeamsPlayersPage() {
         },
         true
       );
+      await createAuditLog({
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+        action: 'CREATE_PLAYER',
+        entity: 'players',
+        entityId: id,
+        summary: `Jugador registrado: #${plNumber} ${plName.trim()} (${team.name}).`,
+      });
       setPlName('');
       setMsg('Jugador agregado al plantel.');
+    } catch {
+      setErrMsg('No se pudo registrar el jugador. Verifica los datos y permisos.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // --- Category Edit / Delete handlers ---
+  const openEditCategory = (c: Category) => {
+    setEditingCategory(c);
+    setEcName(c.name);
+    setEcBranchId(c.branchId || 'branch_varonil');
+    setEcMinAge(c.minAge ?? 15);
+    setEcMaxAge(c.maxAge ?? 99);
+    setEcPublished(Boolean(c.schedulePublished));
+  };
+
+  const handleSaveEditCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile || !editingCategory || !ecName.trim()) return;
+    setSaving(true);
+    setMsg(null);
+    setErrMsg(null);
+    try {
+      const branch = branches.find((b) => b.id === ecBranchId);
+      const branchNameMap: Record<string, string> = {
+        branch_varonil: 'Varonil',
+        branch_femenil: 'Femenil',
+        branch_mixta: 'Mixta',
+      };
+      await saveEntityDoc(
+        'categories',
+        editingCategory.id,
+        {
+          tournamentId: editingCategory.tournamentId,
+          branchId: ecBranchId,
+          branchName: branch?.name || branchNameMap[ecBranchId] || editingCategory.branchName || 'General',
+          name: ecName.trim().slice(0, 100),
+          minAge: Number(ecMinAge),
+          maxAge: Number(ecMaxAge),
+          schedulePublished: ecPublished,
+        },
+        false
+      );
+      await createAuditLog({
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+        action: 'UPDATE_CATEGORY',
+        entity: 'categories',
+        entityId: editingCategory.id,
+        summary: `Categoría actualizada: ${ecName.trim()}.`,
+      });
+      setEditingCategory(null);
+      setMsg(`Categoría "${ecName.trim()}" actualizada.`);
+    } catch {
+      setErrMsg('No se pudo actualizar la categoría. Verifica tus permisos.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmDeleteCategory = async () => {
+    if (!profile || !deletingCategory || !canDeleteEntity) return;
+    setSaving(true);
+    setMsg(null);
+    setErrMsg(null);
+    try {
+      await deleteEntityDoc('categories', deletingCategory.id);
+      await createAuditLog({
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+        action: 'DELETE_CATEGORY',
+        entity: 'categories',
+        entityId: deletingCategory.id,
+        summary: `Categoría eliminada: ${deletingCategory.name}.`,
+      });
+      setDeletingCategory(null);
+      setMsg(`Categoría "${deletingCategory.name}" eliminada.`);
+    } catch {
+      setErrMsg('No se pudo eliminar la categoría. Verifica tus permisos.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // --- Team Edit / Delete handlers ---
+  const openEditTeam = (tm: Team) => {
+    setEditingTeam(tm);
+    setEtmCategoryId(tm.categoryId);
+    setEtmName(tm.name);
+    setEtmCode(tm.shortCode);
+    setEtmCoach(tm.coachName || '');
+    setEtmLogoUrl(tm.crestUrl || '');
+    setEtmActive(Boolean(tm.active));
+  };
+
+  const handleEditTeamLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingTeam || !canManage) return;
+    setErrMsg(null);
+    if (!file.type.startsWith('image/')) {
+      setErrMsg('Selecciona una imagen válida (PNG, JPG, WebP o SVG).');
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setErrMsg('El logotipo del equipo no debe superar los 3 MB.');
+      return;
+    }
+    setEtmUploadingLogo(true);
+    try {
+      const url = await uploadTeamLogo(editingTeam.id, file);
+      setEtmLogoUrl(url);
+    } catch {
+      setErrMsg('No se pudo subir el logotipo a Firebase Storage. Puedes pegar una URL directa.');
+    } finally {
+      setEtmUploadingLogo(false);
+      if (editTeamLogoInputRef.current) editTeamLogoInputRef.current.value = '';
+    }
+  };
+
+  const handleSaveEditTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile || !editingTeam || !etmName.trim()) return;
+    setSaving(true);
+    setMsg(null);
+    setErrMsg(null);
+    try {
+      const code = (etmCode.trim() || etmName.trim().slice(0, 3))
+        .toUpperCase()
+        .slice(0, 6);
+      const cleanLogo = etmLogoUrl.trim().slice(0, 500);
+      await saveEntityDoc(
+        'teams',
+        editingTeam.id,
+        {
+          tournamentId: editingTeam.tournamentId,
+          categoryId: etmCategoryId || editingTeam.categoryId,
+          name: etmName.trim().slice(0, 100),
+          shortCode: code.length >= 2 ? code : code.padEnd(2, 'X'),
+          coachName: etmCoach.trim().slice(0, 100),
+          crestUrl: cleanLogo,
+          active: etmActive,
+        },
+        false
+      );
+      await createAuditLog({
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+        action: 'UPDATE_TEAM',
+        entity: 'teams',
+        entityId: editingTeam.id,
+        summary: `Equipo actualizado: ${etmName.trim()} (${code}).`,
+      });
+      setEditingTeam(null);
+      setMsg(`Equipo "${etmName.trim()}" actualizado correctamente.`);
+    } catch {
+      setErrMsg('No se pudo actualizar el equipo. Verifica tus permisos.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmDeleteTeam = async () => {
+    if (!profile || !deletingTeam || !canDeleteEntity) return;
+    setSaving(true);
+    setMsg(null);
+    setErrMsg(null);
+    try {
+      await deleteEntityDoc('teams', deletingTeam.id);
+      await createAuditLog({
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+        action: 'DELETE_TEAM',
+        entity: 'teams',
+        entityId: deletingTeam.id,
+        summary: `Equipo eliminado: ${deletingTeam.name} (${deletingTeam.shortCode}).`,
+      });
+      setDeletingTeam(null);
+      setMsg(`Equipo "${deletingTeam.name}" eliminado.`);
+    } catch {
+      setErrMsg('No se pudo eliminar el equipo. Verifica tus permisos.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // --- Player Edit / Delete handlers ---
+  const openEditPlayer = (pl: Player) => {
+    setEditingPlayer(pl);
+    setEplTeamId(pl.teamId);
+    setEplName(pl.fullName);
+    setEplNumber(pl.jerseyNumber);
+    setEplPosition(pl.position);
+    setEplBirthYear(pl.birthYear ?? 2002);
+    setEplActive(Boolean(pl.active));
+  };
+
+  const handleSaveEditPlayer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile || !editingPlayer || !eplName.trim()) return;
+    const targetTeam = teamMap.get(eplTeamId) || teamMap.get(editingPlayer.teamId);
+    setSaving(true);
+    setMsg(null);
+    setErrMsg(null);
+    try {
+      await saveEntityDoc(
+        'players',
+        editingPlayer.id,
+        {
+          tournamentId: editingPlayer.tournamentId,
+          categoryId: targetTeam?.categoryId || editingPlayer.categoryId,
+          teamId: targetTeam?.id || editingPlayer.teamId,
+          fullName: eplName.trim().slice(0, 120),
+          jerseyNumber: Math.max(0, Math.min(99, Math.round(Number(eplNumber)))),
+          position: eplPosition,
+          birthYear: Math.round(Number(eplBirthYear)),
+          active: eplActive,
+        },
+        false
+      );
+      await createAuditLog({
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+        action: 'UPDATE_PLAYER',
+        entity: 'players',
+        entityId: editingPlayer.id,
+        summary: `Jugador actualizado: #${eplNumber} ${eplName.trim()} (${targetTeam?.name || ''}).`,
+      });
+      setEditingPlayer(null);
+      setMsg(`Jugador "${eplName.trim()}" actualizado.`);
+    } catch {
+      setErrMsg('No se pudo actualizar el jugador. Verifica tus permisos.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmDeletePlayer = async () => {
+    if (!profile || !deletingPlayer || !canDeleteEntity) return;
+    setSaving(true);
+    setMsg(null);
+    setErrMsg(null);
+    try {
+      await deleteEntityDoc('players', deletingPlayer.id);
+      await createAuditLog({
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+        action: 'DELETE_PLAYER',
+        entity: 'players',
+        entityId: deletingPlayer.id,
+        summary: `Jugador eliminado: #${deletingPlayer.jerseyNumber} ${deletingPlayer.fullName}.`,
+      });
+      setDeletingPlayer(null);
+      setMsg(`Jugador "${deletingPlayer.fullName}" eliminado.`);
+    } catch {
+      setErrMsg('No se pudo eliminar el jugador. Verifica tus permisos.');
     } finally {
       setSaving(false);
     }
@@ -461,29 +766,53 @@ export function TeamsPlayersPage() {
             </form>
           )}
 
-          <div className={`${canManage ? 'lg:col-span-8' : 'lg:col-span-12'} grid grid-cols-1 md:grid-cols-2 gap-4`}>
+          <div className={`${canManage ? 'lg:col-span-8' : 'lg:col-span-12'} grid grid-cols-1 md:grid-cols-2 gap-4 h-fit`}>
             {categories.map((c) => (
               <div
                 key={c.id}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 transition-colors"
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-2 transition-colors"
               >
-                <div className="flex items-center justify-between">
-                  <h3 className="font-display font-semibold text-slate-900 dark:text-white">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-display font-semibold text-slate-900 dark:text-white truncate">
                     {c.name}
                   </h3>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">
                     {c.branchName || 'General'}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   {tournamentMap.get(c.tournamentId)?.name || c.tournamentId}
                 </p>
-                <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
                   <span className="font-mono tabular-nums">
                     {teams.filter((t) => t.categoryId === c.id).length} equipos
                   </span>
                   <span>{c.schedulePublished ? 'Calendario publicado' : 'Sin publicar'}</span>
                 </div>
+                {(canManage || canDeleteEntity) && (
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+                    {canManage && (
+                      <button
+                        type="button"
+                        onClick={() => openEditCategory(c)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        Editar
+                      </button>
+                    )}
+                    {canDeleteEntity && (
+                      <button
+                        type="button"
+                        onClick={() => setDeletingCategory(c)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Eliminar
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -692,23 +1021,45 @@ export function TeamsPlayersPage() {
                   </div>
 
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                    {canManage && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (isEditingLogo) {
-                            setEditingLogoTeamId(null);
-                          } else {
-                            setEditingLogoTeamId(tm.id);
-                            setEditLogoUrl(tm.crestUrl || '');
-                          }
-                        }}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
-                      >
-                        <ImageIcon className="w-3.5 h-3.5 text-electric-500" />
-                        {tm.crestUrl ? 'Cambiar logo' : 'Agregar logo'}
-                      </button>
-                    )}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {canManage && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEditTeam(tm)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isEditingLogo) {
+                                setEditingLogoTeamId(null);
+                              } else {
+                                setEditingLogoTeamId(tm.id);
+                                setEditLogoUrl(tm.crestUrl || '');
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5 text-electric-500" />
+                            {tm.crestUrl ? 'Logo' : 'Agregar logo'}
+                          </button>
+                        </>
+                      )}
+                      {canDeleteEntity && (
+                        <button
+                          type="button"
+                          onClick={() => setDeletingTeam(tm)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
 
                     <button
                       type="button"
@@ -899,6 +1250,9 @@ export function TeamsPlayersPage() {
                     <th className="py-2.5 px-4 text-left font-medium">Posición</th>
                     <th className="py-2.5 px-4 text-left font-medium">Equipo</th>
                     <th className="py-2.5 px-4 text-right font-medium">Año</th>
+                    {(canManage || canDeleteEntity) && (
+                      <th className="py-2.5 px-4 text-right font-medium">Acciones</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -919,10 +1273,642 @@ export function TeamsPlayersPage() {
                       <td className="py-2.5 px-4 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
                         {pl.birthYear || '-'}
                       </td>
+                      {(canManage || canDeleteEntity) && (
+                        <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5">
+                            {canManage && (
+                              <button
+                                type="button"
+                                onClick={() => openEditPlayer(pl)}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700"
+                              >
+                                <Edit3 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                Editar
+                              </button>
+                            )}
+                            {canDeleteEntity && (
+                              <button
+                                type="button"
+                                onClick={() => setDeletingPlayer(pl)}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Eliminar
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Categoría */}
+      {canManage && editingCategory && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveEditCategory}
+            className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4"
+          >
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h3 className="font-display font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                  <Edit3 className="w-4 h-4 text-amber-500" />
+                  Editar Categoría
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Torneo: {tournamentMap.get(editingCategory.tournamentId)?.name || editingCategory.tournamentId}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingCategory(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Rama
+              </label>
+              <select
+                value={ecBranchId}
+                onChange={(e) => setEcBranchId(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+              >
+                <option value="branch_varonil">Varonil</option>
+                <option value="branch_femenil">Femenil</option>
+                <option value="branch_mixta">Mixta</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Nombre de Categoría
+              </label>
+              <input
+                type="text"
+                required
+                minLength={2}
+                maxLength={100}
+                value={ecName}
+                onChange={(e) => setEcName(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Edad mín.
+                </label>
+                <input
+                  type="number"
+                  value={ecMinAge}
+                  onChange={(e) => setEcMinAge(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Edad máx.
+                </label>
+                <input
+                  type="number"
+                  value={ecMaxAge}
+                  onChange={(e) => setEcMaxAge(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
+                />
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={ecPublished}
+                onChange={(e) => setEcPublished(e.target.checked)}
+              />
+              Calendario visible en Portal Público
+            </label>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setEditingCategory(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-4 py-2 bg-electric-500 hover:bg-electric-600 disabled:opacity-60 text-white text-xs font-semibold rounded-lg"
+              >
+                {saving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal Confirmar Eliminación de Categoría */}
+      {canDeleteEntity && deletingCategory && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base text-slate-900 dark:text-white">
+                    Eliminar Categoría
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Confirma la eliminación permanente.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingCategory(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-3.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 text-xs space-y-1">
+              <p className="font-semibold text-slate-900 dark:text-white">
+                {deletingCategory.name} ({deletingCategory.branchName || 'General'})
+              </p>
+              <p className="text-slate-600 dark:text-slate-300">
+                Equipos inscritos en esta categoría:{' '}
+                {teams.filter((t) => t.categoryId === deletingCategory.id).length}.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setDeletingCategory(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleConfirmDeleteCategory}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {saving ? 'Eliminando...' : 'Eliminar categoría'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Equipo */}
+      {canManage && editingTeam && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveEditTeam}
+            className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h3 className="font-display font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                  <Edit3 className="w-4 h-4 text-amber-500" />
+                  Editar Equipo
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Torneo: {tournamentMap.get(editingTeam.tournamentId)?.name || editingTeam.tournamentId}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingTeam(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Categoría
+              </label>
+              <select
+                value={etmCategoryId}
+                onChange={(e) => setEtmCategoryId(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+              >
+                {categories
+                  .filter((c) => c.tournamentId === editingTeam.tournamentId)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.branchName || 'General'})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Nombre
+                </label>
+                <input
+                  type="text"
+                  required
+                  minLength={2}
+                  maxLength={100}
+                  value={etmName}
+                  onChange={(e) => setEtmName(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Siglas
+                </label>
+                <input
+                  type="text"
+                  required
+                  minLength={2}
+                  maxLength={6}
+                  value={etmCode}
+                  onChange={(e) => setEtmCode(e.target.value.toUpperCase())}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono uppercase"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Director Técnico
+              </label>
+              <input
+                type="text"
+                maxLength={100}
+                value={etmCoach}
+                onChange={(e) => setEtmCoach(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+              />
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <TeamCrest
+                    name={etmName || editingTeam.name}
+                    shortCode={etmCode || editingTeam.shortCode}
+                    crestUrl={etmLogoUrl.trim() || undefined}
+                    size="lg"
+                  />
+                  <div>
+                    <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                      Logotipo Oficial
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Sube una nueva imagen o pega URL
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <input
+                    ref={editTeamLogoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    onChange={handleEditTeamLogoFileChange}
+                    className="hidden"
+                    id="edit-team-logo-upload"
+                  />
+                  <label
+                    htmlFor="edit-team-logo-upload"
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 cursor-pointer ${
+                      etmUploadingLogo ? 'opacity-60 pointer-events-none' : ''
+                    }`}
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    {etmUploadingLogo ? 'Subiendo...' : 'Subir'}
+                  </label>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  maxLength={500}
+                  value={etmLogoUrl}
+                  onChange={(e) => setEtmLogoUrl(e.target.value)}
+                  placeholder="https://.../escudo.png"
+                  className="flex-1 px-2.5 py-1.5 text-xs font-mono border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                />
+                {etmLogoUrl.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setEtmLogoUrl('')}
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                    title="Quitar logotipo"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={etmActive}
+                onChange={(e) => setEtmActive(e.target.checked)}
+              />
+              Equipo activo en competencia
+            </label>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setEditingTeam(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={saving || etmUploadingLogo}
+                className="px-4 py-2 bg-electric-500 hover:bg-electric-600 disabled:opacity-60 text-white text-xs font-semibold rounded-lg"
+              >
+                {saving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal Confirmar Eliminación de Equipo */}
+      {canDeleteEntity && deletingTeam && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base text-slate-900 dark:text-white">
+                    Eliminar Equipo
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Confirma la baja permanente del equipo.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingTeam(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-3.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 flex items-center gap-3 text-xs">
+              <TeamCrest
+                name={deletingTeam.name}
+                shortCode={deletingTeam.shortCode}
+                crestUrl={deletingTeam.crestUrl}
+                size="md"
+              />
+              <div>
+                <p className="font-semibold text-slate-900 dark:text-white">
+                  {deletingTeam.name} ({deletingTeam.shortCode})
+                </p>
+                <p className="text-slate-600 dark:text-slate-300">
+                  Jugadores registrados: {players.filter((p) => p.teamId === deletingTeam.id).length}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setDeletingTeam(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleConfirmDeleteTeam}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {saving ? 'Eliminando...' : 'Eliminar equipo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Jugador */}
+      {canManage && editingPlayer && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveEditPlayer}
+            className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4"
+          >
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h3 className="font-display font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                  <Edit3 className="w-4 h-4 text-amber-500" />
+                  Editar Jugador
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Torneo: {tournamentMap.get(editingPlayer.tournamentId)?.name || editingPlayer.tournamentId}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingPlayer(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Equipo
+              </label>
+              <select
+                value={eplTeamId}
+                onChange={(e) => setEplTeamId(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+              >
+                {teams
+                  .filter((tm) => tm.tournamentId === editingPlayer.tournamentId)
+                  .map((tm) => (
+                    <option key={tm.id} value={tm.id}>
+                      {tm.name} ({categoryMap.get(tm.categoryId)?.name})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Nombre completo
+              </label>
+              <input
+                type="text"
+                required
+                minLength={2}
+                maxLength={120}
+                value={eplName}
+                onChange={(e) => setEplName(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Dorsal
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  value={eplNumber}
+                  onChange={(e) => setEplNumber(Number(e.target.value))}
+                  className="w-full px-2.5 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Posición
+                </label>
+                <select
+                  value={eplPosition}
+                  onChange={(e) => setEplPosition(e.target.value as PlayerPosition)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                >
+                  <option value="Portero">Portero</option>
+                  <option value="Defensa">Defensa</option>
+                  <option value="Mediocampista">Mediocampista</option>
+                  <option value="Delantero">Delantero</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 items-center">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Año nacimiento
+                </label>
+                <input
+                  type="number"
+                  min={1950}
+                  max={2022}
+                  value={eplBirthYear}
+                  onChange={(e) => setEplBirthYear(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 pt-5">
+                <input
+                  type="checkbox"
+                  checked={eplActive}
+                  onChange={(e) => setEplActive(e.target.checked)}
+                />
+                Jugador activo
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setEditingPlayer(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-4 py-2 bg-electric-500 hover:bg-electric-600 disabled:opacity-60 text-white text-xs font-semibold rounded-lg"
+              >
+                {saving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal Confirmar Eliminación de Jugador */}
+      {canDeleteEntity && deletingPlayer && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base text-slate-900 dark:text-white">
+                    Eliminar Jugador
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Confirma la baja permanente del plantel.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingPlayer(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-3.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 text-xs space-y-1">
+              <p className="font-semibold text-slate-900 dark:text-white">
+                #{deletingPlayer.jerseyNumber} {deletingPlayer.fullName}
+              </p>
+              <p className="text-slate-600 dark:text-slate-300">
+                {deletingPlayer.position} · {teamMap.get(deletingPlayer.teamId)?.name || deletingPlayer.teamId}
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setDeletingPlayer(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleConfirmDeletePlayer}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {saving ? 'Eliminando...' : 'Eliminar jugador'}
+              </button>
             </div>
           </div>
         </div>

@@ -4,12 +4,14 @@ import {
   ArrowDown,
   ArrowUp,
   CheckCircle2,
+  Edit3,
   RotateCcw,
   Scale,
   Settings2,
   SlidersHorizontal,
   Trash2,
   Trophy,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
@@ -17,6 +19,7 @@ import { TIEBREAKER_LABELS } from '../engines/sportsCatalog';
 import {
   deleteTournamentSportRule,
   saveTournamentSportRule,
+  updateBaseSportRule,
 } from '../services/firestoreService';
 import {
   ROLE_PERMISSIONS,
@@ -70,6 +73,19 @@ export function RulesConfigPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+
+  // Edit base rule & delete any rule from stored table
+  const [editingBaseRule, setEditingBaseRule] = useState<SportRule | null>(null);
+  const [baseRuleName, setBaseRuleName] = useState('');
+  const [baseWinPoints, setBaseWinPoints] = useState(3);
+  const [baseDrawPoints, setBaseDrawPoints] = useState(1);
+  const [baseLossPoints, setBaseLossPoints] = useState(0);
+  const [baseTiebreakers, setBaseTiebreakers] = useState<TiebreakerCriterion[]>([...ALL_TIEBREAKERS]);
+  const [baseMinRestHours, setBaseMinRestHours] = useState(24);
+  const [baseMatchDuration, setBaseMatchDuration] = useState(90);
+  const [baseMaxPlayers, setBaseMaxPlayers] = useState(11);
+  const [baseYellowCards, setBaseYellowCards] = useState(5);
+  const [deletingTableRule, setDeletingTableRule] = useState<SportRule | null>(null);
 
   const activeTournament = useMemo(
     () => tournaments.find((t) => t.id === selectedTournamentId) || tournaments[0],
@@ -248,6 +264,103 @@ export function RulesConfigPage() {
     }
   };
 
+  const openEditBaseRule = (rule: SportRule) => {
+    setEditingBaseRule(rule);
+    setBaseRuleName(rule.name);
+    setBaseWinPoints(rule.winPoints);
+    setBaseDrawPoints(rule.drawPoints);
+    setBaseLossPoints(rule.lossPoints);
+    setBaseTiebreakers(
+      rule.tiebreakers?.length ? [...rule.tiebreakers] : [...ALL_TIEBREAKERS]
+    );
+    setBaseMinRestHours(rule.minRestHours ?? 24);
+    setBaseMatchDuration(rule.matchDurationMinutes ?? 90);
+    setBaseMaxPlayers(rule.maxPlayersOnField ?? 11);
+    setBaseYellowCards(rule.yellowCardsSuspensionLimit ?? 5);
+    setMsg(null);
+    setErrMsg(null);
+  };
+
+  const toggleBaseTiebreaker = (crit: TiebreakerCriterion) => {
+    setBaseTiebreakers((prev) => {
+      if (prev.includes(crit)) {
+        if (prev.length <= 1) return prev;
+        return prev.filter((c) => c !== crit);
+      }
+      return [...prev, crit];
+    });
+  };
+
+  const moveBaseTiebreaker = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= baseTiebreakers.length) return;
+    setBaseTiebreakers((prev) => {
+      const copy = [...prev];
+      const [item] = copy.splice(index, 1);
+      copy.splice(target, 0, item);
+      return copy;
+    });
+  };
+
+  const handleSaveBaseRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile || !canManageRules || !editingBaseRule) return;
+    const trimmed = baseRuleName.trim();
+    if (trimmed.length < 2) {
+      setErrMsg('El nombre del reglamento base debe tener al menos 2 caracteres.');
+      return;
+    }
+    setSaving(true);
+    setMsg(null);
+    setErrMsg(null);
+    try {
+      await updateBaseSportRule({
+        rule: editingBaseRule,
+        name: trimmed,
+        winPoints: Math.min(10, Math.max(0, Math.round(Number(baseWinPoints)))),
+        drawPoints: Math.min(10, Math.max(0, Math.round(Number(baseDrawPoints)))),
+        lossPoints: Math.min(10, Math.max(0, Math.round(Number(baseLossPoints)))),
+        tiebreakers: baseTiebreakers,
+        minRestHours: Math.min(240, Math.max(0, Math.round(Number(baseMinRestHours)))),
+        matchDurationMinutes: Math.min(300, Math.max(10, Math.round(Number(baseMatchDuration)))),
+        maxPlayersOnField: Math.min(50, Math.max(1, Math.round(Number(baseMaxPlayers)))),
+        yellowCardsSuspensionLimit: Math.min(20, Math.max(0, Math.round(Number(baseYellowCards)))),
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+      });
+      setMsg(`Reglamento base "${trimmed}" actualizado correctamente.`);
+      setEditingBaseRule(null);
+    } catch {
+      setErrMsg('No se pudo actualizar el reglamento base.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmDeleteTableRule = async () => {
+    if (!profile || !canManageRules || !deletingTableRule) return;
+    setSaving(true);
+    setMsg(null);
+    setErrMsg(null);
+    try {
+      const scopeLabel = deletingTableRule.tournamentId
+        ? tournaments.find((t) => t.id === deletingTableRule.tournamentId)?.name || deletingTableRule.name
+        : deletingTableRule.name;
+      await deleteTournamentSportRule({
+        ruleId: deletingTableRule.id,
+        tournamentName: scopeLabel,
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+      });
+      setDeletingTableRule(null);
+      setMsg(`Reglamento "${scopeLabel}" eliminado de sportRules.`);
+    } catch {
+      setErrMsg('No se pudo eliminar el reglamento seleccionado.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const tournamentRules = useMemo(
     () => sportRules.filter((r) => Boolean(r.tournamentId)),
     [sportRules]
@@ -359,6 +472,7 @@ export function RulesConfigPage() {
 
           {/* Rule Configuration Form */}
           <form
+            id="rule-editor-panel"
             onSubmit={handleSaveRule}
             className="lg:col-span-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 sm:p-6 space-y-6 transition-colors"
           >
@@ -722,6 +836,9 @@ export function RulesConfigPage() {
                   <th className="py-3 px-4 text-left font-semibold">Puntuación (V / E / D)</th>
                   <th className="py-3 px-4 text-left font-semibold">Orden de Desempate</th>
                   <th className="py-3 px-4 text-right font-semibold">Descanso</th>
+                  {canManageRules && (
+                    <th className="py-3 px-4 text-right font-semibold">Acciones</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -768,6 +885,42 @@ export function RulesConfigPage() {
                       <td className="py-3 px-4 text-right font-mono text-xs text-slate-600 dark:text-slate-300 tabular-nums">
                         {rule.minRestHours} h
                       </td>
+                      {canManageRules && (
+                        <td
+                          className="py-3 px-4 text-right whitespace-nowrap"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => {
+                                if (trn) {
+                                  setSelectedTournamentId(trn.id);
+                                  document
+                                    .getElementById('rule-editor-panel')
+                                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                } else {
+                                  openEditBaseRule(rule);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-navy-900 dark:text-blue-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => setDeletingTableRule(rule)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Eliminar
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -776,6 +929,286 @@ export function RulesConfigPage() {
           </div>
         )}
       </div>
+
+      {/* Modal Editar Reglamento Base de Disciplina */}
+      {canManageRules && editingBaseRule && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveBaseRule}
+            className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h3 className="font-display font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                  <Edit3 className="w-4 h-4 text-electric-500" />
+                  Editar Reglamento Base de Disciplina
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Disciplina: {sports.find((s) => s.id === editingBaseRule.sportId)?.name || editingBaseRule.sportId}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingBaseRule(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Nombre del Reglamento
+              </label>
+              <input
+                type="text"
+                required
+                maxLength={120}
+                value={baseRuleName}
+                onChange={(e) => setBaseRuleName(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Victoria (pts)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  required
+                  value={baseWinPoints}
+                  onChange={(e) => setBaseWinPoints(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm font-mono font-bold border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Empate (pts)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  required
+                  value={baseDrawPoints}
+                  onChange={(e) => setBaseDrawPoints(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm font-mono font-bold border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400 tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Derrota (pts)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  required
+                  value={baseLossPoints}
+                  onChange={(e) => setBaseLossPoints(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm font-mono font-bold border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 tabular-nums"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                Criterios de Desempate
+              </label>
+              <div className="space-y-1.5">
+                {baseTiebreakers.map((crit, idx) => (
+                  <div
+                    key={crit}
+                    className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60"
+                  >
+                    <label className="flex items-center gap-2 text-xs font-medium text-slate-800 dark:text-slate-100 cursor-pointer flex-1">
+                      <span className="font-mono font-bold text-navy-900 dark:text-blue-400">
+                        {idx + 1}.
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked
+                        disabled={baseTiebreakers.length <= 1}
+                        onChange={() => toggleBaseTiebreaker(crit)}
+                      />
+                      <span>{TIEBREAKER_LABELS[crit]}</span>
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => moveBaseTiebreaker(idx, -1)}
+                        className="p-1 rounded border border-slate-200 dark:border-slate-700 disabled:opacity-35"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === baseTiebreakers.length - 1}
+                        onClick={() => moveBaseTiebreaker(idx, 1)}
+                        className="p-1 rounded border border-slate-200 dark:border-slate-700 disabled:opacity-35"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {ALL_TIEBREAKERS.filter((c) => !baseTiebreakers.includes(c)).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {ALL_TIEBREAKERS.filter((c) => !baseTiebreakers.includes(c)).map((crit) => (
+                      <button
+                        key={crit}
+                        type="button"
+                        onClick={() => toggleBaseTiebreaker(crit)}
+                        className="px-2.5 py-1 text-[11px] rounded-md border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-electric-500"
+                      >
+                        + {TIEBREAKER_LABELS[crit]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Descanso (hrs)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={240}
+                  value={baseMinRestHours}
+                  onChange={(e) => setBaseMinRestHours(Number(e.target.value))}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Duración (min)
+                </label>
+                <input
+                  type="number"
+                  min={10}
+                  max={300}
+                  value={baseMatchDuration}
+                  onChange={(e) => setBaseMatchDuration(Number(e.target.value))}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Jugadores cancha
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={baseMaxPlayers}
+                  onChange={(e) => setBaseMaxPlayers(Number(e.target.value))}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Límite amarillas
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={20}
+                  value={baseYellowCards}
+                  onChange={(e) => setBaseYellowCards(Number(e.target.value))}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setEditingBaseRule(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-electric-500 hover:bg-electric-600 disabled:opacity-60 text-white text-xs font-semibold rounded-lg"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {saving ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal Confirmar Eliminación de Reglamento */}
+      {canManageRules && deletingTableRule && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base text-slate-900 dark:text-white">
+                    Eliminar Reglamento
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Esta acción elimina el documento de sportRules y quedará auditada.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingTableRule(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 text-xs space-y-1">
+              <p className="font-semibold text-slate-900 dark:text-white">
+                {deletingTableRule.name}
+              </p>
+              <p className="text-slate-600 dark:text-slate-300 font-mono">
+                {deletingTableRule.winPoints}V / {deletingTableRule.drawPoints}E / {deletingTableRule.lossPoints}D
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setDeletingTableRule(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleConfirmDeleteTableRule}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {saving ? 'Eliminando...' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

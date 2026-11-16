@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ClipboardEdit,
   Clock,
+  Edit3,
   FileDown,
   Flag,
   Lock,
@@ -131,6 +132,7 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
   const [evSubOutId, setEvSubOutId] = useState<string>('');
   const [evStarter, setEvStarter] = useState<boolean>(true);
   const [evMinPlayed, setEvMinPlayed] = useState<number>(90);
+  const [editingEventIndex, setEditingEventIndex] = useState<number | null>(null);
 
   const [busyMode, setBusyMode] = useState<'en_juego' | 'borrador' | 'pendiente' | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -262,6 +264,7 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
     setEvPlayerId('');
     setEvAssistId('');
     setEvSubOutId('');
+    setEditingEventIndex(null);
   }, [activeMatch?.id]);
 
   const matchTeamPlayers = useMemo(() => {
@@ -294,6 +297,29 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
     return { goals, yellows, reds, subs };
   }, [draftEvents]);
 
+  const handleStartEditEvent = (index: number) => {
+    const ev = draftEvents[index];
+    if (!ev || !isEditable) return;
+    setEditingEventIndex(index);
+    setEvTeamId(ev.teamId);
+    setEvPlayerId(ev.playerId);
+    setEvType(ev.eventType);
+    setEvGoalType(ev.goalType || 'Normal');
+    setEvMinute(ev.minute);
+    setEvAssistId(ev.assistPlayerId || '');
+    setEvSubOutId(ev.subOutPlayerId || '');
+    setEvStarter(ev.isStarter ?? true);
+    setEvMinPlayed(ev.minutesPlayed ?? 90);
+    setErrorMsg(null);
+  };
+
+  const handleCancelEditEvent = () => {
+    setEditingEventIndex(null);
+    setEvPlayerId('');
+    setEvAssistId('');
+    setEvSubOutId('');
+  };
+
   const handleAddEvent = () => {
     if (!activeMatch || !isEditable) return;
     setErrorMsg(null);
@@ -304,28 +330,34 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
       return;
     }
     const cleanMin = Math.max(0, Math.min(150, Number(evMinute) || 0));
-    setDraftEvents((prev) => [
-      ...prev,
-      {
-        teamId: tid,
-        playerId: pid,
-        eventType: evType,
-        goalType:
-          evType === 'gol' || evType === 'penal' || evType === 'autogol'
-            ? evGoalType
-            : undefined,
-        minute: cleanMin,
-        assistPlayerId:
-          (evType === 'gol' || evType === 'penal') && evAssistId ? evAssistId : undefined,
-        subOutPlayerId:
-          evType === 'sustitucion' && evSubOutId ? evSubOutId : undefined,
-        isStarter: evType === 'participacion' ? evStarter : undefined,
-        minutesPlayed:
-          evType === 'participacion'
-            ? Math.max(0, Math.min(150, Number(evMinPlayed) || 0))
-            : undefined,
-      },
-    ]);
+    const nextItem: DraftEvent = {
+      teamId: tid,
+      playerId: pid,
+      eventType: evType,
+      goalType:
+        evType === 'gol' || evType === 'penal' || evType === 'autogol'
+          ? evGoalType
+          : undefined,
+      minute: cleanMin,
+      assistPlayerId:
+        (evType === 'gol' || evType === 'penal') && evAssistId ? evAssistId : undefined,
+      subOutPlayerId:
+        evType === 'sustitucion' && evSubOutId ? evSubOutId : undefined,
+      isStarter: evType === 'participacion' ? evStarter : undefined,
+      minutesPlayed:
+        evType === 'participacion'
+          ? Math.max(0, Math.min(150, Number(evMinPlayed) || 0))
+          : undefined,
+    };
+
+    if (editingEventIndex !== null) {
+      setDraftEvents((prev) =>
+        prev.map((item, idx) => (idx === editingEventIndex ? nextItem : item))
+      );
+      setEditingEventIndex(null);
+    } else {
+      setDraftEvents((prev) => [...prev, nextItem]);
+    }
     setEvAssistId('');
     setEvSubOutId('');
   };
@@ -871,6 +903,18 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                           }}
                           className="w-14 text-center py-1 text-sm border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
                         />
+                        {isEditable && idx >= 2 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPeriodScores((prev) => prev.filter((_, pIdx) => pIdx !== idx))
+                            }
+                            aria-label={`Eliminar ${ps.period}`}
+                            className="p-1 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1056,14 +1100,29 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                       </>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={handleAddEvent}
-                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Agregar incidencia
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleAddEvent}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg transition-colors"
+                      >
+                        {editingEventIndex !== null ? (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <Plus className="w-3.5 h-3.5" />
+                        )}
+                        {editingEventIndex !== null ? 'Actualizar incidencia' : 'Agregar incidencia'}
+                      </button>
+                      {editingEventIndex !== null && (
+                        <button
+                          type="button"
+                          onClick={handleCancelEditEvent}
+                          className="px-2.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1107,7 +1166,9 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                       return (
                         <div
                           key={i}
-                          className="px-3 py-2 flex items-center justify-between gap-2 text-xs"
+                          className={`px-3 py-2 flex items-center justify-between gap-2 text-xs ${
+                            editingEventIndex === i ? 'bg-blue-50/70 dark:bg-blue-950/30' : ''
+                          }`}
                         >
                           <div className="flex flex-wrap items-center gap-2 min-w-0">
                             <span className="font-mono font-bold text-navy-900 dark:text-blue-400 tabular-nums">
@@ -1142,16 +1203,32 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                             )}
                           </div>
                           {isEditable && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setDraftEvents((prev) => prev.filter((_, idx) => idx !== i))
-                              }
-                              aria-label="Eliminar incidencia"
-                              className="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300 shrink-0"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="inline-flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditEvent(i)}
+                                aria-label="Editar incidencia"
+                                title="Editar incidencia"
+                                className="text-navy-900 dark:text-blue-300 hover:text-electric-600 dark:hover:text-blue-200"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (editingEventIndex === i) handleCancelEditEvent();
+                                  else if (editingEventIndex !== null && i < editingEventIndex) {
+                                    setEditingEventIndex(editingEventIndex - 1);
+                                  }
+                                  setDraftEvents((prev) => prev.filter((_, idx) => idx !== i));
+                                }}
+                                aria-label="Eliminar incidencia"
+                                title="Eliminar incidencia"
+                                className="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           )}
                         </div>
                       );

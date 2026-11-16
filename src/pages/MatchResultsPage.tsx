@@ -3,11 +3,13 @@ import {
   AlertCircle,
   CheckCircle2,
   ClipboardCheck,
+  Edit3,
   FileDown,
   History,
   Plus,
   Send,
   Trash2,
+  X,
   XCircle,
 } from 'lucide-react';
 import { exportMatchSheetPdf } from '../engines/exportEngine';
@@ -20,6 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
 import {
   approveOrRejectMatchResult,
+  deleteMatchResultActa,
   submitMatchSheetForValidation,
 } from '../services/firestoreService';
 import {
@@ -78,6 +81,8 @@ export function MatchResultsPage() {
   const [evAssistId, setEvAssistId] = useState('');
   const [evStarter, setEvStarter] = useState(true);
   const [evMinPlayed, setEvMinPlayed] = useState(90);
+  const [editingEventIndex, setEditingEventIndex] = useState<number | null>(null);
+  const [confirmDeleteActa, setConfirmDeleteActa] = useState(false);
 
   const [correctionReason, setCorrectionReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -86,6 +91,7 @@ export function MatchResultsPage() {
 
   const canSubmit = ROLE_PERMISSIONS.canSubmitMatchSheet(role);
   const canValidate = ROLE_PERMISSIONS.canValidateResults(role);
+  const canDeleteActa = role === 'admin_general';
 
   const teamMap = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
@@ -141,6 +147,10 @@ export function MatchResultsPage() {
       }))
     );
     setEvTeamId(m.homeTeamId);
+    setEvPlayerId('');
+    setEvAssistId('');
+    setEditingEventIndex(null);
+    setConfirmDeleteActa(false);
   };
 
   useEffect(() => {
@@ -153,6 +163,27 @@ export function MatchResultsPage() {
     return players.filter((p) => p.teamId === tid);
   }, [players, evTeamId, activeMatch?.homeTeamId]);
 
+  const handleStartEditEvent = (index: number) => {
+    const ev = draftEvents[index];
+    if (!ev) return;
+    setEditingEventIndex(index);
+    setEvTeamId(ev.teamId);
+    setEvPlayerId(ev.playerId);
+    setEvType(ev.eventType);
+    setEvGoalType(ev.goalType || 'Normal');
+    setEvMinute(ev.minute);
+    setEvAssistId(ev.assistPlayerId || '');
+    setEvStarter(ev.isStarter ?? true);
+    setEvMinPlayed(ev.minutesPlayed ?? 90);
+    setErrorMsg(null);
+  };
+
+  const handleCancelEditEvent = () => {
+    setEditingEventIndex(null);
+    setEvPlayerId('');
+    setEvAssistId('');
+  };
+
   const handleAddEvent = () => {
     if (!activeMatch) return;
     const tid = evTeamId || activeMatch.homeTeamId;
@@ -161,19 +192,27 @@ export function MatchResultsPage() {
       setFeedback('Registra jugadores en este equipo antes de capturar eventos individuales.');
       return;
     }
-    setDraftEvents((prev) => [
-      ...prev,
-      {
-        teamId: tid,
-        playerId: pid,
-        eventType: evType,
-        goalType: evType === 'gol' || evType === 'penal' || evType === 'autogol' ? evGoalType : undefined,
-        minute: Number(evMinute),
-        assistPlayerId: evAssistId || undefined,
-        isStarter: evType === 'participacion' ? evStarter : undefined,
-        minutesPlayed: evType === 'participacion' ? Number(evMinPlayed) : undefined,
-      },
-    ]);
+    const nextItem: DraftEvent = {
+      teamId: tid,
+      playerId: pid,
+      eventType: evType,
+      goalType: evType === 'gol' || evType === 'penal' || evType === 'autogol' ? evGoalType : undefined,
+      minute: Number(evMinute),
+      assistPlayerId: evAssistId || undefined,
+      isStarter: evType === 'participacion' ? evStarter : undefined,
+      minutesPlayed: evType === 'participacion' ? Number(evMinPlayed) : undefined,
+    };
+
+    if (editingEventIndex !== null) {
+      setDraftEvents((prev) =>
+        prev.map((item, idx) => (idx === editingEventIndex ? nextItem : item))
+      );
+      setEditingEventIndex(null);
+      setEvAssistId('');
+    } else {
+      setDraftEvents((prev) => [...prev, nextItem]);
+      setEvAssistId('');
+    }
   };
 
   const handleSubmitSheet = async (e: React.FormEvent) => {
@@ -250,6 +289,38 @@ export function MatchResultsPage() {
       );
     } catch {
       setErrorMsg('No se pudo validar el resultado. Verifica tus permisos e intenta nuevamente.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConfirmDeleteActa = async () => {
+    if (!profile || !canDeleteActa || !activeMatch || !existingResult) return;
+    setBusy(true);
+    setFeedback(null);
+    setErrorMsg(null);
+    try {
+      await deleteMatchResultActa({
+        match: activeMatch,
+        result: existingResult,
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+      });
+      setHomeScore(0);
+      setAwayScore(0);
+      setPeriodScores([
+        { period: '1er Tiempo', home: 0, away: 0 },
+        { period: '2do Tiempo', home: 0, away: 0 },
+      ]);
+      setObservations('');
+      setDraftEvents([]);
+      setEditingEventIndex(null);
+      setConfirmDeleteActa(false);
+      setFeedback(
+        `Acta digital del partido #${activeMatch.matchNumber} eliminada. El encuentro regresó a estado Programado.`
+      );
+    } catch {
+      setErrorMsg('No se pudo eliminar el acta digital. Verifica tus permisos de Administrador General.');
     } finally {
       setBusy(false);
     }
@@ -412,14 +483,27 @@ export function MatchResultsPage() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleDownloadActaPdf}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 shrink-0"
-                >
-                  <FileDown className="w-4 h-4 text-red-600 dark:text-red-400" />
-                  Descargar Acta PDF
-                </button>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleDownloadActaPdf}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
+                  >
+                    <FileDown className="w-4 h-4 text-red-600 dark:text-red-400" />
+                    Descargar Acta PDF
+                  </button>
+                  {canDeleteActa && existingResult && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setConfirmDeleteActa(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/60"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Eliminar Acta
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Final Scoreboard */}
@@ -652,14 +736,29 @@ export function MatchResultsPage() {
                       </>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={handleAddEvent}
-                      className="mt-4 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Agregar al acta
-                    </button>
+                    <div className="flex items-center gap-1.5 mt-4">
+                      <button
+                        type="button"
+                        onClick={handleAddEvent}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg"
+                      >
+                        {editingEventIndex !== null ? (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <Plus className="w-3.5 h-3.5" />
+                        )}
+                        {editingEventIndex !== null ? 'Actualizar evento' : 'Agregar al acta'}
+                      </button>
+                      {editingEventIndex !== null && (
+                        <button
+                          type="button"
+                          onClick={handleCancelEditEvent}
+                          className="px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -676,7 +775,12 @@ export function MatchResultsPage() {
                 ) : (
                   <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
                     {draftEvents.map((ev, i) => (
-                      <div key={i} className="px-3 py-2 flex items-center justify-between text-xs">
+                      <div
+                        key={i}
+                        className={`px-3 py-2 flex items-center justify-between text-xs ${
+                          editingEventIndex === i ? 'bg-blue-50/70 dark:bg-blue-950/30' : ''
+                        }`}
+                      >
                         <div className="flex items-center gap-2.5">
                           <span className="font-mono font-bold text-navy-900 dark:text-blue-400 tabular-nums">
                             {ev.minute}&apos;
@@ -695,15 +799,30 @@ export function MatchResultsPage() {
                           </span>
                         </div>
                         {canSubmit && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDraftEvents((prev) => prev.filter((_, idx) => idx !== i))
-                            }
-                            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="inline-flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditEvent(i)}
+                              title="Editar incidencia"
+                              className="text-navy-900 dark:text-blue-300 hover:text-electric-600 dark:hover:text-blue-200"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (editingEventIndex === i) handleCancelEditEvent();
+                                else if (editingEventIndex !== null && i < editingEventIndex) {
+                                  setEditingEventIndex(editingEventIndex - 1);
+                                }
+                                setDraftEvents((prev) => prev.filter((_, idx) => idx !== i));
+                              }}
+                              title="Eliminar incidencia"
+                              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -796,6 +915,67 @@ export function MatchResultsPage() {
           )}
         </div>
       </div>
+
+      {/* Modal Confirmar Eliminación de Acta */}
+      {canDeleteActa && confirmDeleteActa && activeMatch && existingResult && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base text-slate-900 dark:text-white">
+                    Eliminar Acta Digital
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Elimina el marcador registrado, incidencias y devuelve el partido a Programado.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteActa(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 text-xs space-y-1">
+              <p className="font-semibold text-slate-900 dark:text-white">
+                Partido #{activeMatch.matchNumber}:{' '}
+                {teamMap.get(activeMatch.homeTeamId)?.name || activeMatch.homeTeamId} vs{' '}
+                {teamMap.get(activeMatch.awayTeamId)?.name || activeMatch.awayTeamId}
+              </p>
+              <p className="font-mono text-rose-700 dark:text-rose-300">
+                Marcador actual: {existingResult.homeScore} - {existingResult.awayScore} ({existingMatchEvents.length} incidencias)
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirmDeleteActa(false)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleConfirmDeleteActa}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {busy ? 'Eliminando...' : 'Sí, eliminar acta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
