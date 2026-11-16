@@ -27,6 +27,8 @@ export interface GenerateFixtureOptions {
   referees: Referee[];
   minRestHours: number;
   startingMatchNumber?: number;
+  explicitFields?: boolean;
+  occupiedMatches?: Match[];
 }
 
 export interface GeneratedFixtureResult {
@@ -326,13 +328,20 @@ export function generateTournamentFixtures(opts: GenerateFixtureOptions): Genera
   }
 
   // Slot allocator respecting date range, allowed weekdays, field availability, simultaneous constraints, and minRestHours
-  const availableFields = opts.fields.filter((f) => f.status === 'disponible');
+  const availableFields = opts.explicitFields
+    ? opts.fields
+    : opts.fields.filter((f) => f.status === 'disponible');
   const activeReferees = opts.referees.filter((r) => r.status === 'activo');
   const defaultTimes =
     opts.defaultTimes.length > 0 ? opts.defaultTimes : ['09:00', '11:00', '13:00', '15:00'];
 
   const usedFieldSlots = new Set<string>(); // `${fieldId}|${date}|${time}`
   const usedRefereeSlots = new Set<string>(); // `${refId}|${date}|${time}`
+  for (const occ of opts.occupiedMatches || []) {
+    if (occ.status === 'Cancelado' || occ.status === 'Suspendido') continue;
+    if (occ.fieldId) usedFieldSlots.add(`${occ.fieldId}|${occ.date}|${occ.time}`);
+    if (occ.refereeId) usedRefereeSlots.add(`${occ.refereeId}|${occ.date}|${occ.time}`);
+  }
   const teamLastMatchMs = new Map<string, number>();
 
   let matchSeq = opts.startingMatchNumber || 1;
@@ -424,7 +433,7 @@ export function generateTournamentFixtures(opts: GenerateFixtureOptions): Genera
     // Candidate dates: prefer validDates starting at baseDateIdx (same weekend/upcoming valid weekdays inside range)
     const candidateDates: string[] =
       validDates.length > 0
-        ? validDates.slice(baseDateIdx, Math.min(validDates.length, baseDateIdx + 6))
+        ? validDates.slice(baseDateIdx, Math.min(validDates.length, baseDateIdx + 14))
         : [0, 1, 2, 3].map((d) => addDaysToIsoDate(baseRoundDate, d));
 
     let slotFound = false;
@@ -470,6 +479,25 @@ export function generateTournamentFixtures(opts: GenerateFixtureOptions): Genera
           chosenField = freeField;
           slotFound = true;
           break;
+        }
+      }
+    }
+
+    // Fallback pass for explicit field selection when configured field hours/days differ from selected hours
+    if (!slotFound && opts.explicitFields && availableFields.length > 0) {
+      for (const candidateDate of candidateDates) {
+        if (slotFound) break;
+        for (const candidateTime of defaultTimes) {
+          const freeField = availableFields.find(
+            (f) => !usedFieldSlots.has(`${f.id}|${candidateDate}|${candidateTime}`)
+          );
+          if (freeField) {
+            chosenDate = candidateDate;
+            chosenTime = candidateTime;
+            chosenField = freeField;
+            slotFound = true;
+            break;
+          }
         }
       }
     }

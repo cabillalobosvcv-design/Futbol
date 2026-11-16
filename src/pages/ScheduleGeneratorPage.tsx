@@ -10,6 +10,7 @@ import {
   Edit3,
   FileSpreadsheet,
   FileText,
+  MapPin,
   Plus,
   RefreshCw,
   Send,
@@ -38,9 +39,10 @@ import {
   sendNotification,
   updateRoundMatchesDate,
 } from '../services/firestoreService';
-import type { Match, MatchStage, MatchStatus, TournamentFormat } from '../types/sigd';
+import type { Field, Match, MatchStage, MatchStatus, TournamentFormat } from '../types/sigd';
 
 type ScheduleViewMode = 'rounds' | 'calendar' | 'category' | 'team' | 'field';
+type FieldAllocationMode = 'ask' | 'specific' | 'unassigned';
 
 const HOURLY_TIME_SLOTS = [
   '06:00',
@@ -74,8 +76,9 @@ const WEEKDAY_SHORT_LABELS: Record<string, string> = {
 };
 
 export function ScheduleGeneratorPage() {
-  const { profile } = useAuth();
-  const { organizations, tournaments, categories, teams, fields, referees, matches } = useSigdData();
+  const { profile, role } = useAuth();
+  const { organizations, tournaments, categories, teams, venues, fields, referees, matches } =
+    useSigdData();
 
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
@@ -90,6 +93,23 @@ export function ScheduleGeneratorPage() {
   const [selectedTimes, setSelectedTimes] = useState<string[]>(['09:00', '11:00', '13:00', '15:00']);
   const [formatOverride, setFormatOverride] = useState<TournamentFormat | ''>('');
   const [doubleRoundOverride, setDoubleRoundOverride] = useState(false);
+
+  // Specific Field Selection & Interactive Question Prompt
+  const [fieldMode, setFieldMode] = useState<FieldAllocationMode>('ask');
+  const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
+  const [fieldPromptModal, setFieldPromptModal] = useState<{
+    open: boolean;
+    replaceExisting: boolean;
+    mode: 'specific' | 'unassigned';
+    pickedFieldIds: string[];
+  } | null>(null);
+  const [showQuickFieldForm, setShowQuickFieldForm] = useState(false);
+  const [quickFieldName, setQuickFieldName] = useState('');
+  const [quickFieldVenueId, setQuickFieldVenueId] = useState('');
+  const [quickVenueName, setQuickVenueName] = useState('');
+  const [quickFieldSurface, setQuickFieldSurface] = useState('Pasto Sintético');
+
+  const canCreateField = role === 'admin_general' || role === 'admin_deportivo';
 
   // Confirm modal before modifying published calendar
   const [confirmPublishedModal, setConfirmPublishedModal] = useState<{
@@ -163,6 +183,7 @@ export function ScheduleGeneratorPage() {
   }, [matches, activeTournament, activeCategory, viewMode, filterTeamId, filterFieldId]);
 
   const teamMap = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
+  const venueMap = useMemo(() => new Map(venues.map((v) => [v.id, v])), [venues]);
   const fieldMap = useMemo(() => new Map(fields.map((f) => [f.id, f])), [fields]);
   const refMap = useMemo(() => new Map(referees.map((r) => [r.id, r])), [referees]);
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
@@ -216,10 +237,21 @@ export function ScheduleGeneratorPage() {
     [startDate, endDate, allowedWeekdays]
   );
 
+  const selectedSpecificFields = useMemo(
+    () => fields.filter((f) => selectedFieldIds.includes(f.id)),
+    [fields, selectedFieldIds]
+  );
+
   const dynamicPreview = useMemo(() => {
     if (!activeTournament || !activeCategory || categoryTeams.length < 2) {
       return null;
     }
+    const previewFields =
+      fieldMode === 'specific'
+        ? selectedSpecificFields
+        : fieldMode === 'unassigned'
+          ? []
+          : selectedSpecificFields;
     return generateTournamentFixtures({
       tournamentId: activeTournament.id,
       categoryId: activeCategory.id,
@@ -233,9 +265,11 @@ export function ScheduleGeneratorPage() {
       allowedWeekdays,
       daysBetweenRounds: 1,
       defaultTimes: selectedTimes.length > 0 ? selectedTimes : ['09:00'],
-      fields,
+      fields: previewFields,
       referees,
       minRestHours: 0,
+      explicitFields: true,
+      occupiedMatches: matches.filter((m) => m.categoryId !== activeCategory.id),
     });
   }, [
     activeTournament,
@@ -247,8 +281,10 @@ export function ScheduleGeneratorPage() {
     endDate,
     allowedWeekdays,
     selectedTimes,
-    fields,
+    fieldMode,
+    selectedSpecificFields,
     referees,
+    matches,
   ]);
 
   const toggleWeekday = (day: string) => {
@@ -264,7 +300,87 @@ export function ScheduleGeneratorPage() {
     });
   };
 
-  const executeGenerate = async (replaceExisting: boolean) => {
+  const toggleSelectedField = (fieldId: string) => {
+    setSelectedFieldIds((prev) =>
+      prev.includes(fieldId) ? prev.filter((id) => id !== fieldId) : [...prev, fieldId]
+    );
+  };
+
+  const handleCreateQuickField = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile || !canCreateField || !quickFieldName.trim()) return;
+    setBusy(true);
+    setErrorMsg(null);
+    try {
+      let targetVenueId = quickFieldVenueId || venues[0]?.id || '';
+      if (!targetVenueId || quickFieldVenueId === '__NEW_VENUE__') {
+        const venueLabel = quickVenueName.trim() || 'Sede Principal';
+        targetVenueId = makeId('ven');
+        await saveEntityDoc(
+          'venues',
+          targetVenueId,
+          {
+            name: venueLabel,
+            address: 'Por especificar',
+            facilityType: 'Unidad Deportiva',
+            active: true,
+          },
+          true
+        );
+      }
+
+      const newFieldId = makeId('fld');
+      await saveEntityDoc(
+        'fields',
+        newFieldId,
+        {
+          venueId: targetVenueId,
+          name: quickFieldName.trim(),
+          surfaceType: quickFieldSurface.trim() || 'Pasto Sintético',
+          capacity: 400,
+          availableDays: allowedWeekdays.length > 0 ? allowedWeekdays : [...WEEKDAY_ORDER],
+          openTime: '06:00',
+          closeTime: '23:00',
+          slotDurationMinutes: 60,
+          status: 'disponible',
+        },
+        true
+      );
+      await createAuditLog({
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+        action: 'CREATE_FIELD',
+        entity: 'fields',
+        entityId: newFieldId,
+        summary: `Campo específico registrado desde Generador de Roles: ${quickFieldName.trim()}`,
+      });
+
+      setFieldMode('specific');
+      setSelectedFieldIds((prev) => Array.from(new Set([...prev, newFieldId])));
+      setFieldPromptModal((prev) =>
+        prev
+          ? {
+              ...prev,
+              mode: 'specific',
+              pickedFieldIds: Array.from(new Set([...prev.pickedFieldIds, newFieldId])),
+            }
+          : prev
+      );
+      setQuickFieldName('');
+      setQuickVenueName('');
+      setShowQuickFieldForm(false);
+    } catch {
+      setErrorMsg('No se pudo registrar el nuevo campo. Verifica tus permisos.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const executeGenerate = async (
+    replaceExisting: boolean,
+    targetFields: Field[],
+    targetMode: 'specific' | 'unassigned'
+  ) => {
     if (!profile || !activeTournament || !activeCategory) return;
     if (categoryTeams.length < 2) {
       setErrorMsg('Se necesitan al menos 2 equipos activos en la categoría para generar roles.');
@@ -293,6 +409,7 @@ export function ScheduleGeneratorPage() {
     setFeedback(null);
     setErrorMsg(null);
     try {
+      const effectiveFields = targetMode === 'unassigned' ? [] : targetFields;
       const result = generateTournamentFixtures({
         tournamentId: activeTournament.id,
         categoryId: activeCategory.id,
@@ -306,9 +423,11 @@ export function ScheduleGeneratorPage() {
         allowedWeekdays,
         daysBetweenRounds: 1,
         defaultTimes: selectedTimes,
-        fields,
+        fields: effectiveFields,
         referees,
         minRestHours: 0,
+        explicitFields: true,
+        occupiedMatches: matches.filter((m) => m.categoryId !== activeCategory.id),
       });
 
       await persistGeneratedSchedule({
@@ -323,8 +442,13 @@ export function ScheduleGeneratorPage() {
         actorName: profile.displayName,
       });
 
+      const fieldSummaryLabel =
+        targetMode === 'unassigned' || effectiveFields.length === 0
+          ? 'Sin campo asignado'
+          : `Campo(s): ${effectiveFields.map((f) => f.name).join(', ')}`;
+
       setFeedback(
-        `Calendario generado con ${result.matches.length} encuentros en ${result.rounds.length} jornadas (${startDate} al ${endDate}). Conflictos detectados: ${result.conflicts.length}.`
+        `Calendario generado con ${result.matches.length} encuentros en ${result.rounds.length} jornadas (${startDate} al ${endDate}) · ${fieldSummaryLabel}. Conflictos detectados: ${result.conflicts.length}.`
       );
     } finally {
       setBusy(false);
@@ -332,18 +456,38 @@ export function ScheduleGeneratorPage() {
   };
 
   const handleGenerateClick = (replaceExisting: boolean) => {
-    if (activeCategory?.schedulePublished) {
-      setConfirmPublishedModal({
-        open: true,
-        actionLabel: 'Regenerar un calendario ya publicado',
-        onConfirm: async () => {
-          setConfirmPublishedModal(null);
-          await executeGenerate(replaceExisting);
-        },
-      });
+    setErrorMsg(null);
+    if (!activeTournament || !activeCategory) return;
+    if (categoryTeams.length < 2) {
+      setErrorMsg('Se necesitan al menos 2 equipos activos en la categoría para generar roles.');
       return;
     }
-    executeGenerate(replaceExisting);
+    if (!startDate || !endDate || endDate < startDate) {
+      setErrorMsg('La fecha de fin debe ser igual o posterior a la fecha de inicio.');
+      return;
+    }
+    if (allowedWeekdays.length === 0) {
+      setErrorMsg('Selecciona al menos un día de la semana para jugar.');
+      return;
+    }
+    if (validPlayDates.length === 0) {
+      setErrorMsg(
+        'No existen fechas disponibles entre la fecha de inicio y fin para los días de la semana seleccionados.'
+      );
+      return;
+    }
+    if (selectedTimes.length === 0) {
+      setErrorMsg('Selecciona al menos un horario permitido de la lista por hora.');
+      return;
+    }
+
+    setShowQuickFieldForm(false);
+    setFieldPromptModal({
+      open: true,
+      replaceExisting,
+      mode: fieldMode === 'unassigned' ? 'unassigned' : 'specific',
+      pickedFieldIds: fieldMode === 'specific' ? [...selectedFieldIds] : [],
+    });
   };
 
   const handlePublish = async () => {
@@ -901,6 +1045,189 @@ export function ScheduleGeneratorPage() {
           </div>
         </div>
 
+        {/* Apartado: Campo / Cancha específica para el rol */}
+        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-electric-500" />
+              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                Campo / Cancha donde se generará el rol
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setFieldMode('ask')}
+                className={`px-2.5 py-1 rounded-md border font-medium transition-colors ${
+                  fieldMode === 'ask'
+                    ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                Preguntar al generar
+              </button>
+              <button
+                type="button"
+                onClick={() => setFieldMode('specific')}
+                className={`px-2.5 py-1 rounded-md border font-medium transition-colors ${
+                  fieldMode === 'specific'
+                    ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                Campo específico ({selectedFieldIds.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFieldMode('unassigned')}
+                className={`px-2.5 py-1 rounded-md border font-medium transition-colors ${
+                  fieldMode === 'unassigned'
+                    ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                Sin campo asignado
+              </button>
+            </div>
+          </div>
+
+          {fieldMode === 'ask' && (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3.5 py-2.5">
+              <span>
+                El rol <strong>no</strong> se asignará automáticamente a los campos existentes: al presionar{' '}
+                <strong>Generar Roles</strong> se te preguntará en qué campo específico deseas generarlo.
+              </span>
+              <button
+                type="button"
+                onClick={() => setFieldMode('specific')}
+                className="text-xs font-semibold text-electric-600 dark:text-blue-400 hover:underline shrink-0"
+              >
+                Preseleccionar campo ahora
+              </button>
+            </div>
+          )}
+
+          {fieldMode === 'unassigned' && (
+            <div className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3.5 py-2.5">
+              Los partidos se crearán con la cancha en <strong>Sin asignar</strong> (al confirmar al generar podrás cambiar de opinión si lo deseas).
+            </div>
+          )}
+
+          {fieldMode === 'specific' && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Marca el o los campos específicos que se usarán (al generar también se te pedirá confirmar):
+                </span>
+                {canCreateField && (
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickFieldForm((v) => !v)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-electric-600 dark:text-blue-400 hover:underline"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    {showQuickFieldForm ? 'Cerrar registro rápido' : 'Registrar otro campo específico'}
+                  </button>
+                )}
+              </div>
+
+              {showQuickFieldForm && canCreateField && (
+                <form
+                  onSubmit={handleCreateQuickField}
+                  className="grid grid-cols-1 sm:grid-cols-4 gap-2 p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                >
+                  <input
+                    type="text"
+                    required
+                    value={quickFieldName}
+                    onChange={(e) => setQuickFieldName(e.target.value)}
+                    placeholder="Nombre del campo (ej. Campo Norte)"
+                    className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  />
+                  <select
+                    value={quickFieldVenueId || venues[0]?.id || '__NEW_VENUE__'}
+                    onChange={(e) => setQuickFieldVenueId(e.target.value)}
+                    className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  >
+                    {venues.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        Sede: {v.name}
+                      </option>
+                    ))}
+                    <option value="__NEW_VENUE__">+ Nueva sede</option>
+                  </select>
+                  {(quickFieldVenueId === '__NEW_VENUE__' || venues.length === 0) ? (
+                    <input
+                      type="text"
+                      required
+                      value={quickVenueName}
+                      onChange={(e) => setQuickVenueName(e.target.value)}
+                      placeholder="Nombre de nueva sede"
+                      className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={quickFieldSurface}
+                      onChange={(e) => setQuickFieldSurface(e.target.value)}
+                      placeholder="Superficie (ej. Pasto Sintético)"
+                      className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                    />
+                  )}
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="px-3 py-1.5 text-xs font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg"
+                  >
+                    {busy ? 'Guardando...' : 'Guardar campo'}
+                  </button>
+                </form>
+              )}
+
+              {fields.length === 0 ? (
+                <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
+                  No hay campos registrados aún. Registra uno arriba o genera el rol sin campo asignado.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {fields.map((f) => {
+                    const checked = selectedFieldIds.includes(f.id);
+                    const venueName = venueMap.get(f.venueId)?.name || 'Sede';
+                    return (
+                      <label
+                        key={f.id}
+                        className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                          checked
+                            ? 'bg-navy-900 dark:bg-electric-500/20 text-white dark:text-white border-navy-900 dark:border-electric-500'
+                            : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSelectedField(f.id)}
+                          className="mt-0.5 shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold truncate">{f.name}</div>
+                          <div
+                            className={`text-[11px] truncate ${
+                              checked ? 'text-slate-200' : 'text-slate-500 dark:text-slate-400'
+                            }`}
+                          >
+                            {venueName} · {f.openTime}–{f.closeTime} · {f.status}
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Dynamic Range & Capacity Diagnostics */}
         {(!startDate || !endDate || endDate < startDate) && (
           <div className="text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg px-3 py-2">
@@ -1206,6 +1533,255 @@ export function ScheduleGeneratorPage() {
           </div>
         )}
       </div>
+
+      {/* Interactive Prompt Modal: Ask Which Specific Field to Generate In */}
+      {fieldPromptModal?.open && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-[1px] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-xl w-full p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-electric-600 dark:text-blue-400 shrink-0">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base text-slate-900 dark:text-white">
+                    ¿En qué campo deseas generar el rol?
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                    {activeTournament?.name} · {activeCategory?.name} ({startDate} al {endDate})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFieldPromptModal(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {activeCategory?.schedulePublished && (
+              <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <span>
+                  <strong>Calendario ya publicado:</strong> Al confirmar se regenerará el rol de esta categoría y quedará en estado borrador hasta volver a publicarlo.
+                </span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setFieldPromptModal((prev) => (prev ? { ...prev, mode: 'specific' } : prev))
+                }
+                className={`p-3 rounded-lg border text-left transition-colors ${
+                  fieldPromptModal.mode === 'specific'
+                    ? 'bg-navy-900 dark:bg-electric-500/20 text-white border-navy-900 dark:border-electric-500'
+                    : 'bg-slate-50 dark:bg-slate-800/60 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                <div className="text-xs font-semibold">Campo(s) específico(s)</div>
+                <div
+                  className={`text-[11px] mt-0.5 ${
+                    fieldPromptModal.mode === 'specific'
+                      ? 'text-slate-200'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  Elige exactamente en qué campo(s) se programarán los partidos.
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setFieldPromptModal((prev) => (prev ? { ...prev, mode: 'unassigned' } : prev))
+                }
+                className={`p-3 rounded-lg border text-left transition-colors ${
+                  fieldPromptModal.mode === 'unassigned'
+                    ? 'bg-navy-900 dark:bg-electric-500/20 text-white border-navy-900 dark:border-electric-500'
+                    : 'bg-slate-50 dark:bg-slate-800/60 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                <div className="text-xs font-semibold">Sin campo asignado</div>
+                <div
+                  className={`text-[11px] mt-0.5 ${
+                    fieldPromptModal.mode === 'unassigned'
+                      ? 'text-slate-200'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  Generar encuentros sin usar los campos actuales para asignarlos luego.
+                </div>
+              </button>
+            </div>
+
+            {fieldPromptModal.mode === 'specific' && (
+              <div className="space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Selecciona el campo específico ({fieldPromptModal.pickedFieldIds.length} seleccionado(s)):
+                  </span>
+                  {canCreateField && (
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickFieldForm((v) => !v)}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-electric-600 dark:text-blue-400 hover:underline"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      {showQuickFieldForm ? 'Ocultar formulario' : 'Crear campo nuevo'}
+                    </button>
+                  )}
+                </div>
+
+                {showQuickFieldForm && canCreateField && (
+                  <form
+                    onSubmit={handleCreateQuickField}
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700"
+                  >
+                    <input
+                      type="text"
+                      required
+                      value={quickFieldName}
+                      onChange={(e) => setQuickFieldName(e.target.value)}
+                      placeholder="Nombre del nuevo campo"
+                      className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                    />
+                    <select
+                      value={quickFieldVenueId || venues[0]?.id || '__NEW_VENUE__'}
+                      onChange={(e) => setQuickFieldVenueId(e.target.value)}
+                      className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                    >
+                      {venues.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          Sede: {v.name}
+                        </option>
+                      ))}
+                      <option value="__NEW_VENUE__">+ Nueva sede</option>
+                    </select>
+                    {(quickFieldVenueId === '__NEW_VENUE__' || venues.length === 0) && (
+                      <input
+                        type="text"
+                        required
+                        value={quickVenueName}
+                        onChange={(e) => setQuickVenueName(e.target.value)}
+                        placeholder="Nombre de la nueva sede"
+                        className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 sm:col-span-2"
+                      />
+                    )}
+                    <div className="sm:col-span-2 flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={busy}
+                        className="px-3 py-1.5 text-xs font-medium text-white bg-electric-500 hover:bg-electric-600 rounded-lg"
+                      >
+                        {busy ? 'Guardando...' : 'Guardar y seleccionar campo'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {fields.length === 0 ? (
+                  <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
+                    No existen campos registrados. Crea un campo nuevo o selecciona "Sin campo asignado".
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                    {fields.map((f) => {
+                      const checked = fieldPromptModal.pickedFieldIds.includes(f.id);
+                      const venueName = venueMap.get(f.venueId)?.name || 'Sede';
+                      return (
+                        <label
+                          key={f.id}
+                          className={`flex items-center justify-between gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                            checked
+                              ? 'bg-blue-50 dark:bg-electric-500/20 border-electric-500 text-navy-900 dark:text-white'
+                              : 'bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() =>
+                                setFieldPromptModal((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        pickedFieldIds: checked
+                                          ? prev.pickedFieldIds.filter((id) => id !== f.id)
+                                          : [...prev.pickedFieldIds, f.id],
+                                      }
+                                    : prev
+                                )
+                              }
+                            />
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold truncate">{f.name}</div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                {venueName} · {f.surfaceType || 'Superficie estándar'} · {f.openTime}–{f.closeTime}
+                              </div>
+                            </div>
+                          </div>
+                          <span
+                            className={`text-[10px] font-medium px-2 py-0.5 rounded shrink-0 ${
+                              f.status === 'disponible'
+                                ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
+                            }`}
+                          >
+                            {f.status}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {fieldPromptModal.pickedFieldIds.length === 0 && (
+                  <p className="text-[11px] text-rose-600 dark:text-rose-400">
+                    Selecciona al menos un campo específico para continuar o cambia a "Sin campo asignado".
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setFieldPromptModal(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={
+                  busy ||
+                  (fieldPromptModal.mode === 'specific' &&
+                    fieldPromptModal.pickedFieldIds.length === 0)
+                }
+                onClick={async () => {
+                  const chosenMode = fieldPromptModal.mode;
+                  const chosenIds = fieldPromptModal.pickedFieldIds;
+                  const replace = fieldPromptModal.replaceExisting;
+                  const chosenFields = fields.filter((f) => chosenIds.includes(f.id));
+                  setFieldMode(chosenMode);
+                  setSelectedFieldIds(chosenIds);
+                  setFieldPromptModal(null);
+                  await executeGenerate(replace, chosenFields, chosenMode);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-electric-500 hover:bg-electric-600 rounded-lg disabled:opacity-50"
+              >
+                {busy ? 'Generando...' : 'Confirmar y Generar Rol'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Warning Modal for Published Calendar Modification */}
       {confirmPublishedModal?.open && (
