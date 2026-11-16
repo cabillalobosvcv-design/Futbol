@@ -348,6 +348,8 @@ export function ReportsPage() {
       categoryName: catMap.get(m.categoryId)?.name || 'Categoría',
       homeTeamName: teamNames[m.homeTeamId] || m.homeTeamId,
       awayTeamName: teamNames[m.awayTeamId] || m.awayTeamId,
+      homeTeamLogoUrl: teams.find((t) => t.id === m.homeTeamId)?.crestUrl || '',
+      awayTeamLogoUrl: teams.find((t) => t.id === m.awayTeamId)?.crestUrl || '',
       fieldName: m.fieldId ? fieldMap.get(m.fieldId)?.name || '-' : '-',
       refereeName: m.refereeId ? refMap.get(m.refereeId)?.fullName || '-' : '-',
       playerNames,

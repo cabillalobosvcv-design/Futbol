@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { FieldStatusIcon, MatchStatusIndicator } from '../components/SemanticIcons';
+import { TeamCrest } from '../components/TeamCrest';
 import { exportToExcel, exportToPdf } from '../engines/exportEngine';
 import {
   detectScheduleConflicts,
@@ -1546,8 +1547,27 @@ export function ScheduleGeneratorPage() {
                       </span>
                     </td>
                     <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">
-                      {teamMap.get(m.homeTeamId)?.name || m.homeTeamId} vs{' '}
-                      {teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <TeamCrest
+                          name={teamMap.get(m.homeTeamId)?.name || m.homeTeamId}
+                          shortCode={teamMap.get(m.homeTeamId)?.shortCode || 'LOC'}
+                          primaryColor={teamMap.get(m.homeTeamId)?.primaryColor}
+                          secondaryColor={teamMap.get(m.homeTeamId)?.secondaryColor}
+                          crestUrl={teamMap.get(m.homeTeamId)?.crestUrl}
+                          size="sm"
+                        />
+                        <span>{teamMap.get(m.homeTeamId)?.name || m.homeTeamId}</span>
+                        <span className="text-xs font-normal text-slate-400 dark:text-slate-500">vs</span>
+                        <TeamCrest
+                          name={teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
+                          shortCode={teamMap.get(m.awayTeamId)?.shortCode || 'VIS'}
+                          primaryColor={teamMap.get(m.awayTeamId)?.primaryColor}
+                          secondaryColor={teamMap.get(m.awayTeamId)?.secondaryColor}
+                          crestUrl={teamMap.get(m.awayTeamId)?.crestUrl}
+                          size="sm"
+                        />
+                        <span>{teamMap.get(m.awayTeamId)?.name || m.awayTeamId}</span>
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-xs">
                       <button

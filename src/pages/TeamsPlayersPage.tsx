@@ -169,18 +169,23 @@ export function TeamsPlayersPage() {
     }
   };
 
+  const isValidImageFile = (file: File) =>
+    file.type.startsWith('image/') || /\.(png|jpe?g|webp|svg|gif)$/i.test(file.name);
+
   const handleTeamLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !canManage) return;
     setMsg(null);
     setErrMsg(null);
 
-    if (!file.type.startsWith('image/')) {
+    if (!isValidImageFile(file)) {
       setErrMsg('Selecciona una imagen válida (PNG, JPG, WebP o SVG) para el logotipo del equipo.');
+      e.target.value = '';
       return;
     }
     if (file.size > MAX_LOGO_BYTES) {
       setErrMsg('El logotipo del equipo no debe superar los 3 MB.');
+      e.target.value = '';
       return;
     }
 
@@ -188,13 +193,11 @@ export function TeamsPlayersPage() {
     try {
       const downloadUrl = await uploadTeamLogo(tmDraftId, file);
       setTmLogoUrl(downloadUrl);
-      setMsg('Logotipo subido a Firebase Storage y listo para asignarse al equipo.');
+      setMsg('Logotipo cargado y optimizado correctamente. Listo para asignarse al equipo.');
     } catch (err) {
       const raw = err instanceof Error ? err.message : '';
       setErrMsg(
-        raw.includes('storage/')
-          ? `No se pudo subir el logotipo a Firebase Storage (${raw}). Puedes pegar una URL directa.`
-          : 'No se pudo subir el logotipo a Firebase Storage. Intenta de nuevo o pega una URL directa.'
+        raw || 'No se pudo procesar el logotipo seleccionado. Intenta con otro archivo o pega una URL directa.'
       );
     } finally {
       setTmUploadingLogo(false);
@@ -211,7 +214,7 @@ export function TeamsPlayersPage() {
     try {
       const id = tmDraftId;
       const code = (tmCode.trim() || tmName.trim().slice(0, 3)).toUpperCase().slice(0, 6);
-      const cleanLogoUrl = tmLogoUrl.trim().slice(0, 500);
+      const cleanLogoUrl = tmLogoUrl.trim().slice(0, 65000);
       await saveEntityDoc(
         'teams',
         id,
@@ -242,7 +245,7 @@ export function TeamsPlayersPage() {
       setTmCoach('');
       setMsg('Equipo inscrito correctamente con su logotipo.');
     } catch {
-      setErrMsg('No se pudo inscribir el equipo. Verifica tus permisos o la URL del logotipo.');
+      setErrMsg('No se pudo inscribir el equipo. Verifica tus permisos o la imagen del logotipo.');
     } finally {
       setSaving(false);
     }
@@ -257,12 +260,14 @@ export function TeamsPlayersPage() {
     setMsg(null);
     setErrMsg(null);
 
-    if (!file.type.startsWith('image/')) {
+    if (!isValidImageFile(file)) {
       setErrMsg('Selecciona un archivo de imagen válido (PNG, JPG, WebP o SVG).');
+      e.target.value = '';
       return;
     }
     if (file.size > MAX_LOGO_BYTES) {
       setErrMsg('El logotipo del equipo no debe superar los 3 MB.');
+      e.target.value = '';
       return;
     }
 
@@ -277,9 +282,9 @@ export function TeamsPlayersPage() {
         actorName: profile.displayName,
       });
       setEditingLogoTeamId(null);
-      setMsg(`Logotipo de ${team.name} actualizado correctamente.`);
+      setMsg(`Logotipo de ${team.name} actualizado y aplicado correctamente.`);
     } catch {
-      setErrMsg('No se pudo subir el nuevo logotipo. Puedes pegar una URL directa.');
+      setErrMsg('No se pudo cargar el nuevo logotipo. Intenta con otra imagen o pega una URL directa.');
     } finally {
       setEditLogoBusy(false);
       e.target.value = '';
@@ -440,12 +445,14 @@ export function TeamsPlayersPage() {
     const file = e.target.files?.[0];
     if (!file || !editingTeam || !canManage) return;
     setErrMsg(null);
-    if (!file.type.startsWith('image/')) {
+    if (!isValidImageFile(file)) {
       setErrMsg('Selecciona una imagen válida (PNG, JPG, WebP o SVG).');
+      e.target.value = '';
       return;
     }
     if (file.size > MAX_LOGO_BYTES) {
       setErrMsg('El logotipo del equipo no debe superar los 3 MB.');
+      e.target.value = '';
       return;
     }
     setEtmUploadingLogo(true);
@@ -453,7 +460,7 @@ export function TeamsPlayersPage() {
       const url = await uploadTeamLogo(editingTeam.id, file);
       setEtmLogoUrl(url);
     } catch {
-      setErrMsg('No se pudo subir el logotipo a Firebase Storage. Puedes pegar una URL directa.');
+      setErrMsg('No se pudo cargar el logotipo seleccionado. Intenta con otra imagen o pega una URL directa.');
     } finally {
       setEtmUploadingLogo(false);
       if (editTeamLogoInputRef.current) editTeamLogoInputRef.current.value = '';
@@ -470,7 +477,7 @@ export function TeamsPlayersPage() {
       const code = (etmCode.trim() || etmName.trim().slice(0, 3))
         .toUpperCase()
         .slice(0, 6);
-      const cleanLogo = etmLogoUrl.trim().slice(0, 500);
+      const cleanLogo = etmLogoUrl.trim().slice(0, 65000);
       await saveEntityDoc(
         'teams',
         editingTeam.id,
@@ -929,7 +936,7 @@ export function TeamsPlayersPage() {
                     <input
                       ref={teamLogoInputRef}
                       type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml,image/*"
                       onChange={handleTeamLogoFileChange}
                       className="hidden"
                       id="team-logo-upload"
@@ -941,10 +948,26 @@ export function TeamsPlayersPage() {
                       }`}
                     >
                       <Upload className="w-3.5 h-3.5" />
-                      {tmUploadingLogo ? 'Subiendo...' : 'Subir logo'}
+                      {tmUploadingLogo ? 'Procesando...' : 'Subir logo'}
                     </label>
                   </div>
                 </div>
+
+                {tmLogoUrl.startsWith('data:image/') && (
+                  <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-700 dark:text-emerald-300">
+                    <span className="inline-flex items-center gap-1.5 font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      Imagen optimizada lista para guardarse
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setTmLogoUrl('')}
+                      className="text-rose-600 dark:text-rose-400 hover:underline font-medium"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                )}
 
                 <div className="space-y-1">
                   <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 flex items-center gap-1">
@@ -954,8 +977,7 @@ export function TeamsPlayersPage() {
                   <div className="flex items-center gap-1.5">
                     <input
                       type="text"
-                      maxLength={500}
-                      value={tmLogoUrl}
+                      value={tmLogoUrl.startsWith('data:image/') ? '' : tmLogoUrl}
                       onChange={(e) => setTmLogoUrl(e.target.value)}
                       placeholder="https://.../escudo-equipo.png"
                       className="flex-1 px-2.5 py-1.5 text-xs font-mono border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
@@ -1076,21 +1098,39 @@ export function TeamsPlayersPage() {
 
                   {canManage && isEditingLogo && (
                     <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                      {editLogoUrl.startsWith('data:image/') && (
+                        <div className="flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-700 dark:text-emerald-300">
+                          <span className="inline-flex items-center gap-1 font-medium">
+                            <CheckCircle2 className="w-3 h-3 shrink-0" />
+                            Logo actual cargado desde archivo
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setEditLogoUrl('')}
+                            className="text-rose-600 dark:text-rose-400 hover:underline font-medium"
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
-                          maxLength={500}
-                          value={editLogoUrl}
+                          value={editLogoUrl.startsWith('data:image/') ? '' : editLogoUrl}
                           onChange={(e) => setEditLogoUrl(e.target.value)}
                           placeholder="https://.../logo.png"
                           className="flex-1 px-2.5 py-1.5 text-xs font-mono border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                         />
-                        <label className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-navy-900 dark:bg-slate-700 text-white text-xs font-medium cursor-pointer hover:bg-navy-800 whitespace-nowrap">
+                        <label
+                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-navy-900 dark:bg-slate-700 text-white text-xs font-medium cursor-pointer hover:bg-navy-800 whitespace-nowrap ${
+                            editLogoBusy ? 'opacity-60 pointer-events-none' : ''
+                          }`}
+                        >
                           <Upload className="w-3.5 h-3.5" />
-                          <span>Subir</span>
+                          <span>{editLogoBusy ? 'Procesando...' : 'Subir'}</span>
                           <input
                             type="file"
-                            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                            accept="image/png,image/jpeg,image/webp,image/svg+xml,image/*"
                             disabled={editLogoBusy}
                             onChange={(e) => handleExistingTeamLogoFile(tm, e)}
                             className="hidden"
@@ -1256,23 +1296,35 @@ export function TeamsPlayersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredPlayers.map((pl) => (
-                    <tr key={pl.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      <td className="py-2.5 px-4 font-mono font-bold tabular-nums text-navy-900 dark:text-blue-400">
-                        {pl.jerseyNumber}
-                      </td>
-                      <td className="py-2.5 px-4 font-medium text-slate-900 dark:text-slate-100">
-                        {pl.fullName}
-                      </td>
-                      <td className="py-2.5 px-4 text-slate-600 dark:text-slate-300">
-                        {pl.position}
-                      </td>
-                      <td className="py-2.5 px-4 text-slate-700 dark:text-slate-300">
-                        {teamMap.get(pl.teamId)?.name || pl.teamId}
-                      </td>
-                      <td className="py-2.5 px-4 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
-                        {pl.birthYear || '-'}
-                      </td>
+                  {filteredPlayers.map((pl) => {
+                    const plTeam = teamMap.get(pl.teamId);
+                    return (
+                      <tr key={pl.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td className="py-2.5 px-4 font-mono font-bold tabular-nums text-navy-900 dark:text-blue-400">
+                          {pl.jerseyNumber}
+                        </td>
+                        <td className="py-2.5 px-4 font-medium text-slate-900 dark:text-slate-100">
+                          {pl.fullName}
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-600 dark:text-slate-300">
+                          {pl.position}
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-700 dark:text-slate-300">
+                          <div className="flex items-center gap-2">
+                            <TeamCrest
+                              name={plTeam?.name || pl.teamId}
+                              shortCode={plTeam?.shortCode || 'EQ'}
+                              primaryColor={plTeam?.primaryColor}
+                              secondaryColor={plTeam?.secondaryColor}
+                              crestUrl={plTeam?.crestUrl}
+                              size="sm"
+                            />
+                            <span>{plTeam?.name || pl.teamId}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                          {pl.birthYear || '-'}
+                        </td>
                       {(canManage || canDeleteEntity) && (
                         <td className="py-2.5 px-4 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5">
@@ -1300,7 +1352,8 @@ export function TeamsPlayersPage() {
                         </td>
                       )}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1588,7 +1641,7 @@ export function TeamsPlayersPage() {
                   <input
                     ref={editTeamLogoInputRef}
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml,image/*"
                     onChange={handleEditTeamLogoFileChange}
                     className="hidden"
                     id="edit-team-logo-upload"
@@ -1600,15 +1653,29 @@ export function TeamsPlayersPage() {
                     }`}
                   >
                     <Upload className="w-3.5 h-3.5" />
-                    {etmUploadingLogo ? 'Subiendo...' : 'Subir'}
+                    {etmUploadingLogo ? 'Procesando...' : 'Subir'}
                   </label>
                 </div>
               </div>
+              {etmLogoUrl.startsWith('data:image/') && (
+                <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-700 dark:text-emerald-300">
+                  <span className="inline-flex items-center gap-1.5 font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    Imagen optimizada lista para guardarse
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setEtmLogoUrl('')}
+                    className="text-rose-600 dark:text-rose-400 hover:underline font-medium"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              )}
               <div className="flex items-center gap-1.5">
                 <input
                   type="text"
-                  maxLength={500}
-                  value={etmLogoUrl}
+                  value={etmLogoUrl.startsWith('data:image/') ? '' : etmLogoUrl}
                   onChange={(e) => setEtmLogoUrl(e.target.value)}
                   placeholder="https://.../escudo.png"
                   className="flex-1 px-2.5 py-1.5 text-xs font-mono border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"

@@ -161,6 +161,8 @@ export async function exportMatchSheetPdf(params: {
   categoryName: string;
   homeTeamName: string;
   awayTeamName: string;
+  homeTeamLogoUrl?: string;
+  awayTeamLogoUrl?: string;
   fieldName: string;
   refereeName: string;
   playerNames: Record<string, string>;
@@ -176,6 +178,8 @@ export async function exportMatchSheetPdf(params: {
     categoryName,
     homeTeamName,
     awayTeamName,
+    homeTeamLogoUrl,
+    awayTeamLogoUrl,
     fieldName,
     refereeName,
     playerNames,
@@ -186,7 +190,11 @@ export async function exportMatchSheetPdf(params: {
 
   const doc = new jsPDF({ orientation: 'portrait' });
   const pageWidth = doc.internal.pageSize.getWidth();
-  const logoDataUrl = await loadImageAsPngDataUrl(organizationLogoUrl);
+  const [logoDataUrl, homeLogoDataUrl, awayLogoDataUrl] = await Promise.all([
+    loadImageAsPngDataUrl(organizationLogoUrl),
+    loadImageAsPngDataUrl(homeTeamLogoUrl),
+    loadImageAsPngDataUrl(awayTeamLogoUrl),
+  ]);
 
   doc.setFillColor(10, 25, 47);
   doc.rect(0, 0, pageWidth, 32, 'F');
@@ -227,20 +235,32 @@ export async function exportMatchSheetPdf(params: {
   doc.setFillColor(241, 245, 249);
   doc.roundedRect(14, 40, pageWidth - 28, 30, 3, 3, 'F');
 
-  doc.setFontSize(13);
+  if (homeLogoDataUrl) {
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(18, 44, 16, 16, 2, 2, 'F');
+    doc.addImage(homeLogoDataUrl, 'PNG', 19, 45, 14, 14);
+  }
+  if (awayLogoDataUrl) {
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(pageWidth - 34, 44, 16, 16, 2, 2, 'F');
+    doc.addImage(awayLogoDataUrl, 'PNG', pageWidth - 33, 45, 14, 14);
+  }
+
+  doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   const hScore = result?.homeScore ?? match.homeScore ?? 0;
   const aScore = result?.awayScore ?? match.awayScore ?? 0;
   doc.text(`${homeTeamName}   ${hScore} - ${aScore}   ${awayTeamName}`, pageWidth / 2, 52, {
     align: 'center',
+    maxWidth: pageWidth - 80,
   });
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.text(
     `Fecha: ${match.date}  |  Hora: ${match.time}  |  Cancha: ${fieldName}  |  Árbitro: ${refereeName}`,
     pageWidth / 2,
-    62,
-    { align: 'center' }
+    64,
+    { align: 'center', maxWidth: pageWidth - 36 }
   );
 
   // Period scores

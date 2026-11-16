@@ -300,10 +300,22 @@ export function StatisticsStandingsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {catTeamStats.map((ts) => (
+                  {catTeamStats.map((ts) => {
+                    const team = teamMap.get(ts.teamId);
+                    return (
                     <tr key={ts.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
-                        {teamMap.get(ts.teamId)?.name || ts.teamId}
+                        <div className="flex items-center gap-2.5">
+                          <TeamCrest
+                            name={team?.name || ts.teamId}
+                            shortCode={team?.shortCode || 'EQ'}
+                            primaryColor={team?.primaryColor}
+                            secondaryColor={team?.secondaryColor}
+                            crestUrl={team?.crestUrl}
+                            size="sm"
+                          />
+                          <span>{team?.name || ts.teamId}</span>
+                        </div>
                       </td>
                       <td className="py-3 px-2.5 text-right font-mono tabular-nums">{ts.played}</td>
                       <td className="py-3 px-2.5 text-right font-mono font-bold tabular-nums">
@@ -325,7 +337,8 @@ export function StatisticsStandingsPage() {
                         {ts.cleanSheets}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -382,13 +395,24 @@ export function StatisticsStandingsPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {catPlayerStats.map((ps) => {
                   const pl = playerMap.get(ps.playerId);
+                  const team = teamMap.get(ps.teamId);
                   return (
                     <tr key={ps.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
                         {pl?.fullName || ps.playerId}
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
-                        {teamMap.get(ps.teamId)?.name || ps.teamId}
+                        <div className="flex items-center gap-2">
+                          <TeamCrest
+                            name={team?.name || ps.teamId}
+                            shortCode={team?.shortCode || 'EQ'}
+                            primaryColor={team?.primaryColor}
+                            secondaryColor={team?.secondaryColor}
+                            crestUrl={team?.crestUrl}
+                            size="sm"
+                          />
+                          <span>{team?.name || ps.teamId}</span>
+                        </div>
                       </td>
                       <td className="py-3 px-2.5 text-right font-mono tabular-nums">
                         {ps.matchesPlayed}
@@ -469,11 +493,23 @@ export function StatisticsStandingsPage() {
                       if (rankingMetric === 'team_wins') return b.wins - a.wins;
                       return b.goalDifference - a.goalDifference;
                     })
-                    .map((ts, idx) => (
+                    .map((ts, idx) => {
+                      const team = teamMap.get(ts.teamId);
+                      return (
                       <tr key={ts.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                         <td className="py-3 px-4 font-mono font-bold tabular-nums">{idx + 1}</td>
                         <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
-                          {teamMap.get(ts.teamId)?.name || ts.teamId}
+                          <div className="flex items-center gap-2.5">
+                            <TeamCrest
+                              name={team?.name || ts.teamId}
+                              shortCode={team?.shortCode || 'EQ'}
+                              primaryColor={team?.primaryColor}
+                              secondaryColor={team?.secondaryColor}
+                              crestUrl={team?.crestUrl}
+                              size="sm"
+                            />
+                            <span>{team?.name || ts.teamId}</span>
+                          </div>
                         </td>
                         <td className="py-3 px-3 text-right font-mono tabular-nums">{ts.played}</td>
                         <td className="py-3 px-3 text-right font-mono tabular-nums">{ts.wins}</td>
@@ -485,7 +521,8 @@ export function StatisticsStandingsPage() {
                           {ts.goalDifference > 0 ? `+${ts.goalDifference}` : ts.goalDifference}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                 </tbody>
               </table>
             ) : (
@@ -532,6 +569,7 @@ export function StatisticsStandingsPage() {
                     })
                     .map((ps, idx) => {
                       const pl = playerMap.get(ps.playerId);
+                      const team = teamMap.get(ps.teamId);
                       const primaryVal =
                         rankingMetric === 'assists'
                           ? ps.assists
@@ -554,7 +592,17 @@ export function StatisticsStandingsPage() {
                             {pl?.fullName || ps.playerId}
                           </td>
                           <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
-                            {teamMap.get(ps.teamId)?.name || ps.teamId}
+                            <div className="flex items-center gap-2">
+                              <TeamCrest
+                                name={team?.name || ps.teamId}
+                                shortCode={team?.shortCode || 'EQ'}
+                                primaryColor={team?.primaryColor}
+                                secondaryColor={team?.secondaryColor}
+                                crestUrl={team?.crestUrl}
+                                size="sm"
+                              />
+                              <span>{team?.name || ps.teamId}</span>
+                            </div>
                           </td>
                           <td className="py-3 px-4 text-slate-500 dark:text-slate-400 text-xs">
                             {catMap.get(ps.categoryId)?.name}

@@ -18,6 +18,7 @@ import {
   MatchEventIcon,
   MatchStatusIndicator,
 } from '../components/SemanticIcons';
+import { TeamCrest } from '../components/TeamCrest';
 import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
 import {
@@ -345,6 +346,8 @@ export function MatchResultsPage() {
       categoryName: catMap.get(activeMatch.categoryId)?.name || 'Categoría',
       homeTeamName: teamNames[activeMatch.homeTeamId] || activeMatch.homeTeamId,
       awayTeamName: teamNames[activeMatch.awayTeamId] || activeMatch.awayTeamId,
+      homeTeamLogoUrl: teamMap.get(activeMatch.homeTeamId)?.crestUrl || '',
+      awayTeamLogoUrl: teamMap.get(activeMatch.awayTeamId)?.crestUrl || '',
       fieldName: activeMatch.fieldId ? fieldMap.get(activeMatch.fieldId)?.name || 'N/A' : 'N/A',
       refereeName: activeMatch.refereeId
         ? refMap.get(activeMatch.refereeId)?.fullName || 'N/A'
@@ -412,6 +415,8 @@ export function MatchResultsPage() {
               filteredMatches.map((m) => {
                 const isSelected = m.id === activeMatch?.id;
                 const res = matchResults.find((r) => r.matchId === m.id);
+                const homeTeam = teamMap.get(m.homeTeamId);
+                const awayTeam = teamMap.get(m.awayTeamId);
                 return (
                   <button
                     key={m.id}
@@ -432,10 +437,27 @@ export function MatchResultsPage() {
                         rejected={res?.validationStatus === 'rechazado'}
                       />
                     </div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
-                      {teamMap.get(m.homeTeamId)?.name || m.homeTeamId} vs{' '}
-                      {teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1.5 min-w-0">
+                      <TeamCrest
+                        name={homeTeam?.name || m.homeTeamId}
+                        shortCode={homeTeam?.shortCode || 'LOC'}
+                        primaryColor={homeTeam?.primaryColor}
+                        secondaryColor={homeTeam?.secondaryColor}
+                        crestUrl={homeTeam?.crestUrl}
+                        size="sm"
+                      />
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                        {homeTeam?.name || m.homeTeamId} vs {awayTeam?.name || m.awayTeamId}
+                      </span>
+                      <TeamCrest
+                        name={awayTeam?.name || m.awayTeamId}
+                        shortCode={awayTeam?.shortCode || 'VIS'}
+                        primaryColor={awayTeam?.primaryColor}
+                        secondaryColor={awayTeam?.secondaryColor}
+                        crestUrl={awayTeam?.crestUrl}
+                        size="sm"
+                      />
+                    </div>
                     <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-1">
                       <span className="font-mono tabular-nums">
                         {m.date} · {m.time}
@@ -471,10 +493,28 @@ export function MatchResultsPage() {
                     {tournamentMap.get(activeMatch.tournamentId)?.name} ·{' '}
                     {catMap.get(activeMatch.categoryId)?.name}
                   </p>
-                  <h2 className="font-display font-bold text-lg text-navy-900 dark:text-white mt-0.5">
-                    {teamMap.get(activeMatch.homeTeamId)?.name || activeMatch.homeTeamId} vs{' '}
-                    {teamMap.get(activeMatch.awayTeamId)?.name || activeMatch.awayTeamId}
-                  </h2>
+                  <div className="flex items-center gap-2.5 flex-wrap mt-1">
+                    <TeamCrest
+                      name={teamMap.get(activeMatch.homeTeamId)?.name || activeMatch.homeTeamId}
+                      shortCode={teamMap.get(activeMatch.homeTeamId)?.shortCode || 'LOC'}
+                      primaryColor={teamMap.get(activeMatch.homeTeamId)?.primaryColor}
+                      secondaryColor={teamMap.get(activeMatch.homeTeamId)?.secondaryColor}
+                      crestUrl={teamMap.get(activeMatch.homeTeamId)?.crestUrl}
+                      size="sm"
+                    />
+                    <h2 className="font-display font-bold text-lg text-navy-900 dark:text-white">
+                      {teamMap.get(activeMatch.homeTeamId)?.name || activeMatch.homeTeamId} vs{' '}
+                      {teamMap.get(activeMatch.awayTeamId)?.name || activeMatch.awayTeamId}
+                    </h2>
+                    <TeamCrest
+                      name={teamMap.get(activeMatch.awayTeamId)?.name || activeMatch.awayTeamId}
+                      shortCode={teamMap.get(activeMatch.awayTeamId)?.shortCode || 'VIS'}
+                      primaryColor={teamMap.get(activeMatch.awayTeamId)?.primaryColor}
+                      secondaryColor={teamMap.get(activeMatch.awayTeamId)?.secondaryColor}
+                      crestUrl={teamMap.get(activeMatch.awayTeamId)?.crestUrl}
+                      size="sm"
+                    />
+                  </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {activeMatch.date} {activeMatch.time} · Cancha:{' '}
                     {activeMatch.fieldId ? fieldMap.get(activeMatch.fieldId)?.name : 'Por asignar'} ·
@@ -508,8 +548,16 @@ export function MatchResultsPage() {
 
               {/* Final Scoreboard */}
               <div className="grid grid-cols-3 gap-4 items-center bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-                <div className="text-center">
-                  <span className="text-xs font-medium text-slate-600 dark:text-slate-300 block mb-1">
+                <div className="text-center flex flex-col items-center gap-1.5">
+                  <TeamCrest
+                    name={teamMap.get(activeMatch.homeTeamId)?.name || activeMatch.homeTeamId}
+                    shortCode={teamMap.get(activeMatch.homeTeamId)?.shortCode || 'LOC'}
+                    primaryColor={teamMap.get(activeMatch.homeTeamId)?.primaryColor}
+                    secondaryColor={teamMap.get(activeMatch.homeTeamId)?.secondaryColor}
+                    crestUrl={teamMap.get(activeMatch.homeTeamId)?.crestUrl}
+                    size="md"
+                  />
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
                     Local ({teamMap.get(activeMatch.homeTeamId)?.shortCode || 'LOC'})
                   </span>
                   <input
@@ -528,8 +576,16 @@ export function MatchResultsPage() {
                     Validación: {existingResult?.validationStatus || 'sin capturar'}
                   </span>
                 </div>
-                <div className="text-center">
-                  <span className="text-xs font-medium text-slate-600 dark:text-slate-300 block mb-1">
+                <div className="text-center flex flex-col items-center gap-1.5">
+                  <TeamCrest
+                    name={teamMap.get(activeMatch.awayTeamId)?.name || activeMatch.awayTeamId}
+                    shortCode={teamMap.get(activeMatch.awayTeamId)?.shortCode || 'VIS'}
+                    primaryColor={teamMap.get(activeMatch.awayTeamId)?.primaryColor}
+                    secondaryColor={teamMap.get(activeMatch.awayTeamId)?.secondaryColor}
+                    crestUrl={teamMap.get(activeMatch.awayTeamId)?.crestUrl}
+                    size="md"
+                  />
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
                     Visitante ({teamMap.get(activeMatch.awayTeamId)?.shortCode || 'VIS'})
                   </span>
                   <input

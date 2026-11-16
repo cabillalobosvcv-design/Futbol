@@ -511,9 +511,27 @@ export function PublicPortalPage() {
                         <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
                           {categoryMap.get(m.categoryId)?.name} · {m.date}
                         </p>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
-                          {home?.name || m.homeTeamId} vs {away?.name || m.awayTeamId}
-                        </p>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <TeamCrest
+                            name={home?.name || m.homeTeamId}
+                            shortCode={home?.shortCode || 'LOC'}
+                            primaryColor={home?.primaryColor}
+                            secondaryColor={home?.secondaryColor}
+                            crestUrl={home?.crestUrl}
+                            size="sm"
+                          />
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                            {home?.name || m.homeTeamId} vs {away?.name || m.awayTeamId}
+                          </p>
+                          <TeamCrest
+                            name={away?.name || m.awayTeamId}
+                            shortCode={away?.shortCode || 'VIS'}
+                            primaryColor={away?.primaryColor}
+                            secondaryColor={away?.secondaryColor}
+                            crestUrl={away?.crestUrl}
+                            size="sm"
+                          />
+                        </div>
                       </div>
                       <div className="px-3 py-1.5 rounded-lg bg-navy-900 dark:bg-slate-800 border border-transparent dark:border-slate-700 text-white font-mono font-bold text-base tabular-nums shrink-0">
                         {res?.homeScore ?? m.homeScore ?? 0} - {res?.awayScore ?? m.awayScore ?? 0}
@@ -547,9 +565,14 @@ export function PublicPortalPage() {
                         <span className="w-6 text-center font-mono font-bold text-slate-400 dark:text-slate-500 tabular-nums">
                           {idx + 1}
                         </span>
-                        <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-display font-bold text-xs text-navy-900 dark:text-slate-100 shrink-0">
-                          {pl?.fullName?.slice(0, 2).toUpperCase() || 'JG'}
-                        </div>
+                        <TeamCrest
+                          name={tm?.name || ps.teamId}
+                          shortCode={tm?.shortCode || 'EQ'}
+                          primaryColor={tm?.primaryColor}
+                          secondaryColor={tm?.secondaryColor}
+                          crestUrl={tm?.crestUrl}
+                          size="sm"
+                        />
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
                             {pl?.fullName || ps.playerId}
@@ -596,7 +619,10 @@ export function PublicPortalPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {upcomingMatches.map((m) => (
+                  {upcomingMatches.map((m) => {
+                    const home = teamMap.get(m.homeTeamId);
+                    const away = teamMap.get(m.awayTeamId);
+                    return (
                     <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       <td className="py-3 px-4 font-mono tabular-nums text-slate-500 dark:text-slate-400">
                         {m.matchNumber}
@@ -611,8 +637,27 @@ export function PublicPortalPage() {
                         {categoryMap.get(m.categoryId)?.name || m.categoryId} · J{m.roundNumber}
                       </td>
                       <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">
-                        {teamMap.get(m.homeTeamId)?.name || m.homeTeamId} vs{' '}
-                        {teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <TeamCrest
+                            name={home?.name || m.homeTeamId}
+                            shortCode={home?.shortCode || 'LOC'}
+                            primaryColor={home?.primaryColor}
+                            secondaryColor={home?.secondaryColor}
+                            crestUrl={home?.crestUrl}
+                            size="sm"
+                          />
+                          <span>{home?.name || m.homeTeamId}</span>
+                          <span className="text-xs font-normal text-slate-400 dark:text-slate-500">vs</span>
+                          <TeamCrest
+                            name={away?.name || m.awayTeamId}
+                            shortCode={away?.shortCode || 'VIS'}
+                            primaryColor={away?.primaryColor}
+                            secondaryColor={away?.secondaryColor}
+                            crestUrl={away?.crestUrl}
+                            size="sm"
+                          />
+                          <span>{away?.name || m.awayTeamId}</span>
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
                         <span className="inline-flex items-center gap-1.5">
@@ -624,7 +669,8 @@ export function PublicPortalPage() {
                         <MatchStatusIndicator status={m.status} />
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -659,9 +705,27 @@ export function PublicPortalPage() {
                         {tournamentMap.get(m.tournamentId)?.name} ·{' '}
                         {categoryMap.get(m.categoryId)?.name} · Jornada {m.roundNumber} · {m.date}
                       </p>
-                      <p className="text-base font-display font-semibold text-slate-900 dark:text-slate-100 mt-1">
-                        {home?.name || m.homeTeamId} vs {away?.name || m.awayTeamId}
-                      </p>
+                      <div className="flex items-center gap-2.5 flex-wrap mt-1">
+                        <TeamCrest
+                          name={home?.name || m.homeTeamId}
+                          shortCode={home?.shortCode || 'LOC'}
+                          primaryColor={home?.primaryColor}
+                          secondaryColor={home?.secondaryColor}
+                          crestUrl={home?.crestUrl}
+                          size="sm"
+                        />
+                        <p className="text-base font-display font-semibold text-slate-900 dark:text-slate-100">
+                          {home?.name || m.homeTeamId} vs {away?.name || m.awayTeamId}
+                        </p>
+                        <TeamCrest
+                          name={away?.name || m.awayTeamId}
+                          shortCode={away?.shortCode || 'VIS'}
+                          primaryColor={away?.primaryColor}
+                          secondaryColor={away?.secondaryColor}
+                          crestUrl={away?.crestUrl}
+                          size="sm"
+                        />
+                      </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="px-3.5 py-1.5 rounded-lg bg-navy-900 dark:bg-slate-800 border border-transparent dark:border-slate-700 text-white font-mono font-bold text-lg tabular-nums">
@@ -808,7 +872,19 @@ export function PublicPortalPage() {
                             <span>{pl?.fullName || ps.playerId}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300">{tm?.name || ps.teamId}</td>
+                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300">
+                          <div className="flex items-center gap-2">
+                            <TeamCrest
+                              name={tm?.name || ps.teamId}
+                              shortCode={tm?.shortCode || 'EQ'}
+                              primaryColor={tm?.primaryColor}
+                              secondaryColor={tm?.secondaryColor}
+                              crestUrl={tm?.crestUrl}
+                              size="sm"
+                            />
+                            <span>{tm?.name || ps.teamId}</span>
+                          </div>
+                        </td>
                         <td className="py-3 px-4 text-slate-500 dark:text-slate-400 text-xs">
                           {categoryMap.get(ps.categoryId)?.name}
                         </td>
@@ -902,9 +978,20 @@ export function PublicPortalPage() {
                 return (
                   <div key={t.id} className="p-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
-                        <Trophy className="w-5 h-5" />
-                      </div>
+                      {champ ? (
+                        <TeamCrest
+                          name={champ.name}
+                          shortCode={champ.shortCode}
+                          primaryColor={champ.primaryColor}
+                          secondaryColor={champ.secondaryColor}
+                          crestUrl={champ.crestUrl}
+                          size="md"
+                        />
+                      ) : (
+                        <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
+                          <Trophy className="w-5 h-5" />
+                        </div>
+                      )}
                       <div>
                         <p className="font-display font-semibold text-slate-900 dark:text-slate-100">
                           {champ?.name || t.championTeamName || 'Por definir'}

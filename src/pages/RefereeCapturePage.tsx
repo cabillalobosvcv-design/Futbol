@@ -452,6 +452,8 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
       categoryName: catMap.get(activeMatch.categoryId)?.name || 'Categoría',
       homeTeamName: teamNames[activeMatch.homeTeamId] || activeMatch.homeTeamId,
       awayTeamName: teamNames[activeMatch.awayTeamId] || activeMatch.awayTeamId,
+      homeTeamLogoUrl: teamMap.get(activeMatch.homeTeamId)?.crestUrl || '',
+      awayTeamLogoUrl: teamMap.get(activeMatch.awayTeamId)?.crestUrl || '',
       fieldName: activeMatch.fieldId ? fieldMap.get(activeMatch.fieldId)?.name || 'N/A' : 'N/A',
       refereeName: activeMatch.refereeId
         ? refMap.get(activeMatch.refereeId)?.fullName || 'N/A'
@@ -641,9 +643,27 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                       <MatchStatusIndicator status={m.status} rejected={isRejected} />
                     </div>
 
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1 truncate">
-                      {homeTeam?.name || m.homeTeamId} vs {awayTeam?.name || m.awayTeamId}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1.5 min-w-0">
+                      <TeamCrest
+                        name={homeTeam?.name || m.homeTeamId}
+                        shortCode={homeTeam?.shortCode || 'LOC'}
+                        primaryColor={homeTeam?.primaryColor}
+                        secondaryColor={homeTeam?.secondaryColor}
+                        crestUrl={homeTeam?.crestUrl}
+                        size="sm"
+                      />
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                        {homeTeam?.name || m.homeTeamId} vs {awayTeam?.name || m.awayTeamId}
+                      </span>
+                      <TeamCrest
+                        name={awayTeam?.name || m.awayTeamId}
+                        shortCode={awayTeam?.shortCode || 'VIS'}
+                        primaryColor={awayTeam?.primaryColor}
+                        secondaryColor={awayTeam?.secondaryColor}
+                        crestUrl={awayTeam?.crestUrl}
+                        size="sm"
+                      />
+                    </div>
 
                     <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-1">
                       <span className="inline-flex items-center gap-1 font-mono tabular-nums">
@@ -683,10 +703,28 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                     {tournamentMap.get(activeMatch.tournamentId)?.name || 'Torneo'} ·{' '}
                     {catMap.get(activeMatch.categoryId)?.name || 'Categoría'}
                   </p>
-                  <h2 className="font-display font-bold text-lg text-navy-900 dark:text-white mt-0.5">
-                    {teamMap.get(activeMatch.homeTeamId)?.name || activeMatch.homeTeamId} vs{' '}
-                    {teamMap.get(activeMatch.awayTeamId)?.name || activeMatch.awayTeamId}
-                  </h2>
+                  <div className="flex items-center gap-2.5 flex-wrap mt-1">
+                    <TeamCrest
+                      name={teamMap.get(activeMatch.homeTeamId)?.name || activeMatch.homeTeamId}
+                      shortCode={teamMap.get(activeMatch.homeTeamId)?.shortCode || 'LOC'}
+                      primaryColor={teamMap.get(activeMatch.homeTeamId)?.primaryColor}
+                      secondaryColor={teamMap.get(activeMatch.homeTeamId)?.secondaryColor}
+                      crestUrl={teamMap.get(activeMatch.homeTeamId)?.crestUrl}
+                      size="sm"
+                    />
+                    <h2 className="font-display font-bold text-lg text-navy-900 dark:text-white">
+                      {teamMap.get(activeMatch.homeTeamId)?.name || activeMatch.homeTeamId} vs{' '}
+                      {teamMap.get(activeMatch.awayTeamId)?.name || activeMatch.awayTeamId}
+                    </h2>
+                    <TeamCrest
+                      name={teamMap.get(activeMatch.awayTeamId)?.name || activeMatch.awayTeamId}
+                      shortCode={teamMap.get(activeMatch.awayTeamId)?.shortCode || 'VIS'}
+                      primaryColor={teamMap.get(activeMatch.awayTeamId)?.primaryColor}
+                      secondaryColor={teamMap.get(activeMatch.awayTeamId)?.secondaryColor}
+                      crestUrl={teamMap.get(activeMatch.awayTeamId)?.crestUrl}
+                      size="sm"
+                    />
+                  </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mt-1.5 font-mono tabular-nums">
                     <span className="inline-flex items-center gap-1">
                       <CalendarDays className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />

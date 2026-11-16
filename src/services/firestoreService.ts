@@ -1214,17 +1214,116 @@ export async function deleteTournamentSportRule(params: {
   }
 }
 
+let storageUnavailable = false;
+
+async function optimizeLogoToDataUrl(
+  file: File,
+  options: { maxDim?: number; maxChars?: number } = {}
+): Promise<string> {
+  const maxDim = options.maxDim ?? 192;
+  const maxChars = options.maxChars ?? 58000;
+
+  const rawDataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') resolve(reader.result);
+      else reject(new Error('No se pudo leer el archivo de imagen.'));
+    };
+    reader.onerror = () => reject(new Error('Error al leer el archivo seleccionado.'));
+    reader.readAsDataURL(file);
+  });
+
+  if (
+    (file.type === 'image/svg+xml' || /\.svg$/i.test(file.name)) &&
+    rawDataUrl.length <= maxChars
+  ) {
+    return rawDataUrl;
+  }
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('El archivo no es una imagen válida o está dañado.'));
+    image.src = rawDataUrl;
+  });
+
+  const srcW = img.naturalWidth || img.width || maxDim;
+  const srcH = img.naturalHeight || img.height || maxDim;
+  const dims = [maxDim, 144, 112, 84];
+  const qualities = [0.88, 0.72, 0.56, 0.4];
+
+  for (const dim of dims) {
+    const scale = Math.min(dim / srcW, dim / srcH, 1);
+    const targetW = Math.max(1, Math.round(srcW * scale));
+    const targetH = Math.max(1, Math.round(srcH * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) continue;
+
+    ctx.clearRect(0, 0, targetW, targetH);
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+
+    const pngAttempt = canvas.toDataURL('image/png');
+    if (pngAttempt.length <= maxChars) {
+      return pngAttempt;
+    }
+
+    for (const q of qualities) {
+      const webpAttempt = canvas.toDataURL('image/webp', q);
+      if (webpAttempt.startsWith('data:image/webp') && webpAttempt.length <= maxChars) {
+        return webpAttempt;
+      }
+      const jpegAttempt = canvas.toDataURL('image/jpeg', q);
+      if (jpegAttempt.length <= maxChars) {
+        return jpegAttempt;
+      }
+    }
+  }
+
+  if (rawDataUrl.length <= maxChars) {
+    return rawDataUrl;
+  }
+  throw new Error('La imagen es demasiado pesada para optimizarse.');
+}
+
+async function uploadLogoWithFallback(storagePath: string, file: File): Promise<string> {
+  const optimizedDataUrl = await optimizeLogoToDataUrl(file, {
+    maxDim: 192,
+    maxChars: 58000,
+  });
+
+  if (storageUnavailable) {
+    return optimizedDataUrl;
+  }
+
+  try {
+    const storageRef = ref(storage, storagePath);
+    const uploadTask = uploadBytes(storageRef, file, {
+      contentType: file.type || 'image/png',
+      cacheControl: 'public, max-age=31536000',
+    }).then(() => getDownloadURL(storageRef));
+
+    return await Promise.race<string>([
+      uploadTask,
+      new Promise<never>((_, reject) =>
+        window.setTimeout(() => reject(new Error('storage/timeout')), 2000)
+      ),
+    ]);
+  } catch {
+    storageUnavailable = true;
+    return optimizedDataUrl;
+  }
+}
+
 export async function uploadOrganizationLogo(orgId: string, file: File): Promise<string> {
   const safeOrgId = orgId.replace(/[^a-zA-Z0-9_-]/g, '') || 'org_sigd_principal';
   const extRaw = file.name.split('.').pop()?.toLowerCase() || 'png';
   const ext = ['png', 'jpg', 'jpeg', 'webp', 'svg'].includes(extRaw) ? extRaw : 'png';
   const storagePath = `organizations/${safeOrgId}/logo_${Date.now()}.${ext}`;
-  const storageRef = ref(storage, storagePath);
-  await uploadBytes(storageRef, file, {
-    contentType: file.type || 'image/png',
-    cacheControl: 'public, max-age=31536000',
-  });
-  return getDownloadURL(storageRef);
+  return uploadLogoWithFallback(storagePath, file);
 }
 
 export async function saveOrganizationConfig(params: {
@@ -1244,7 +1343,7 @@ export async function saveOrganizationConfig(params: {
       name: params.name.trim().slice(0, 120),
       shortName: params.shortName.trim().slice(0, 24),
       city: (params.city || '').trim().slice(0, 80),
-      logoUrl: (params.logoUrl || '').trim().slice(0, 1000),
+      logoUrl: (params.logoUrl || '').trim().slice(0, 65000),
       active: params.active,
       ...(params.isNew
         ? {
@@ -1380,12 +1479,7 @@ export async function uploadTeamLogo(teamId: string, file: File): Promise<string
   const extRaw = file.name.split('.').pop()?.toLowerCase() || 'png';
   const ext = ['png', 'jpg', 'jpeg', 'webp', 'svg'].includes(extRaw) ? extRaw : 'png';
   const storagePath = `teams/${safeTeamId}/logo_${Date.now()}.${ext}`;
-  const storageRef = ref(storage, storagePath);
-  await uploadBytes(storageRef, file, {
-    contentType: file.type || 'image/png',
-    cacheControl: 'public, max-age=31536000',
-  });
-  return getDownloadURL(storageRef);
+  return uploadLogoWithFallback(storagePath, file);
 }
 
 export async function updateTeamCrestUrl(params: {
@@ -1395,7 +1489,7 @@ export async function updateTeamCrestUrl(params: {
   actorName: string;
 }): Promise<void> {
   const path = `teams/${params.team.id}`;
-  const cleanUrl = params.crestUrl.trim().slice(0, 500);
+  const cleanUrl = params.crestUrl.trim().slice(0, 65000);
   try {
     await updateDoc(doc(db, 'teams', params.team.id), {
       crestUrl: cleanUrl,

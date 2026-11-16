@@ -58,12 +58,16 @@ export function OrganizationConfigPage() {
     setMsg(null);
     setErrMsg(null);
 
-    if (!file.type.startsWith('image/')) {
+    const isImage =
+      file.type.startsWith('image/') || /\.(png|jpe?g|webp|svg|gif)$/i.test(file.name);
+    if (!isImage) {
       setErrMsg('Selecciona un archivo de imagen válido (PNG, JPG, WebP o SVG).');
+      e.target.value = '';
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
       setErrMsg('El logotipo no debe superar los 3 MB.');
+      e.target.value = '';
       return;
     }
 
@@ -86,14 +90,12 @@ export function OrganizationConfigPage() {
       });
 
       setMsg(
-        'Logotipo subido a Firebase Storage y guardado como insignia oficial del Portal Público y reportes PDF.'
+        'Logotipo cargado, optimizado y guardado como insignia oficial del Portal Público y reportes PDF.'
       );
     } catch (err) {
       const raw = err instanceof Error ? err.message : '';
       setErrMsg(
-        raw.includes('storage/')
-          ? `No se pudo subir a Firebase Storage (${raw}). Verifica que Storage esté habilitado o utiliza una URL directa.`
-          : 'No se pudo subir el logotipo a Firebase Storage. Puedes intentar nuevamente o pegar una URL directa.'
+        raw || 'No se pudo cargar el logotipo seleccionado. Puedes intentar nuevamente o pegar una URL directa.'
       );
     } finally {
       setUploading(false);
@@ -268,7 +270,7 @@ export function OrganizationConfigPage() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml,image/*"
                     onChange={handleFileChange}
                     className="hidden"
                     id="org-logo-upload"
@@ -280,11 +282,20 @@ export function OrganizationConfigPage() {
                     }`}
                   >
                     <Upload className="w-3.5 h-3.5" />
-                    {uploading ? 'Subiendo a Storage...' : 'Seleccionar archivo'}
+                    {uploading ? 'Procesando...' : 'Seleccionar archivo'}
                   </label>
                 </div>
               )}
             </div>
+
+            {logoUrl.startsWith('data:image/') && (
+              <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-300">
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  Logotipo oficial optimizado y guardado
+                </span>
+              </div>
+            )}
 
             <div className="pt-2 border-t border-slate-200 dark:border-slate-700/70 space-y-2">
               <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -294,14 +305,13 @@ export function OrganizationConfigPage() {
               <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  maxLength={1000}
                   disabled={!canManageOrg}
-                  value={logoUrl}
+                  value={logoUrl.startsWith('data:image/') ? '' : logoUrl}
                   onChange={(e) => {
                     setLogoUrl(e.target.value);
                     setImgError(false);
                   }}
-                  placeholder="https://firebasestorage.googleapis.com/... o URL pública"
+                  placeholder="https://.../logo.png o URL pública"
                   className="flex-1 px-3 py-2 text-xs font-mono border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 disabled:opacity-60"
                 />
                 {canManageOrg && previewLogo && (

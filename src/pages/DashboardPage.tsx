@@ -714,29 +714,51 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 No hay actas pendientes de aprobación en este momento.
               </div>
             ) : (
-              pendingValidationMatches.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => onNavigate('results')}
-                  className="group w-full text-left p-4 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                      <span>
-                        Partido #{m.matchNumber} · {categoryMap.get(m.categoryId)?.name}
-                      </span>
-                      <MatchStatusIndicator status={m.status} />
+              pendingValidationMatches.map((m) => {
+                const home = teamMap.get(m.homeTeamId);
+                const away = teamMap.get(m.awayTeamId);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => onNavigate('results')}
+                    className="group w-full text-left p-4 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span>
+                          Partido #{m.matchNumber} · {categoryMap.get(m.categoryId)?.name}
+                        </span>
+                        <MatchStatusIndicator status={m.status} />
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 min-w-0">
+                        <TeamCrest
+                          name={home?.name || m.homeTeamId}
+                          shortCode={home?.shortCode || 'LOC'}
+                          primaryColor={home?.primaryColor}
+                          secondaryColor={home?.secondaryColor}
+                          crestUrl={home?.crestUrl}
+                          size="sm"
+                        />
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                          {home?.name || m.homeTeamId} vs {away?.name || m.awayTeamId}
+                        </p>
+                        <TeamCrest
+                          name={away?.name || m.awayTeamId}
+                          shortCode={away?.shortCode || 'VIS'}
+                          primaryColor={away?.primaryColor}
+                          secondaryColor={away?.secondaryColor}
+                          crestUrl={away?.crestUrl}
+                          size="sm"
+                        />
+                      </div>
                     </div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate mt-0.5">
-                      {teamMap.get(m.homeTeamId)?.name} vs {teamMap.get(m.awayTeamId)?.name}
-                    </p>
-                  </div>
-                  <span className="font-mono font-bold text-sm px-2.5 py-1 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 tabular-nums shrink-0 transition-transform duration-150 group-hover:scale-105">
-                    {m.homeScore ?? 0} - {m.awayScore ?? 0}
-                  </span>
-                </button>
-              ))
+                    <span className="font-mono font-bold text-sm px-2.5 py-1 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 tabular-nums shrink-0 transition-transform duration-150 group-hover:scale-105">
+                      {m.homeScore ?? 0} - {m.awayScore ?? 0}
+                    </span>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
@@ -773,13 +795,24 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                     className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <TeamCrest
-                        name={home?.name || m.homeTeamId}
-                        shortCode={home?.shortCode || 'LOC'}
-                        primaryColor={home?.primaryColor}
-                        crestUrl={home?.crestUrl}
-                        size="sm"
-                      />
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <TeamCrest
+                          name={home?.name || m.homeTeamId}
+                          shortCode={home?.shortCode || 'LOC'}
+                          primaryColor={home?.primaryColor}
+                          secondaryColor={home?.secondaryColor}
+                          crestUrl={home?.crestUrl}
+                          size="sm"
+                        />
+                        <TeamCrest
+                          name={away?.name || m.awayTeamId}
+                          shortCode={away?.shortCode || 'VIS'}
+                          primaryColor={away?.primaryColor}
+                          secondaryColor={away?.secondaryColor}
+                          crestUrl={away?.crestUrl}
+                          size="sm"
+                        />
+                      </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
                           {home?.name || m.homeTeamId} vs {away?.name || m.awayTeamId}

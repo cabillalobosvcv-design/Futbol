@@ -75,7 +75,7 @@ service cloud.firestore {
         && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
         && data.shortName is string && data.shortName.size() >= 2 && data.shortName.size() <= 24
         && isOptionalString(data, 'city', 80)
-        && isOptionalString(data, 'logoUrl', 1000)
+        && isOptionalString(data, 'logoUrl', 65000)
         && data.active is bool
         && isValidId(data.createdBy)
         && data.createdAt is timestamp
@@ -219,7 +219,7 @@ service cloud.firestore {
         && data.shortCode is string && data.shortCode.size() >= 2 && data.shortCode.size() <= 6
         && data.primaryColor is string && data.primaryColor.size() <= 20
         && isOptionalString(data, 'secondaryColor', 20)
-        && isOptionalString(data, 'crestUrl', 500)
+        && isOptionalString(data, 'crestUrl', 65000)
         && isOptionalString(data, 'coachId', 128)
         && isOptionalString(data, 'coachName', 100)
         && isOptionalString(data, 'representativeUid', 128)

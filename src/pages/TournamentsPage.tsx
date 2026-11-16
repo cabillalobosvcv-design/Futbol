@@ -13,6 +13,7 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
+import { TeamCrest } from '../components/TeamCrest';
 import { TIEBREAKER_LABELS } from '../engines/sportsCatalog';
 import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
@@ -921,9 +922,30 @@ export function TournamentsPage() {
                       </div>
                       <div>
                         <span className="text-slate-400 dark:text-slate-500 block">Campeón</span>
-                        <span className="font-medium text-amber-700 dark:text-amber-400">
-                          {t.championTeamName || 'En competencia'}
-                        </span>
+                        {(() => {
+                          const champTeam = t.championTeamId
+                            ? teams.find((tm) => tm.id === t.championTeamId)
+                            : undefined;
+                          return champTeam ? (
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <TeamCrest
+                                name={champTeam.name}
+                                shortCode={champTeam.shortCode}
+                                primaryColor={champTeam.primaryColor}
+                                secondaryColor={champTeam.secondaryColor}
+                                crestUrl={champTeam.crestUrl}
+                                size="sm"
+                              />
+                              <span className="font-medium text-amber-700 dark:text-amber-400 truncate">
+                                {champTeam.name}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="font-medium text-amber-700 dark:text-amber-400">
+                              {t.championTeamName || 'En competencia'}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
 
