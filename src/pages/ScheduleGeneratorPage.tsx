@@ -1,14 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import {
+  AlertCircle,
   AlertTriangle,
+  ArrowLeftRight,
   CalendarDays,
   CheckCircle2,
   Edit3,
   FileSpreadsheet,
   FileText,
+  Plus,
   RefreshCw,
   Send,
   SlidersHorizontal,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { exportToExcel, exportToPdf } from '../engines/exportEngine';
 import { detectScheduleConflicts, generateTournamentFixtures } from '../engines/fixtureGenerator';
@@ -16,12 +21,17 @@ import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
 import {
   createAuditLog,
+  deleteCategorySchedule,
+  deleteMatchFromSchedule,
+  deleteRoundMatches,
+  makeId,
   persistGeneratedSchedule,
   publishCategorySchedule,
   saveEntityDoc,
   sendNotification,
+  updateRoundMatchesDate,
 } from '../services/firestoreService';
-import type { Match, MatchStatus, TournamentFormat } from '../types/sigd';
+import type { Match, MatchStage, MatchStatus, TournamentFormat } from '../types/sigd';
 
 type ScheduleViewMode = 'rounds' | 'calendar' | 'category' | 'team' | 'field';
 
@@ -50,16 +60,38 @@ export function ScheduleGeneratorPage() {
     onConfirm: () => Promise<void>;
   } | null>(null);
 
-  // Edit match modal
+  // Edit / Create individual match modal
+  const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
+  const [editHomeTeamId, setEditHomeTeamId] = useState('');
+  const [editAwayTeamId, setEditAwayTeamId] = useState('');
+  const [editRoundNumber, setEditRoundNumber] = useState(1);
+  const [editStage, setEditStage] = useState<MatchStage>('regular');
   const [editDate, setEditDate] = useState('');
   const [editTime, setEditTime] = useState('');
   const [editFieldId, setEditFieldId] = useState('');
   const [editRefereeId, setEditRefereeId] = useState('');
   const [editStatus, setEditStatus] = useState<MatchStatus>('Programado');
 
+  // Edit entire round date modal
+  const [editingRound, setEditingRound] = useState<{
+    roundNumber: number;
+    currentDate: string;
+    matchCount: number;
+  } | null>(null);
+  const [roundNewDate, setRoundNewDate] = useState('');
+
+  // Delete confirmation modal (single match, full round, or full category schedule)
+  const [deletingTarget, setDeletingTarget] = useState<
+    | { type: 'match'; match: Match }
+    | { type: 'round'; roundNumber: number; matchCount: number }
+    | { type: 'category'; matchCount: number }
+    | null
+  >(null);
+
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const activeTournament =
     tournaments.find((t) => t.id === selectedTournamentId) || tournaments[0];
@@ -96,6 +128,39 @@ export function ScheduleGeneratorPage() {
   const fieldMap = useMemo(() => new Map(fields.map((f) => [f.id, f])), [fields]);
   const refMap = useMemo(() => new Map(referees.map((r) => [r.id, r])), [referees]);
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+
+  const activeCategoryAllMatches = useMemo(() => {
+    if (!activeCategory) return [];
+    return matches
+      .filter((m) => m.categoryId === activeCategory.id)
+      .sort(
+        (a, b) =>
+          a.roundNumber - b.roundNumber ||
+          `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+      );
+  }, [matches, activeCategory]);
+
+  const categoryRoundsSummary = useMemo(() => {
+    const map = new Map<
+      number,
+      { roundNumber: number; matchCount: number; firstDate: string; stage: MatchStage }
+    >();
+    for (const m of activeCategoryAllMatches) {
+      const existing = map.get(m.roundNumber);
+      if (!existing) {
+        map.set(m.roundNumber, {
+          roundNumber: m.roundNumber,
+          matchCount: 1,
+          firstDate: m.date,
+          stage: m.stage,
+        });
+      } else {
+        existing.matchCount += 1;
+        if (m.date < existing.firstDate) existing.firstDate = m.date;
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.roundNumber - b.roundNumber);
+  }, [activeCategoryAllMatches]);
 
   const conflicts = useMemo(
     () =>
@@ -194,12 +259,18 @@ export function ScheduleGeneratorPage() {
 
   const openMatchEditor = (m: Match) => {
     const startEdit = () => {
+      setErrorMsg(null);
       setEditingMatch(m);
+      setEditHomeTeamId(m.homeTeamId);
+      setEditAwayTeamId(m.awayTeamId);
+      setEditRoundNumber(m.roundNumber);
+      setEditStage(m.stage);
       setEditDate(m.date);
       setEditTime(m.time);
       setEditFieldId(m.fieldId || '');
       setEditRefereeId(m.refereeId || '');
       setEditStatus(m.status);
+      setMatchModalOpen(true);
     };
 
     if (m.published) {
@@ -216,46 +287,193 @@ export function ScheduleGeneratorPage() {
     startEdit();
   };
 
+  const openNewMatchCreator = () => {
+    if (!activeTournament || !activeCategory) return;
+    if (categoryTeams.length < 2) {
+      setErrorMsg('Se necesitan al menos 2 equipos registrados en la categoría para crear un partido.');
+      return;
+    }
+    setErrorMsg(null);
+    setEditingMatch(null);
+    setEditHomeTeamId(categoryTeams[0]?.id || '');
+    setEditAwayTeamId(categoryTeams[1]?.id || '');
+    setEditRoundNumber((categoryRoundsSummary[categoryRoundsSummary.length - 1]?.roundNumber || 0) + 1);
+    setEditStage('regular');
+    setEditDate(startDate);
+    setEditTime('09:00');
+    setEditFieldId(fields[0]?.id || '');
+    setEditRefereeId('');
+    setEditStatus('Programado');
+    setMatchModalOpen(true);
+  };
+
   const handleSaveMatchEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile || !editingMatch) return;
+    if (!profile || !activeTournament || !activeCategory) return;
+
+    if (!editHomeTeamId || !editAwayTeamId || editHomeTeamId === editAwayTeamId) {
+      setErrorMsg('Selecciona dos equipos distintos (Local y Visitante).');
+      return;
+    }
+
     setBusy(true);
+    setErrorMsg(null);
+    setFeedback(null);
     try {
       const selectedField = fields.find((f) => f.id === editFieldId);
-      await saveEntityDoc(
-        'matches',
-        editingMatch.id,
-        {
-          date: editDate,
-          time: editTime,
-          fieldId: editFieldId || '',
-          venueId: selectedField?.venueId || '',
-          refereeId: editRefereeId || '',
-          status: editStatus,
-        },
-        false
-      );
-      await createAuditLog({
+      const safeRound = Math.min(100, Math.max(1, Number(editRoundNumber) || 1));
+
+      if (editingMatch) {
+        await saveEntityDoc(
+          'matches',
+          editingMatch.id,
+          {
+            homeTeamId: editHomeTeamId,
+            awayTeamId: editAwayTeamId,
+            roundNumber: safeRound,
+            stage: editStage,
+            date: editDate,
+            time: editTime,
+            fieldId: editFieldId || '',
+            venueId: selectedField?.venueId || '',
+            refereeId: editRefereeId || '',
+            status: editStatus,
+          },
+          false
+        );
+        await createAuditLog({
+          actorUid: profile.uid,
+          actorName: profile.displayName,
+          action: 'UPDATE_MATCH',
+          entity: 'matches',
+          entityId: editingMatch.id,
+          summary: `Partido #${editingMatch.matchNumber} modificado (J${safeRound} · ${editDate} ${editTime} · ${editStatus}).`,
+        });
+        if (editingMatch.published) {
+          await sendNotification({
+            isBroadcast: true,
+            title: `Cambio de programación · Partido #${editingMatch.matchNumber}`,
+            message: `Actualización: ${teamMap.get(editHomeTeamId)?.name || 'Local'} vs ${teamMap.get(editAwayTeamId)?.name || 'Visitante'} · ${editDate} ${editTime} · Estado: ${editStatus}.`,
+            type: editStatus === 'Suspendido' || editStatus === 'Cancelado' ? 'alert' : 'warning',
+            entityType: 'matches',
+            entityId: editingMatch.id,
+            createdByUid: profile.uid,
+          });
+        }
+        setFeedback(`Partido #${editingMatch.matchNumber} modificado correctamente.`);
+      } else {
+        const nextMatchNumber =
+          activeCategoryAllMatches.reduce((max, m) => Math.max(max, m.matchNumber), 0) + 1;
+        const newMatchId = makeId('mat');
+        await saveEntityDoc(
+          'matches',
+          newMatchId,
+          {
+            matchNumber: nextMatchNumber,
+            tournamentId: activeTournament.id,
+            categoryId: activeCategory.id,
+            roundNumber: safeRound,
+            stage: editStage,
+            date: editDate,
+            time: editTime,
+            venueId: selectedField?.venueId || '',
+            fieldId: editFieldId || '',
+            homeTeamId: editHomeTeamId,
+            awayTeamId: editAwayTeamId,
+            refereeId: editRefereeId || '',
+            status: editStatus,
+            published: Boolean(activeCategory.schedulePublished),
+          },
+          true
+        );
+        await createAuditLog({
+          actorUid: profile.uid,
+          actorName: profile.displayName,
+          action: 'CREATE_MANUAL_MATCH',
+          entity: 'matches',
+          entityId: newMatchId,
+          summary: `Partido manual #${nextMatchNumber} agregado a J${safeRound} de ${activeCategory.name} (${editDate} ${editTime}).`,
+        });
+        setFeedback(`Partido #${nextMatchNumber} agregado al rol de ${activeCategory.name}.`);
+      }
+
+      setMatchModalOpen(false);
+      setEditingMatch(null);
+    } catch {
+      setErrorMsg('No se pudieron guardar los cambios del encuentro. Verifica tus permisos.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSaveRoundDate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile || !activeCategory || !editingRound || !roundNewDate) return;
+    setBusy(true);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      const updatedCount = await updateRoundMatchesDate({
+        categoryId: activeCategory.id,
+        categoryName: activeCategory.name,
+        roundNumber: editingRound.roundNumber,
+        newDate: roundNewDate,
+        wasPublished: Boolean(activeCategory.schedulePublished),
         actorUid: profile.uid,
         actorName: profile.displayName,
-        action: 'UPDATE_MATCH',
-        entity: 'matches',
-        entityId: editingMatch.id,
-        summary: `Partido #${editingMatch.matchNumber} actualizado (${editDate} ${editTime} · ${editStatus}).`,
       });
-      if (editingMatch.published) {
-        await sendNotification({
-          isBroadcast: true,
-          title: `Cambio de programación · Partido #${editingMatch.matchNumber}`,
-          message: `Actualización: ${editDate} ${editTime} · Estado: ${editStatus}.`,
-          type: editStatus === 'Suspendido' ? 'alert' : 'warning',
-          entityType: 'matches',
-          entityId: editingMatch.id,
-          createdByUid: profile.uid,
+      setEditingRound(null);
+      setFeedback(
+        `Jornada ${editingRound.roundNumber} reprogramada al ${roundNewDate} (${updatedCount} partidos actualizados).`
+      );
+    } catch {
+      setErrorMsg('No se pudo reprogramar la fecha de la jornada.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConfirmDeletion = async () => {
+    if (!profile || !activeCategory || !deletingTarget) return;
+    setBusy(true);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      if (deletingTarget.type === 'match') {
+        const remainingCount = activeCategoryAllMatches.length - 1;
+        await deleteMatchFromSchedule({
+          match: deletingTarget.match,
+          remainingCategoryMatchesCount: remainingCount,
+          categoryName: catMap.get(deletingTarget.match.categoryId)?.name || activeCategory.name,
+          actorUid: profile.uid,
+          actorName: profile.displayName,
         });
+        setFeedback(`Partido #${deletingTarget.match.matchNumber} eliminado del rol.`);
+      } else if (deletingTarget.type === 'round') {
+        const count = await deleteRoundMatches({
+          categoryId: activeCategory.id,
+          categoryName: activeCategory.name,
+          roundNumber: deletingTarget.roundNumber,
+          wasPublished: Boolean(activeCategory.schedulePublished),
+          actorUid: profile.uid,
+          actorName: profile.displayName,
+        });
+        setFeedback(`Jornada ${deletingTarget.roundNumber} (${count} partidos) eliminada del rol.`);
+      } else {
+        const count = await deleteCategorySchedule({
+          categoryId: activeCategory.id,
+          categoryName: activeCategory.name,
+          wasPublished: Boolean(activeCategory.schedulePublished),
+          actorUid: profile.uid,
+          actorName: profile.displayName,
+        });
+        setFeedback(
+          `Se eliminó por completo el rol de ${activeCategory.name} (${count} partidos removidos).`
+        );
       }
-      setEditingMatch(null);
-      setFeedback(`Partido #${editingMatch.matchNumber} actualizado.`);
+      setDeletingTarget(null);
+    } catch {
+      setErrorMsg('No se pudo completar la eliminación solicitada.');
     } finally {
       setBusy(false);
     }
@@ -328,6 +546,13 @@ export function ScheduleGeneratorPage() {
         <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{feedback}</span>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{errorMsg}</span>
         </div>
       )}
 
@@ -553,18 +778,103 @@ export function ScheduleGeneratorPage() {
 
       {/* Matches Grid / Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-colors">
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
-            Encuentros Programados ({categoryMatches.length})
-          </h2>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            {activeCategory?.schedulePublished ? 'Calendario publicado' : 'Borrador interno'}
-          </span>
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
+              Encuentros Programados ({categoryMatches.length})
+            </h2>
+            <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+              {activeCategory?.schedulePublished ? 'Calendario publicado' : 'Borrador interno'}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {activeCategory && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={openNewMatchCreator}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5 text-electric-500" />
+                Agregar partido
+              </button>
+            )}
+            {activeCategory && activeCategoryAllMatches.length > 0 && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  setDeletingTarget({
+                    type: 'category',
+                    matchCount: activeCategoryAllMatches.length,
+                  })
+                }
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-rose-200 dark:border-rose-900/70 bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Eliminar rol completo
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Round-level Modify & Delete Bar */}
+        {activeCategory && categoryRoundsSummary.length > 0 && viewMode !== 'category' && (
+          <div className="px-5 py-3 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 mr-1">
+              Jornadas creadas:
+            </span>
+            {categoryRoundsSummary.map((rnd) => (
+              <div
+                key={rnd.roundNumber}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs"
+              >
+                <span className="font-semibold text-navy-900 dark:text-white">
+                  J{rnd.roundNumber}
+                </span>
+                <span className="text-slate-500 dark:text-slate-400 font-mono">
+                  ({rnd.matchCount}) · {rnd.firstDate}
+                </span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  title={`Cambiar fecha de Jornada ${rnd.roundNumber}`}
+                  onClick={() => {
+                    setEditingRound({
+                      roundNumber: rnd.roundNumber,
+                      currentDate: rnd.firstDate,
+                      matchCount: rnd.matchCount,
+                    });
+                    setRoundNewDate(rnd.firstDate);
+                  }}
+                  className="p-1 rounded text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50"
+                >
+                  <Edit3 className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  title={`Eliminar Jornada ${rnd.roundNumber}`}
+                  onClick={() =>
+                    setDeletingTarget({
+                      type: 'round',
+                      roundNumber: rnd.roundNumber,
+                      matchCount: rnd.matchCount,
+                    })
+                  }
+                  className="p-1 rounded text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {categoryMatches.length === 0 ? (
           <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
-            No hay encuentros generados para esta selección. Configura los parámetros arriba y presiona "Generar Roles Automáticamente".
+            No hay encuentros generados para esta selección. Configura los parámetros arriba y presiona "Generar Roles Automáticamente" o agrega un partido manual.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -607,15 +917,27 @@ export function ScheduleGeneratorPage() {
                     <td className="py-3 px-4 text-xs font-medium text-slate-700 dark:text-slate-300">
                       {m.status}
                     </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => openMatchEditor(m)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        Editar
-                      </button>
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => openMatchEditor(m)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          Modificar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setDeletingTarget({ type: 'match', match: m })}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Eliminar
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -662,20 +984,130 @@ export function ScheduleGeneratorPage() {
         </div>
       )}
 
-      {/* Individual Match Editor Modal */}
-      {editingMatch && (
+      {/* Individual Match Editor / Manual Match Modal */}
+      {matchModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-[1px] flex items-center justify-center p-4">
           <form
             onSubmit={handleSaveMatchEdit}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto"
           >
-            <h3 className="font-display font-bold text-lg text-navy-900 dark:text-white">
-              Editar / Reprogramar Partido #{editingMatch.matchNumber}
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {teamMap.get(editingMatch.homeTeamId)?.name || editingMatch.homeTeamId} vs{' '}
-              {teamMap.get(editingMatch.awayTeamId)?.name || editingMatch.awayTeamId}
-            </p>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="font-display font-bold text-lg text-navy-900 dark:text-white">
+                  {editingMatch
+                    ? `Modificar Encuentro #${editingMatch.matchNumber}`
+                    : 'Agregar Partido al Rol'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Ajusta equipos, jornada, fase, horario, sede o estado del partido según sea necesario.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMatchModalOpen(false);
+                  setEditingMatch(null);
+                }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Equipo Local
+                  </label>
+                  <select
+                    required
+                    value={editHomeTeamId}
+                    onChange={(e) => setEditHomeTeamId(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  >
+                    <option value="">Selecciona equipo local</option>
+                    {(editingMatch
+                      ? teams.filter((t) => t.categoryId === editingMatch.categoryId)
+                      : categoryTeams
+                    ).map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Equipo Visitante
+                  </label>
+                  <select
+                    required
+                    value={editAwayTeamId}
+                    onChange={(e) => setEditAwayTeamId(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  >
+                    <option value="">Selecciona equipo visitante</option>
+                    {(editingMatch
+                      ? teams.filter((t) => t.categoryId === editingMatch.categoryId)
+                      : categoryTeams
+                    ).map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const tmp = editHomeTeamId;
+                  setEditHomeTeamId(editAwayTeamId);
+                  setEditAwayTeamId(tmp);
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-electric-600 dark:text-blue-400 hover:underline"
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5" />
+                Intercambiar Local ↔ Visitante
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Jornada
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  required
+                  value={editRoundNumber}
+                  onChange={(e) => setEditRoundNumber(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Fase
+                </label>
+                <select
+                  value={editStage}
+                  onChange={(e) => setEditStage(e.target.value as MatchStage)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                >
+                  <option value="regular">Regular</option>
+                  <option value="grupos">Grupos</option>
+                  <option value="octavos">Octavos</option>
+                  <option value="cuartos">Cuartos</option>
+                  <option value="semifinal">Semifinal</option>
+                  <option value="final">Final</option>
+                </select>
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -762,7 +1194,10 @@ export function ScheduleGeneratorPage() {
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setEditingMatch(null)}
+                onClick={() => {
+                  setMatchModalOpen(false);
+                  setEditingMatch(null);
+                }}
                 className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 Cancelar
@@ -772,10 +1207,127 @@ export function ScheduleGeneratorPage() {
                 disabled={busy}
                 className="px-4 py-2 text-sm font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg"
               >
-                Guardar cambios
+                {busy ? 'Guardando...' : editingMatch ? 'Guardar cambios' : 'Crear partido'}
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Round Date Reprogramming Modal */}
+      {editingRound && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-[1px] flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveRoundDate}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl"
+          >
+            <h3 className="font-display font-bold text-base text-navy-900 dark:text-white">
+              Modificar Fecha de Jornada {editingRound.roundNumber}
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              Se actualizará la fecha de los <strong>{editingRound.matchCount}</strong> partidos pertenecientes a la Jornada {editingRound.roundNumber} de {activeCategory?.name}.
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Nueva fecha para la jornada
+              </label>
+              <input
+                type="date"
+                required
+                value={roundNewDate}
+                onChange={(e) => setRoundNewDate(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setEditingRound(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={busy}
+                className="px-4 py-2 text-sm font-medium text-white bg-navy-900 dark:bg-electric-500 hover:bg-navy-800 dark:hover:bg-electric-600 rounded-lg"
+              >
+                {busy ? 'Actualizando...' : 'Aplicar nueva fecha'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Delete Match / Round / Full Schedule Confirmation Modal */}
+      {deletingTarget && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-[1px] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900 rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-base text-slate-900 dark:text-white">
+                  {deletingTarget.type === 'match'
+                    ? `Eliminar Partido #${deletingTarget.match.matchNumber}`
+                    : deletingTarget.type === 'round'
+                      ? `Eliminar Jornada ${deletingTarget.roundNumber}`
+                      : `Eliminar Rol Completo de ${activeCategory?.name}`}
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                  {deletingTarget.type === 'match' ? (
+                    <>
+                      Se eliminará el encuentro{' '}
+                      <strong>
+                        {teamMap.get(deletingTarget.match.homeTeamId)?.name ||
+                          deletingTarget.match.homeTeamId}{' '}
+                        vs{' '}
+                        {teamMap.get(deletingTarget.match.awayTeamId)?.name ||
+                          deletingTarget.match.awayTeamId}
+                      </strong>{' '}
+                      ({deletingTarget.match.date} {deletingTarget.match.time}).
+                    </>
+                  ) : deletingTarget.type === 'round' ? (
+                    <>
+                      Se eliminarán los <strong>{deletingTarget.matchCount}</strong> encuentros de la
+                      Jornada {deletingTarget.roundNumber} de {activeCategory?.name}.
+                    </>
+                  ) : (
+                    <>
+                      Se eliminarán todos los <strong>{deletingTarget.matchCount}</strong> encuentros,
+                      jornadas y grupos generados para <strong>{activeCategory?.name}</strong>.
+                    </>
+                  )}
+                </p>
+                {activeCategory?.schedulePublished && (
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mt-2">
+                    Nota: Este calendario ya se encuentra publicado; los usuarios recibirán una notificación del retiro.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setDeletingTarget(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleConfirmDeletion}
+                className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg"
+              >
+                {busy ? 'Eliminando...' : 'Confirmar eliminación'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

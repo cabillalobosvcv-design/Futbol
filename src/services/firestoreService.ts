@@ -1414,4 +1414,255 @@ export async function updateTeamCrestUrl(params: {
   }
 }
 
+export async function deleteMatchFromSchedule(params: {
+  match: Match;
+  remainingCategoryMatchesCount: number;
+  categoryName: string;
+  actorUid: string;
+  actorName: string;
+}): Promise<void> {
+  const path = `matches/${params.match.id}`;
+  try {
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'matches', params.match.id));
+    if (params.remainingCategoryMatchesCount <= 0) {
+      batch.update(doc(db, 'categories', params.match.categoryId), {
+        schedulePublished: false,
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
+
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'DELETE_MATCH',
+      entity: 'matches',
+      entityId: params.match.id,
+      summary: `Partido #${params.match.matchNumber} (J${params.match.roundNumber} · ${params.match.date}) eliminado del rol de ${params.categoryName}.`,
+    });
+
+    if (params.match.published) {
+      await sendNotification({
+        isBroadcast: true,
+        title: `Partido eliminado del rol · #${params.match.matchNumber}`,
+        message: `El encuentro #${params.match.matchNumber} de ${params.categoryName} (${params.match.date} ${params.match.time}) fue retirado del calendario.`,
+        type: 'warning',
+        entityType: 'matches',
+        entityId: params.match.id,
+        createdByUid: params.actorUid,
+      });
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
+}
+
+export async function updateRoundMatchesDate(params: {
+  categoryId: string;
+  categoryName: string;
+  roundNumber: number;
+  newDate: string;
+  wasPublished: boolean;
+  actorUid: string;
+  actorName: string;
+}): Promise<number> {
+  const path = `matches/round_${params.categoryId}_${params.roundNumber}`;
+  try {
+    const [roundMatches, roundDocs] = await Promise.all([
+      getDocs(
+        query(
+          collection(db, 'matches'),
+          where('categoryId', '==', params.categoryId),
+          where('roundNumber', '==', params.roundNumber)
+        )
+      ),
+      getDocs(
+        query(
+          collection(db, 'rounds'),
+          where('categoryId', '==', params.categoryId),
+          where('roundNumber', '==', params.roundNumber)
+        )
+      ),
+    ]);
+
+    const ops: Array<{ ref: (typeof roundMatches.docs)[number]['ref']; data: Record<string, unknown> }> = [
+      ...roundMatches.docs.map((d) => ({
+        ref: d.ref,
+        data: { date: params.newDate, updatedAt: serverTimestamp() },
+      })),
+      ...roundDocs.docs.map((d) => ({
+        ref: d.ref,
+        data: { startDate: params.newDate },
+      })),
+    ];
+
+    for (let i = 0; i < ops.length; i += 400) {
+      const batch = writeBatch(db);
+      for (const item of ops.slice(i, i + 400)) {
+        batch.update(item.ref, item.data);
+      }
+      await batch.commit();
+    }
+
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'UPDATE_ROUND_DATE',
+      entity: 'matches',
+      entityId: params.categoryId,
+      summary: `Jornada ${params.roundNumber} de ${params.categoryName} reprogramada al ${params.newDate} (${roundMatches.size} partidos).`,
+    });
+
+    if (params.wasPublished && roundMatches.size > 0) {
+      await sendNotification({
+        isBroadcast: true,
+        title: `Reprogramación de Jornada ${params.roundNumber} · ${params.categoryName}`,
+        message: `Los ${roundMatches.size} partidos de la Jornada ${params.roundNumber} fueron reprogramados para el ${params.newDate}.`,
+        type: 'warning',
+        entityType: 'categories',
+        entityId: params.categoryId,
+        createdByUid: params.actorUid,
+      });
+    }
+
+    return roundMatches.size;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+    return 0;
+  }
+}
+
+export async function deleteRoundMatches(params: {
+  categoryId: string;
+  categoryName: string;
+  roundNumber: number;
+  wasPublished: boolean;
+  actorUid: string;
+  actorName: string;
+}): Promise<number> {
+  const path = `matches/round_${params.categoryId}_${params.roundNumber}`;
+  try {
+    const [roundMatches, roundDocs, allCatMatches] = await Promise.all([
+      getDocs(
+        query(
+          collection(db, 'matches'),
+          where('categoryId', '==', params.categoryId),
+          where('roundNumber', '==', params.roundNumber)
+        )
+      ),
+      getDocs(
+        query(
+          collection(db, 'rounds'),
+          where('categoryId', '==', params.categoryId),
+          where('roundNumber', '==', params.roundNumber)
+        )
+      ),
+      getDocs(query(collection(db, 'matches'), where('categoryId', '==', params.categoryId))),
+    ]);
+
+    const refs = [...roundMatches.docs.map((d) => d.ref), ...roundDocs.docs.map((d) => d.ref)];
+    for (let i = 0; i < refs.length; i += 400) {
+      const batch = writeBatch(db);
+      refs.slice(i, i + 400).forEach((r) => batch.delete(r));
+      await batch.commit();
+    }
+
+    const remainingCount = allCatMatches.size - roundMatches.size;
+    if (remainingCount <= 0) {
+      await updateDoc(doc(db, 'categories', params.categoryId), {
+        schedulePublished: false,
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'DELETE_ROUND_SCHEDULE',
+      entity: 'matches',
+      entityId: params.categoryId,
+      summary: `Jornada ${params.roundNumber} (${roundMatches.size} partidos) eliminada del rol de ${params.categoryName}.`,
+    });
+
+    if (params.wasPublished && roundMatches.size > 0) {
+      await sendNotification({
+        isBroadcast: true,
+        title: `Jornada ${params.roundNumber} cancelada · ${params.categoryName}`,
+        message: `La Jornada ${params.roundNumber} de ${params.categoryName} fue eliminada del calendario oficial.`,
+        type: 'alert',
+        entityType: 'categories',
+        entityId: params.categoryId,
+        createdByUid: params.actorUid,
+      });
+    }
+
+    return roundMatches.size;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+    return 0;
+  }
+}
+
+export async function deleteCategorySchedule(params: {
+  categoryId: string;
+  categoryName: string;
+  wasPublished: boolean;
+  actorUid: string;
+  actorName: string;
+}): Promise<number> {
+  const path = `matches/category_${params.categoryId}`;
+  try {
+    const [oldMatches, oldRounds, oldGroups] = await Promise.all([
+      getDocs(query(collection(db, 'matches'), where('categoryId', '==', params.categoryId))),
+      getDocs(query(collection(db, 'rounds'), where('categoryId', '==', params.categoryId))),
+      getDocs(query(collection(db, 'groups'), where('categoryId', '==', params.categoryId))),
+    ]);
+
+    const refs = [
+      ...oldMatches.docs.map((d) => d.ref),
+      ...oldRounds.docs.map((d) => d.ref),
+      ...oldGroups.docs.map((d) => d.ref),
+    ];
+
+    for (let i = 0; i < refs.length; i += 400) {
+      const batch = writeBatch(db);
+      refs.slice(i, i + 400).forEach((r) => batch.delete(r));
+      await batch.commit();
+    }
+
+    await updateDoc(doc(db, 'categories', params.categoryId), {
+      schedulePublished: false,
+      updatedAt: serverTimestamp(),
+    });
+
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'DELETE_SCHEDULE',
+      entity: 'matches',
+      entityId: params.categoryId,
+      summary: `Rol completo eliminado para categoría ${params.categoryName} (${oldMatches.size} partidos, ${oldRounds.size} jornadas).`,
+    });
+
+    if (params.wasPublished && oldMatches.size > 0) {
+      await sendNotification({
+        isBroadcast: true,
+        title: `Calendario retirado · ${params.categoryName}`,
+        message: `El calendario de ${params.categoryName} fue eliminado para su reorganización.`,
+        type: 'alert',
+        entityType: 'categories',
+        entityId: params.categoryId,
+        createdByUid: params.actorUid,
+      });
+    }
+
+    return oldMatches.size;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+    return 0;
+  }
+}
+
+
 
