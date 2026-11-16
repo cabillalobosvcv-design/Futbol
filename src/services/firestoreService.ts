@@ -17,6 +17,7 @@ import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { db, handleFirestoreError, OperationType, storage } from '../firebase/config';
 import { DEFAULT_SPORTS_CATALOG } from '../engines/sportsCatalog';
 import { computeFootballCategoryMetrics } from '../engines/footballStatsEngine';
+import { addDaysToIsoDate } from '../engines/fixtureGenerator';
 import type {
   Category,
   CorrectionEntry,
@@ -663,23 +664,48 @@ export async function persistGeneratedSchedule(params: {
   teamGroupAssignments: Record<string, string>;
   matches: (Omit<Match, 'id' | 'createdAt' | 'updatedAt'> & { tempId?: string })[];
   replaceExisting: boolean;
+  replaceRoundNumbers?: number[];
   actorUid: string;
   actorName: string;
 }): Promise<void> {
   const path = `matches/category_${params.categoryId}`;
   try {
-    // Delete previous unpublished/category schedule items if regenerating
+    // Delete previous category schedule items if regenerating fully, or only target rounds if replacing specific weeks
     if (params.replaceExisting) {
       const [oldMatches, oldRounds, oldGroups] = await Promise.all([
         getDocs(query(collection(db, 'matches'), where('categoryId', '==', params.categoryId))),
         getDocs(query(collection(db, 'rounds'), where('categoryId', '==', params.categoryId))),
         getDocs(query(collection(db, 'groups'), where('categoryId', '==', params.categoryId))),
       ]);
-      const delBatch = writeBatch(db);
-      oldMatches.docs.forEach((d) => delBatch.delete(d.ref));
-      oldRounds.docs.forEach((d) => delBatch.delete(d.ref));
-      oldGroups.docs.forEach((d) => delBatch.delete(d.ref));
-      await delBatch.commit();
+      const delRefs = [
+        ...oldMatches.docs.map((d) => d.ref),
+        ...oldRounds.docs.map((d) => d.ref),
+        ...oldGroups.docs.map((d) => d.ref),
+      ];
+      for (let i = 0; i < delRefs.length; i += 400) {
+        const delBatch = writeBatch(db);
+        delRefs.slice(i, i + 400).forEach((r) => delBatch.delete(r));
+        await delBatch.commit();
+      }
+    } else if (params.replaceRoundNumbers && params.replaceRoundNumbers.length > 0) {
+      const targetRoundsSet = new Set(params.replaceRoundNumbers);
+      const [oldMatches, oldRounds] = await Promise.all([
+        getDocs(query(collection(db, 'matches'), where('categoryId', '==', params.categoryId))),
+        getDocs(query(collection(db, 'rounds'), where('categoryId', '==', params.categoryId))),
+      ]);
+      const delRefs = [
+        ...oldMatches.docs
+          .filter((d) => targetRoundsSet.has((d.data() as { roundNumber?: number }).roundNumber ?? -1))
+          .map((d) => d.ref),
+        ...oldRounds.docs
+          .filter((d) => targetRoundsSet.has((d.data() as { roundNumber?: number }).roundNumber ?? -1))
+          .map((d) => d.ref),
+      ];
+      for (let i = 0; i < delRefs.length; i += 400) {
+        const delBatch = writeBatch(db);
+        delRefs.slice(i, i + 400).forEach((r) => delBatch.delete(r));
+        await delBatch.commit();
+      }
     }
 
     const batch = writeBatch(db);
@@ -1662,6 +1688,91 @@ export async function updateRoundMatchesDate(params: {
         isBroadcast: true,
         title: `Reprogramación de Jornada ${params.roundNumber} · ${params.categoryName}`,
         message: `Los ${roundMatches.size} partidos de la Jornada ${params.roundNumber} fueron reprogramados para el ${params.newDate}.`,
+        type: 'warning',
+        entityType: 'categories',
+        entityId: params.categoryId,
+        createdByUid: params.actorUid,
+      });
+    }
+
+    return roundMatches.size;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+    return 0;
+  }
+}
+
+export async function shiftRoundMatchesByDays(params: {
+  categoryId: string;
+  categoryName: string;
+  roundNumber: number;
+  deltaDays: number;
+  wasPublished: boolean;
+  actorUid: string;
+  actorName: string;
+}): Promise<number> {
+  const path = `matches/round_${params.categoryId}_${params.roundNumber}`;
+  try {
+    const [roundMatches, roundDocs] = await Promise.all([
+      getDocs(
+        query(
+          collection(db, 'matches'),
+          where('categoryId', '==', params.categoryId),
+          where('roundNumber', '==', params.roundNumber)
+        )
+      ),
+      getDocs(
+        query(
+          collection(db, 'rounds'),
+          where('categoryId', '==', params.categoryId),
+          where('roundNumber', '==', params.roundNumber)
+        )
+      ),
+    ]);
+
+    const ops: Array<{ ref: (typeof roundMatches.docs)[number]['ref']; data: Record<string, unknown> }> = [];
+    roundMatches.docs.forEach((d) => {
+      const curDate = (d.data() as { date?: string }).date;
+      if (curDate) {
+        ops.push({
+          ref: d.ref,
+          data: { date: addDaysToIsoDate(curDate, params.deltaDays), updatedAt: serverTimestamp() },
+        });
+      }
+    });
+    roundDocs.docs.forEach((d) => {
+      const curStart = (d.data() as { startDate?: string }).startDate;
+      if (curStart) {
+        ops.push({
+          ref: d.ref,
+          data: { startDate: addDaysToIsoDate(curStart, params.deltaDays) },
+        });
+      }
+    });
+
+    for (let i = 0; i < ops.length; i += 400) {
+      const batch = writeBatch(db);
+      for (const item of ops.slice(i, i + 400)) {
+        batch.update(item.ref, item.data);
+      }
+      await batch.commit();
+    }
+
+    const dirLabel = params.deltaDays >= 0 ? `+${params.deltaDays}` : `${params.deltaDays}`;
+    await createAuditLog({
+      actorUid: params.actorUid,
+      actorName: params.actorName,
+      action: 'SHIFT_ROUND_WEEK',
+      entity: 'matches',
+      entityId: params.categoryId,
+      summary: `Jornada ${params.roundNumber} de ${params.categoryName} recorrida ${dirLabel} días (${roundMatches.size} partidos).`,
+    });
+
+    if (params.wasPublished && roundMatches.size > 0) {
+      await sendNotification({
+        isBroadcast: true,
+        title: `Ajuste semanal · Jornada ${params.roundNumber} (${params.categoryName})`,
+        message: `Los ${roundMatches.size} partidos de la Jornada ${params.roundNumber} se recorrieron ${dirLabel} días manteniendo sus días de juego.`,
         type: 'warning',
         entityType: 'categories',
         entityId: params.categoryId,

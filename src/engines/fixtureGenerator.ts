@@ -10,6 +10,15 @@ import type {
   TournamentFormat,
 } from '../types/sigd';
 
+export type ScheduleGenerationMode = 'weekly_all' | 'single_week';
+
+export interface WeekBucket {
+  weekNumber: number;
+  weekStart: string;
+  weekEnd: string;
+  dates: string[];
+}
+
 export interface GenerateFixtureOptions {
   tournamentId: string;
   categoryId: string;
@@ -21,6 +30,9 @@ export interface GenerateFixtureOptions {
   startDate: string; // YYYY-MM-DD
   endDate?: string; // YYYY-MM-DD
   allowedWeekdays?: string[]; // e.g. ['Sábado', 'Domingo']
+  scheduleMode?: ScheduleGenerationMode;
+  roundsPerWeek?: number; // default 1 round per calendar week
+  targetRoundNumber?: number; // used when scheduleMode === 'single_week'
   daysBetweenRounds: number;
   defaultTimes: string[]; // e.g. ['09:00', '11:00', '13:00', '15:00']
   fields: Field[];
@@ -71,6 +83,15 @@ function diffIsoDays(startIso: string, endIso: string): number {
   return Math.round((t2 - t1) / (24 * 3600 * 1000));
 }
 
+export function getWeekStartMonday(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const dt = new Date(Date.UTC(y || 2026, (m || 1) - 1, d || 1));
+  const dayOfWeek = dt.getUTCDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  dt.setUTCDate(dt.getUTCDate() + diffToMonday);
+  return dt.toISOString().slice(0, 10);
+}
+
 export function getValidDatesInRange(
   startDate: string,
   endDate: string,
@@ -89,6 +110,32 @@ export function getValidDatesInRange(
     cursor = addDaysToIsoDate(cursor, 1);
   }
   return dates;
+}
+
+export function groupDatesByWeek(
+  startDate: string,
+  endDate: string,
+  allowedWeekdays?: string[]
+): WeekBucket[] {
+  const validDates = getValidDatesInRange(startDate, endDate, allowedWeekdays);
+  if (validDates.length === 0) return [];
+
+  const bucketsMap = new Map<string, string[]>();
+  for (const dt of validDates) {
+    const monday = getWeekStartMonday(dt);
+    const list = bucketsMap.get(monday) || [];
+    list.push(dt);
+    bucketsMap.set(monday, list);
+  }
+
+  return Array.from(bucketsMap.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([weekStart, dates], idx) => ({
+      weekNumber: idx + 1,
+      weekStart,
+      weekEnd: addDaysToIsoDate(weekStart, 6),
+      dates,
+    }));
 }
 
 function parseDateTimeMs(date: string, time: string): number {
@@ -348,7 +395,19 @@ export function generateTournamentFixtures(opts: GenerateFixtureOptions): Genera
   const generatedMatches: (Omit<Match, 'id' | 'createdAt' | 'updatedAt'> & { tempId: string })[] = [];
 
   // Group pairings by roundNumber
-  const sortedPairings = [...rawPairings].sort((a, b) => a.roundNumber - b.roundNumber);
+  const scheduleMode: ScheduleGenerationMode = opts.scheduleMode || 'weekly_all';
+  const roundsPerWeek = Math.max(1, opts.roundsPerWeek || 1);
+  const allPairings = [...rawPairings].sort((a, b) => a.roundNumber - b.roundNumber);
+  const targetRound =
+    scheduleMode === 'single_week'
+      ? opts.targetRoundNumber || allPairings[0]?.roundNumber || 1
+      : undefined;
+
+  const sortedPairings =
+    targetRound !== undefined
+      ? allPairings.filter((p) => p.roundNumber === targetRound)
+      : allPairings;
+
   const uniqueRoundNumbers = Array.from(new Set(sortedPairings.map((p) => p.roundNumber))).sort(
     (a, b) => a - b
   );
@@ -358,7 +417,7 @@ export function generateTournamentFixtures(opts: GenerateFixtureOptions): Genera
       ? opts.endDate
       : addDaysToIsoDate(
           opts.startDate,
-          Math.max(14, uniqueRoundNumbers.length * Math.max(1, opts.daysBetweenRounds) + 14)
+          Math.max(14, uniqueRoundNumbers.length * 7 + 7)
         );
 
   const validDates = getValidDatesInRange(
@@ -366,23 +425,44 @@ export function generateTournamentFixtures(opts: GenerateFixtureOptions): Genera
     effectiveEndDate,
     opts.allowedWeekdays
   );
+  const weekBuckets = groupDatesByWeek(
+    opts.startDate,
+    effectiveEndDate,
+    opts.allowedWeekdays
+  );
 
-  // Map each roundNumber to a primary validDate index inside [startDate, endDate]
-  const roundDateIndexMap = new Map<number, number>();
+  // Map each roundNumber to candidate dates organized strictly by week (1+ rounds per calendar week)
+  const roundCandidateDatesMap = new Map<number, string[]>();
+  const roundPrimaryDateMap = new Map<number, string>();
+
   if (validDates.length > 0 && uniqueRoundNumbers.length > 0) {
-    if (uniqueRoundNumbers.length > validDates.length) {
+    if (scheduleMode === 'single_week') {
+      const targetRn = uniqueRoundNumbers[0];
+      const firstWeekDates = weekBuckets[0]?.dates || validDates;
+      const ordered = [
+        ...firstWeekDates,
+        ...validDates.filter((d) => !firstWeekDates.includes(d)),
+      ];
+      roundCandidateDatesMap.set(targetRn, ordered);
+      roundPrimaryDateMap.set(targetRn, ordered[0]);
+    } else if (weekBuckets.length > 0) {
       uniqueRoundNumbers.forEach((rn, idx) => {
-        const mappedIdx = Math.min(
-          validDates.length - 1,
-          Math.floor((idx * validDates.length) / uniqueRoundNumbers.length)
-        );
-        roundDateIndexMap.set(rn, mappedIdx);
+        const weekIdx = Math.min(weekBuckets.length - 1, Math.floor(idx / roundsPerWeek));
+        const weekDates = weekBuckets[weekIdx]?.dates || [];
+        // Prefer dates inside that specific week first; fallback to later dates only if week is exhausted
+        const laterDates = weekBuckets
+          .slice(weekIdx + 1)
+          .flatMap((wb) => wb.dates);
+        const ordered = [...weekDates, ...laterDates];
+        roundCandidateDatesMap.set(rn, ordered.length > 0 ? ordered : validDates);
+        roundPrimaryDateMap.set(rn, (weekDates[0] || validDates[0]));
       });
     } else {
       let prevIdx = 0;
       uniqueRoundNumbers.forEach((rn, idx) => {
         if (idx === 0) {
-          roundDateIndexMap.set(rn, 0);
+          roundCandidateDatesMap.set(rn, validDates);
+          roundPrimaryDateMap.set(rn, validDates[0]);
           prevIdx = 0;
           return;
         }
@@ -398,21 +478,19 @@ export function generateTournamentFixtures(opts: GenerateFixtureOptions): Genera
           chosenIdx += 1;
         }
         chosenIdx = Math.min(chosenIdx, maxAllowedIdx);
-        roundDateIndexMap.set(rn, chosenIdx);
+        roundCandidateDatesMap.set(rn, validDates.slice(chosenIdx));
+        roundPrimaryDateMap.set(rn, validDates[chosenIdx]);
         prevIdx = chosenIdx;
       });
     }
   }
 
   for (const p of sortedPairings) {
-    const baseDateIdx = roundDateIndexMap.get(p.roundNumber) ?? 0;
-    const baseRoundDate =
-      validDates.length > 0
-        ? validDates[baseDateIdx]
-        : addDaysToIsoDate(
-            opts.startDate,
-            (p.roundNumber - 1) * Math.max(1, opts.daysBetweenRounds)
-          );
+    const fallbackWeekDate = addDaysToIsoDate(
+      opts.startDate,
+      scheduleMode === 'single_week' ? 0 : Math.floor((p.roundNumber - 1) / roundsPerWeek) * 7
+    );
+    const baseRoundDate = roundPrimaryDateMap.get(p.roundNumber) || fallbackWeekDate;
 
     if (!roundsMap.has(p.roundNumber)) {
       roundsMap.set(p.roundNumber, {
@@ -430,11 +508,13 @@ export function generateTournamentFixtures(opts: GenerateFixtureOptions): Genera
     let chosenField: Field | undefined = availableFields[0];
     let chosenReferee: Referee | undefined;
 
-    // Candidate dates: prefer validDates starting at baseDateIdx (same weekend/upcoming valid weekdays inside range)
+    const roundCandidates = roundCandidateDatesMap.get(p.roundNumber);
     const candidateDates: string[] =
-      validDates.length > 0
-        ? validDates.slice(baseDateIdx, Math.min(validDates.length, baseDateIdx + 14))
-        : [0, 1, 2, 3].map((d) => addDaysToIsoDate(baseRoundDate, d));
+      roundCandidates && roundCandidates.length > 0
+        ? roundCandidates
+        : validDates.length > 0
+          ? validDates
+          : [0, 1, 2, 3].map((d) => addDaysToIsoDate(baseRoundDate, d));
 
     let slotFound = false;
     for (const candidateDate of candidateDates) {

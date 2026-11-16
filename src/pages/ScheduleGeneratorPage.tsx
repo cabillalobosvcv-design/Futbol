@@ -28,9 +28,14 @@ import { FieldStatusIcon, MatchStatusIndicator } from '../components/SemanticIco
 import { TeamCrest } from '../components/TeamCrest';
 import { exportToExcel, exportToPdf } from '../engines/exportEngine';
 import {
+  addDaysToIsoDate,
   detectScheduleConflicts,
   generateTournamentFixtures,
   getValidDatesInRange,
+  getWeekdayName,
+  getWeekStartMonday,
+  groupDatesByWeek,
+  type ScheduleGenerationMode,
   WEEKDAY_ORDER,
 } from '../engines/fixtureGenerator';
 import { useAuth } from '../context/AuthContext';
@@ -45,12 +50,33 @@ import {
   publishCategorySchedule,
   saveEntityDoc,
   sendNotification,
+  shiftRoundMatchesByDays,
   updateRoundMatchesDate,
 } from '../services/firestoreService';
-import type { Field, Match, MatchStage, MatchStatus, TournamentFormat } from '../types/sigd';
+import type {
+  Field,
+  Group,
+  Match,
+  MatchStage,
+  MatchStatus,
+  Round,
+  TournamentFormat,
+} from '../types/sigd';
 
 type ScheduleViewMode = 'rounds' | 'calendar' | 'category' | 'team' | 'field';
 type FieldAllocationMode = 'ask' | 'specific' | 'unassigned';
+
+interface WeeklyDraftState {
+  tournamentId: string;
+  categoryId: string;
+  replaceExisting: boolean;
+  replaceRoundNumbers?: number[];
+  fieldSummaryLabel: string;
+  rounds: Omit<Round, 'id'>[];
+  groups: Omit<Group, 'id'>[];
+  teamGroupAssignments: Record<string, string>;
+  matches: (Omit<Match, 'id' | 'createdAt' | 'updatedAt'> & { tempId: string })[];
+}
 
 const HOURLY_TIME_SLOTS = [
   '06:00',
@@ -94,13 +120,19 @@ export function ScheduleGeneratorPage() {
   const [filterTeamId, setFilterTeamId] = useState<string>('all');
   const [filterFieldId, setFilterFieldId] = useState<string>('all');
 
-  // Generator Options
+  // Generator Options (Weekly-oriented)
+  const [scheduleMode, setScheduleMode] = useState<ScheduleGenerationMode>('weekly_all');
+  const [roundsPerWeek, setRoundsPerWeek] = useState<number>(1);
+  const [targetRoundNumber, setTargetRoundNumber] = useState<number>(1);
   const [startDate, setStartDate] = useState('2026-11-21');
   const [endDate, setEndDate] = useState('2027-01-31');
   const [allowedWeekdays, setAllowedWeekdays] = useState<string[]>(['Sábado', 'Domingo']);
   const [selectedTimes, setSelectedTimes] = useState<string[]>(['09:00', '11:00', '13:00', '15:00']);
   const [formatOverride, setFormatOverride] = useState<TournamentFormat | ''>('');
   const [doubleRoundOverride, setDoubleRoundOverride] = useState(false);
+
+  // Editable Weekly Draft Workbench (before persisting to Firestore)
+  const [weeklyDraft, setWeeklyDraft] = useState<WeeklyDraftState | null>(null);
 
   // Specific Field Selection & Interactive Question Prompt
   const [fieldMode, setFieldMode] = useState<FieldAllocationMode>('ask');
@@ -245,6 +277,31 @@ export function ScheduleGeneratorPage() {
     [startDate, endDate, allowedWeekdays]
   );
 
+  const weekBuckets = useMemo(
+    () => groupDatesByWeek(startDate, endDate, allowedWeekdays),
+    [startDate, endDate, allowedWeekdays]
+  );
+
+  const estimatedTotalRounds = useMemo(() => {
+    const activeCount = categoryTeams.filter((t) => t.active).length;
+    if (activeCount < 2) return 1;
+    const fmt = formatOverride || activeTournament?.format || 'round_robin';
+    const dbl = doubleRoundOverride || Boolean(activeTournament?.doubleRound);
+    if (fmt === 'round_robin') {
+      const base = activeCount % 2 === 0 ? activeCount - 1 : activeCount;
+      return dbl ? base * 2 : base;
+    }
+    if (fmt === 'knockout') {
+      let size = 2;
+      while (size < activeCount) size *= 2;
+      return Math.log2(size);
+    }
+    const perGroup = Math.max(2, activeTournament?.teamsPerGroup || 4);
+    const groupBase = perGroup % 2 === 0 ? perGroup - 1 : perGroup;
+    const grpRounds = dbl ? groupBase * 2 : groupBase;
+    return fmt === 'mixed' ? grpRounds + 2 : grpRounds;
+  }, [categoryTeams, formatOverride, doubleRoundOverride, activeTournament]);
+
   const selectedSpecificFields = useMemo(
     () => fields.filter((f) => selectedFieldIds.includes(f.id)),
     [fields, selectedFieldIds]
@@ -260,6 +317,10 @@ export function ScheduleGeneratorPage() {
         : fieldMode === 'unassigned'
           ? []
           : selectedSpecificFields;
+    const maxExistingMatchNum = activeCategoryAllMatches.reduce(
+      (max, m) => Math.max(max, m.matchNumber),
+      0
+    );
     return generateTournamentFixtures({
       tournamentId: activeTournament.id,
       categoryId: activeCategory.id,
@@ -271,11 +332,15 @@ export function ScheduleGeneratorPage() {
       startDate,
       endDate,
       allowedWeekdays,
-      daysBetweenRounds: 1,
+      scheduleMode,
+      roundsPerWeek,
+      targetRoundNumber,
+      daysBetweenRounds: 7,
       defaultTimes: selectedTimes.length > 0 ? selectedTimes : ['09:00'],
       fields: previewFields,
       referees,
       minRestHours: 0,
+      startingMatchNumber: scheduleMode === 'single_week' ? maxExistingMatchNum + 1 : 1,
       explicitFields: true,
       occupiedMatches: matches.filter((m) => m.categoryId !== activeCategory.id),
     });
@@ -283,17 +348,36 @@ export function ScheduleGeneratorPage() {
     activeTournament,
     activeCategory,
     categoryTeams,
+    activeCategoryAllMatches,
     formatOverride,
     doubleRoundOverride,
     startDate,
     endDate,
     allowedWeekdays,
+    scheduleMode,
+    roundsPerWeek,
+    targetRoundNumber,
     selectedTimes,
     fieldMode,
     selectedSpecificFields,
     referees,
     matches,
   ]);
+
+  const draftConflicts = useMemo(() => {
+    if (!weeklyDraft) return [];
+    const occupied = matches.filter((m) => {
+      if (m.categoryId !== weeklyDraft.categoryId) return true;
+      if (weeklyDraft.replaceExisting) return false;
+      if (weeklyDraft.replaceRoundNumbers?.includes(m.roundNumber)) return false;
+      return true;
+    });
+    const draftAsMatches: Match[] = weeklyDraft.matches.map((m) => ({
+      ...m,
+      id: m.tempId,
+    }));
+    return detectScheduleConflicts([...occupied, ...draftAsMatches], fields, referees, 0);
+  }, [weeklyDraft, matches, fields, referees]);
 
   const toggleWeekday = (day: string) => {
     setAllowedWeekdays((prev) =>
@@ -384,10 +468,72 @@ export function ScheduleGeneratorPage() {
     }
   };
 
-  const executeGenerate = async (
+  const buildWeeklyResult = (
     replaceExisting: boolean,
     targetFields: Field[],
     targetMode: 'specific' | 'unassigned'
+  ) => {
+    if (!activeTournament || !activeCategory) return null;
+    const effectiveFields = targetMode === 'unassigned' ? [] : targetFields;
+    const replaceRoundNumbers =
+      !replaceExisting && scheduleMode === 'single_week' ? [targetRoundNumber] : undefined;
+
+    const existingRemaining = activeCategoryAllMatches.filter((m) => {
+      if (replaceExisting) return false;
+      if (replaceRoundNumbers?.includes(m.roundNumber)) return false;
+      return true;
+    });
+    const nextMatchNum =
+      existingRemaining.reduce((max, m) => Math.max(max, m.matchNumber), 0) + 1;
+
+    const occupied = matches.filter((m) => {
+      if (m.categoryId !== activeCategory.id) return true;
+      if (replaceExisting) return false;
+      if (replaceRoundNumbers?.includes(m.roundNumber)) return false;
+      return true;
+    });
+
+    const result = generateTournamentFixtures({
+      tournamentId: activeTournament.id,
+      categoryId: activeCategory.id,
+      teams: categoryTeams,
+      format: formatOverride || activeTournament.format,
+      doubleRound: doubleRoundOverride || Boolean(activeTournament.doubleRound),
+      teamsPerGroup: activeTournament.teamsPerGroup || 4,
+      qualifiersPerGroup: activeTournament.qualifiersPerGroup || 2,
+      startDate,
+      endDate,
+      allowedWeekdays,
+      scheduleMode,
+      roundsPerWeek,
+      targetRoundNumber,
+      daysBetweenRounds: 7,
+      defaultTimes: selectedTimes,
+      fields: effectiveFields,
+      referees,
+      minRestHours: 0,
+      startingMatchNumber: replaceExisting ? 1 : nextMatchNum,
+      explicitFields: true,
+      occupiedMatches: occupied,
+    });
+
+    const fieldSummaryLabel =
+      targetMode === 'unassigned' || effectiveFields.length === 0
+        ? 'Sin campo asignado'
+        : `Campo(s): ${effectiveFields.map((f) => f.name).join(', ')}`;
+
+    return {
+      result,
+      replaceRoundNumbers,
+      fieldSummaryLabel,
+    };
+  };
+
+  const executeGenerate = async (
+    replaceExisting: boolean,
+    targetFields: Field[],
+    targetMode: 'specific' | 'unassigned',
+    openDraftFirst = true
   ) => {
     if (!profile || !activeTournament || !activeCategory) return;
     if (categoryTeams.length < 2) {
@@ -413,31 +559,33 @@ export function ScheduleGeneratorPage() {
       return;
     }
 
+    const built = buildWeeklyResult(replaceExisting, targetFields, targetMode);
+    if (!built) return;
+    const { result, replaceRoundNumbers, fieldSummaryLabel } = built;
+
+    if (openDraftFirst) {
+      setErrorMsg(null);
+      setWeeklyDraft({
+        tournamentId: activeTournament.id,
+        categoryId: activeCategory.id,
+        replaceExisting,
+        replaceRoundNumbers,
+        fieldSummaryLabel,
+        rounds: result.rounds,
+        groups: result.groups,
+        teamGroupAssignments: result.teamGroupAssignments,
+        matches: result.matches,
+      });
+      setFeedback(
+        `Borrador semanal generado (${result.matches.length} partidos en ${result.rounds.length} jornada(s)). Realiza los ajustes que necesites y presiona "Guardar Roles en Calendario".`
+      );
+      return;
+    }
+
     setBusy(true);
     setFeedback(null);
     setErrorMsg(null);
     try {
-      const effectiveFields = targetMode === 'unassigned' ? [] : targetFields;
-      const result = generateTournamentFixtures({
-        tournamentId: activeTournament.id,
-        categoryId: activeCategory.id,
-        teams: categoryTeams,
-        format: formatOverride || activeTournament.format,
-        doubleRound: doubleRoundOverride || Boolean(activeTournament.doubleRound),
-        teamsPerGroup: activeTournament.teamsPerGroup || 4,
-        qualifiersPerGroup: activeTournament.qualifiersPerGroup || 2,
-        startDate,
-        endDate,
-        allowedWeekdays,
-        daysBetweenRounds: 1,
-        defaultTimes: selectedTimes,
-        fields: effectiveFields,
-        referees,
-        minRestHours: 0,
-        explicitFields: true,
-        occupiedMatches: matches.filter((m) => m.categoryId !== activeCategory.id),
-      });
-
       await persistGeneratedSchedule({
         tournamentId: activeTournament.id,
         categoryId: activeCategory.id,
@@ -446,24 +594,174 @@ export function ScheduleGeneratorPage() {
         teamGroupAssignments: result.teamGroupAssignments,
         matches: result.matches,
         replaceExisting,
+        replaceRoundNumbers,
         actorUid: profile.uid,
         actorName: profile.displayName,
       });
 
-      const fieldSummaryLabel =
-        targetMode === 'unassigned' || effectiveFields.length === 0
-          ? 'Sin campo asignado'
-          : `Campo(s): ${effectiveFields.map((f) => f.name).join(', ')}`;
-
+      setWeeklyDraft(null);
       setFeedback(
-        `Calendario generado con ${result.matches.length} encuentros en ${result.rounds.length} jornadas (${startDate} al ${endDate}) · ${fieldSummaryLabel}. Conflictos detectados: ${result.conflicts.length}.`
+        `Calendario semanal guardado con ${result.matches.length} encuentros en ${result.rounds.length} jornada(s) (${startDate} al ${endDate}) · ${fieldSummaryLabel}. Conflictos detectados: ${result.conflicts.length}.`
       );
     } finally {
       setBusy(false);
     }
   };
 
-  const handleGenerateClick = (replaceExisting: boolean) => {
+  const handleSaveWeeklyDraft = async () => {
+    if (!profile || !weeklyDraft) return;
+    if (weeklyDraft.matches.length === 0) {
+      setErrorMsg('El borrador no contiene partidos. Agrega al menos un partido o descarta el borrador.');
+      return;
+    }
+    setBusy(true);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      // Derive clean rounds metadata from current draft matches
+      const roundsByNum = new Map<number, Omit<Round, 'id'>>();
+      weeklyDraft.rounds.forEach((r) => roundsByNum.set(r.roundNumber, { ...r }));
+      weeklyDraft.matches.forEach((m) => {
+        const existing = roundsByNum.get(m.roundNumber);
+        if (!existing) {
+          roundsByNum.set(m.roundNumber, {
+            tournamentId: weeklyDraft.tournamentId,
+            categoryId: weeklyDraft.categoryId,
+            roundNumber: m.roundNumber,
+            name: `Jornada ${m.roundNumber}`,
+            stage: m.stage,
+            startDate: m.date,
+          });
+        } else if (!existing.startDate || m.date < existing.startDate) {
+          existing.startDate = m.date;
+        }
+      });
+      const activeRoundNumbers = new Set(weeklyDraft.matches.map((m) => m.roundNumber));
+      const finalRounds = Array.from(roundsByNum.values())
+        .filter((r) => activeRoundNumbers.has(r.roundNumber))
+        .sort((a, b) => a.roundNumber - b.roundNumber);
+
+      await persistGeneratedSchedule({
+        tournamentId: weeklyDraft.tournamentId,
+        categoryId: weeklyDraft.categoryId,
+        rounds: finalRounds,
+        groups: weeklyDraft.groups,
+        teamGroupAssignments: weeklyDraft.teamGroupAssignments,
+        matches: weeklyDraft.matches,
+        replaceExisting: weeklyDraft.replaceExisting,
+        replaceRoundNumbers: weeklyDraft.replaceRoundNumbers,
+        actorUid: profile.uid,
+        actorName: profile.displayName,
+      });
+
+      const savedCount = weeklyDraft.matches.length;
+      const savedRoundsCount = finalRounds.length;
+      const label = weeklyDraft.fieldSummaryLabel;
+      setWeeklyDraft(null);
+      setFeedback(
+        `Roles guardados oficialmente en el calendario: ${savedCount} encuentros en ${savedRoundsCount} jornada(s) · ${label}.`
+      );
+    } catch {
+      setErrorMsg('No se pudieron guardar los roles ajustados en Firestore.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleUpdateDraftMatch = (
+    tempId: string,
+    patch: Partial<Omit<Match, 'id' | 'createdAt' | 'updatedAt'>>
+  ) => {
+    setWeeklyDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        matches: prev.matches.map((m) => {
+          if (m.tempId !== tempId) return m;
+          const updated = { ...m, ...patch };
+          if (patch.fieldId !== undefined) {
+            updated.venueId = patch.fieldId
+              ? fieldMap.get(patch.fieldId)?.venueId || ''
+              : '';
+          }
+          return updated;
+        }),
+      };
+    });
+  };
+
+  const handleSwapDraftTeams = (tempId: string) => {
+    setWeeklyDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        matches: prev.matches.map((m) =>
+          m.tempId === tempId
+            ? { ...m, homeTeamId: m.awayTeamId, awayTeamId: m.homeTeamId }
+            : m
+        ),
+      };
+    });
+  };
+
+  const handleShiftDraftRound = (roundNumber: number, deltaDays: number) => {
+    setWeeklyDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        rounds: prev.rounds.map((r) =>
+          r.roundNumber === roundNumber && r.startDate
+            ? { ...r, startDate: addDaysToIsoDate(r.startDate, deltaDays) }
+            : r
+        ),
+        matches: prev.matches.map((m) =>
+          m.roundNumber === roundNumber
+            ? { ...m, date: addDaysToIsoDate(m.date, deltaDays) }
+            : m
+        ),
+      };
+    });
+  };
+
+  const handleAddDraftMatch = (roundNumber: number) => {
+    if (!weeklyDraft || categoryTeams.length < 2) return;
+    const roundSample = weeklyDraft.matches.find((m) => m.roundNumber === roundNumber);
+    const nextSeq =
+      weeklyDraft.matches.reduce((max, m) => Math.max(max, m.matchNumber), 0) + 1;
+    const defaultFieldId =
+      roundSample?.fieldId || selectedFieldIds[0] || fields[0]?.id || '';
+    const defaultVenueId = defaultFieldId ? fieldMap.get(defaultFieldId)?.venueId || '' : '';
+    const newMatch: Omit<Match, 'id' | 'createdAt' | 'updatedAt'> & { tempId: string } = {
+      tempId: `tmp_manual_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      matchNumber: nextSeq,
+      tournamentId: weeklyDraft.tournamentId,
+      categoryId: weeklyDraft.categoryId,
+      roundNumber,
+      stage: roundSample?.stage || 'regular',
+      date: roundSample?.date || startDate,
+      time: selectedTimes[0] || '09:00',
+      venueId: defaultVenueId,
+      fieldId: defaultFieldId,
+      homeTeamId: categoryTeams[0].id,
+      awayTeamId: categoryTeams[1].id,
+      refereeId: '',
+      status: 'Programado',
+      published: false,
+    };
+    setWeeklyDraft((prev) =>
+      prev ? { ...prev, matches: [...prev.matches, newMatch] } : prev
+    );
+  };
+
+  const handleRemoveDraftMatch = (tempId: string) => {
+    setWeeklyDraft((prev) =>
+      prev
+        ? { ...prev, matches: prev.matches.filter((m) => m.tempId !== tempId) }
+        : prev
+    );
+  };
+
+  const handleGenerateClick = (replaceExisting: boolean, overrideRound?: number) => {
     setErrorMsg(null);
     if (!activeTournament || !activeCategory) return;
     if (categoryTeams.length < 2) {
@@ -489,6 +787,11 @@ export function ScheduleGeneratorPage() {
       return;
     }
 
+    if (overrideRound !== undefined) {
+      setScheduleMode('single_week');
+      setTargetRoundNumber(overrideRound);
+    }
+
     setShowQuickFieldForm(false);
     setFieldPromptModal({
       open: true,
@@ -496,6 +799,93 @@ export function ScheduleGeneratorPage() {
       mode: fieldMode === 'unassigned' ? 'unassigned' : 'specific',
       pickedFieldIds: fieldMode === 'specific' ? [...selectedFieldIds] : [],
     });
+  };
+
+  const handleQuickSwapSavedMatch = async (m: Match) => {
+    if (!profile) return;
+    const runSwap = async () => {
+      setBusy(true);
+      setErrorMsg(null);
+      setFeedback(null);
+      try {
+        await saveEntityDoc(
+          'matches',
+          m.id,
+          {
+            homeTeamId: m.awayTeamId,
+            awayTeamId: m.homeTeamId,
+          },
+          false
+        );
+        await createAuditLog({
+          actorUid: profile.uid,
+          actorName: profile.displayName,
+          action: 'SWAP_MATCH_SIDES',
+          entity: 'matches',
+          entityId: m.id,
+          summary: `Localía intercambiada en partido #${m.matchNumber} (J${m.roundNumber}).`,
+        });
+        setFeedback(`Localía intercambiada en el partido #${m.matchNumber}.`);
+      } catch {
+        setErrorMsg('No se pudo intercambiar la localía del encuentro.');
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    if (m.published) {
+      setConfirmPublishedModal({
+        open: true,
+        actionLabel: `Intercambiar Local ↔ Visitante del partido #${m.matchNumber} en un calendario publicado`,
+        onConfirm: async () => {
+          setConfirmPublishedModal(null);
+          await runSwap();
+        },
+      });
+      return;
+    }
+    await runSwap();
+  };
+
+  const handleShiftSavedRoundWeek = async (roundNumber: number, deltaDays: number) => {
+    if (!profile || !activeCategory) return;
+    const runShift = async () => {
+      setBusy(true);
+      setErrorMsg(null);
+      setFeedback(null);
+      try {
+        const count = await shiftRoundMatchesByDays({
+          categoryId: activeCategory.id,
+          categoryName: activeCategory.name,
+          roundNumber,
+          deltaDays,
+          wasPublished: Boolean(activeCategory.schedulePublished),
+          actorUid: profile.uid,
+          actorName: profile.displayName,
+        });
+        const label = deltaDays > 0 ? `+${deltaDays}` : `${deltaDays}`;
+        setFeedback(
+          `Jornada ${roundNumber} recorrida ${label} días (${count} partidos actualizados manteniendo sus días).`
+        );
+      } catch {
+        setErrorMsg('No se pudo recorrer la semana de la jornada.');
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    if (activeCategory.schedulePublished) {
+      setConfirmPublishedModal({
+        open: true,
+        actionLabel: `Recorrer ${deltaDays > 0 ? `+${deltaDays}` : deltaDays} días la Jornada ${roundNumber} de un calendario ya publicado`,
+        onConfirm: async () => {
+          setConfirmPublishedModal(null);
+          await runShift();
+        },
+      });
+      return;
+    }
+    await runShift();
   };
 
   const handlePublish = async () => {
@@ -821,13 +1211,13 @@ export function ScheduleGeneratorPage() {
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="w-4 h-4 text-electric-500" />
             <h2 className="font-display font-semibold text-base text-slate-900 dark:text-white">
-              Parámetros y Restricciones del Generador Dinámico
+              Parámetros del Generador Semanal de Roles
             </h2>
           </div>
           {dynamicPreview && (
             <span className="text-xs font-medium px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/50 text-electric-600 dark:text-blue-300">
               Estimación: {dynamicPreview.matches.length} partidos · {dynamicPreview.rounds.length}{' '}
-              jornadas · {validPlayDates.length} fecha(s) hábiles
+              jornada(s) · {weekBuckets.length} semana(s) hábiles
             </span>
           )}
         </div>
@@ -843,6 +1233,7 @@ export function ScheduleGeneratorPage() {
               onChange={(e) => {
                 setSelectedTournamentId(e.target.value);
                 setSelectedCategoryId('');
+                setWeeklyDraft(null);
               }}
               className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             >
@@ -859,7 +1250,10 @@ export function ScheduleGeneratorPage() {
             </label>
             <select
               value={activeCategory?.id || ''}
-              onChange={(e) => setSelectedCategoryId(e.target.value)}
+              onChange={(e) => {
+                setSelectedCategoryId(e.target.value);
+                setWeeklyDraft(null);
+              }}
               className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             >
               {tournamentCategories.map((c) => (
@@ -883,6 +1277,126 @@ export function ScheduleGeneratorPage() {
               <option value="groups">Fase de grupos</option>
               <option value="mixed">Modalidad mixta</option>
             </select>
+          </div>
+        </div>
+
+        {/* Planificación por Semana */}
+        <div className="p-4 rounded-xl border border-blue-200/80 dark:border-blue-900/70 bg-blue-50/40 dark:bg-blue-950/20 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-electric-500" />
+              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                Modo de generación por semana
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setScheduleMode('weekly_all')}
+                className={`px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+                  scheduleMode === 'weekly_all'
+                    ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                Rol semanal completo (todas las jornadas)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextPendingRound =
+                    (categoryRoundsSummary[categoryRoundsSummary.length - 1]?.roundNumber || 0) + 1;
+                  setScheduleMode('single_week');
+                  setTargetRoundNumber(Math.min(estimatedTotalRounds, nextPendingRound));
+                }}
+                className={`px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+                  scheduleMode === 'single_week'
+                    ? 'bg-navy-900 dark:bg-electric-500 text-white border-navy-900 dark:border-electric-500'
+                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                Solo una semana / jornada específica
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+            {scheduleMode === 'weekly_all' ? (
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Ritmo semanal
+                </label>
+                <select
+                  value={roundsPerWeek}
+                  onChange={(e) => setRoundsPerWeek(Number(e.target.value) || 1)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                >
+                  <option value={1}>1 jornada por semana (estándar)</option>
+                  <option value={2}>2 jornadas por semana (doble)</option>
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Jornada a generar para esta semana
+                </label>
+                <select
+                  value={targetRoundNumber}
+                  onChange={(e) => setTargetRoundNumber(Number(e.target.value) || 1)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                >
+                  {Array.from({ length: Math.max(1, estimatedTotalRounds) }, (_, i) => i + 1).map(
+                    (rn) => {
+                      const alreadySaved = categoryRoundsSummary.some((r) => r.roundNumber === rn);
+                      return (
+                        <option key={rn} value={rn}>
+                          Jornada {rn} {alreadySaved ? '(ya existe — se actualizará)' : '(pendiente)'}
+                        </option>
+                      );
+                    }
+                  )}
+                </select>
+              </div>
+            )}
+
+            <div className="sm:col-span-1 lg:col-span-3 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+              {scheduleMode === 'single_week' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (startDate) setEndDate(addDaysToIsoDate(startDate, 6));
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                  >
+                    Ajustar rango a 1 semana (+6 días)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (startDate) {
+                        const nextStart = addDaysToIsoDate(startDate, 7);
+                        setStartDate(nextStart);
+                        setEndDate(addDaysToIsoDate(nextStart, 6));
+                      }
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                  >
+                    Avanzar a semana siguiente (+7d)
+                  </button>
+                </>
+              )}
+              {weekBuckets.length > 0 && (
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Semanas detectadas: <strong>{weekBuckets.length}</strong> (
+                  {weekBuckets
+                    .slice(0, 4)
+                    .map((wb) => `S${wb.weekNumber}: ${wb.dates[0].slice(5)}`)
+                    .join(' · ')}
+                  {weekBuckets.length > 4 ? ` · +${weekBuckets.length - 4} más` : ''})
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1256,12 +1770,13 @@ export function ScheduleGeneratorPage() {
           </div>
         )}
         {dynamicPreview &&
-          validPlayDates.length > 0 &&
-          dynamicPreview.rounds.length > validPlayDates.length && (
+          scheduleMode === 'weekly_all' &&
+          weekBuckets.length > 0 &&
+          dynamicPreview.rounds.length > weekBuckets.length * roundsPerWeek && (
             <div className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
-              El torneo requiere {dynamicPreview.rounds.length} jornadas, pero solo hay{' '}
-              {validPlayDates.length} fecha(s) hábiles en el rango seleccionado. Algunas jornadas
-              compartirán fecha o puedes ampliar la Fecha de fin / agregar más días de juego.
+              El rol completo requiere {dynamicPreview.rounds.length} jornadas (1 cada semana), pero
+              el rango seleccionado abarca {weekBuckets.length} semana(s) hábil(es). Las últimas
+              jornadas compartirán semana o puedes ampliar la Fecha de fin.
             </div>
           )}
 
@@ -1277,13 +1792,21 @@ export function ScheduleGeneratorPage() {
               validPlayDates.length === 0 ||
               selectedTimes.length === 0
             }
-            onClick={() => handleGenerateClick(categoryMatches.length > 0)}
+            onClick={() =>
+              handleGenerateClick(
+                scheduleMode === 'weekly_all' && categoryMatches.length > 0
+              )
+            }
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-electric-500 hover:bg-electric-600 text-white text-sm font-medium disabled:opacity-50"
           >
             <CalendarDays className="w-4 h-4" />
-            {categoryMatches.length > 0 ? 'Regenerar Calendario' : 'Generar Roles Automáticamente'}
+            {scheduleMode === 'single_week'
+              ? `Generar Jornada ${targetRoundNumber} (Semana)`
+              : categoryMatches.length > 0
+                ? 'Generar Borrador Semanal Completo'
+                : 'Generar Roles por Semana'}
           </button>
-          {categoryMatches.length > 0 && (
+          {categoryMatches.length > 0 && scheduleMode === 'weekly_all' && (
             <button
               type="button"
               disabled={
@@ -1298,11 +1821,301 @@ export function ScheduleGeneratorPage() {
               className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 disabled:opacity-50"
             >
               <RefreshCw className="w-4 h-4" />
-              Reemplazar roles actuales
+              Reemplazar todo el calendario
             </button>
           )}
         </div>
       </div>
+
+      {/* Editable Weekly Draft Workbench (Ajustes antes de guardar) */}
+      {weeklyDraft && (
+        <div className="bg-white dark:bg-slate-900 border-2 border-electric-500 dark:border-blue-500 rounded-xl overflow-hidden shadow-sm transition-colors">
+          <div className="px-5 py-4 bg-blue-50/80 dark:bg-blue-950/40 border-b border-blue-200 dark:border-blue-900 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2 py-0.5 rounded-md bg-electric-500 text-white text-[11px] font-semibold uppercase tracking-wide">
+                  Borrador Semanal Editable
+                </span>
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {weeklyDraft.matches.length} partido(s) · {weeklyDraft.fieldSummaryLabel}
+                </span>
+                {draftConflicts.length > 0 ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-medium">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    {draftConflicts.length} observación(es) de horario/cancha
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Sin conflictos
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                Ajusta directamente equipos, localía, fecha, hora, cancha, árbitro o jornada de cualquier encuentro antes de guardar en el calendario.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setWeeklyDraft(null)}
+                className="px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
+              >
+                Descartar borrador
+              </button>
+              <button
+                type="button"
+                disabled={busy || weeklyDraft.matches.length === 0}
+                onClick={handleSaveWeeklyDraft}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-50"
+              >
+                <Check className="w-4 h-4" />
+                {busy ? 'Guardando...' : 'Confirmar y Guardar Roles'}
+              </button>
+            </div>
+          </div>
+
+          {draftConflicts.length > 0 && (
+            <div className="px-5 py-2.5 bg-amber-50/70 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-200">
+              <ul className="list-disc pl-4 space-y-0.5">
+                {draftConflicts.slice(0, 5).map((c) => (
+                  <li key={c.id}>{c.description}</li>
+                ))}
+                {draftConflicts.length > 5 && (
+                  <li>... y {draftConflicts.length - 5} observación(es) adicional(es).</li>
+                )}
+              </ul>
+            </div>
+          )}
+
+          <div className="p-4 space-y-4">
+            {Array.from(new Set(weeklyDraft.matches.map((m) => m.roundNumber)))
+              .sort((a, b) => a - b)
+              .map((rn) => {
+                const roundMatches = weeklyDraft.matches
+                  .filter((m) => m.roundNumber === rn)
+                  .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+                const firstDate = roundMatches[0]?.date || startDate;
+                const weekStart = getWeekStartMonday(firstDate);
+                const weekEnd = addDaysToIsoDate(weekStart, 6);
+
+                return (
+                  <div
+                    key={rn}
+                    className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden"
+                  >
+                    <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display font-bold text-sm text-navy-900 dark:text-white">
+                          Jornada {rn}
+                        </span>
+                        <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                          Semana del {weekStart} al {weekEnd} ({roundMatches.length} partido(s))
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => handleShiftDraftRound(rn, -7)}
+                          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                        >
+                          -7 días
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleShiftDraftRound(rn, 7)}
+                          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                        >
+                          +7 días
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddDraftMatch(rn)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-electric-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-950/60 font-medium"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Agregar partido
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                            <th className="py-2 px-3 text-left">#</th>
+                            <th className="py-2 px-3 text-left">Local vs Visitante</th>
+                            <th className="py-2 px-3 text-left">Fecha</th>
+                            <th className="py-2 px-3 text-left">Hora</th>
+                            <th className="py-2 px-3 text-left">Cancha</th>
+                            <th className="py-2 px-3 text-left">Árbitro</th>
+                            <th className="py-2 px-3 text-left">Jor.</th>
+                            <th className="py-2 px-3 text-right">Quitar</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {roundMatches.map((dm) => {
+                            const draftTeamOptions = categoryTeams;
+                            const hourChoices = Array.from(
+                              new Set([dm.time, ...HOURLY_TIME_SLOTS])
+                            ).sort((a, b) => a.localeCompare(b));
+                            return (
+                              <tr key={dm.tempId} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                                <td className="py-2 px-3 font-mono text-slate-500 dark:text-slate-400">
+                                  #{dm.matchNumber}
+                                </td>
+                                <td className="py-2 px-3">
+                                  <div className="flex items-center gap-1.5 min-w-[270px]">
+                                    <select
+                                      value={dm.homeTeamId}
+                                      onChange={(e) =>
+                                        handleUpdateDraftMatch(dm.tempId, {
+                                          homeTeamId: e.target.value,
+                                        })
+                                      }
+                                      className="flex-1 min-w-0 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium"
+                                    >
+                                      {dm.homeTeamId.startsWith('TBD') && (
+                                        <option value={dm.homeTeamId}>{dm.homeTeamId}</option>
+                                      )}
+                                      {draftTeamOptions.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                          {t.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSwapDraftTeams(dm.tempId)}
+                                      title="Intercambiar Local ↔ Visitante"
+                                      className="p-1 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 shrink-0"
+                                    >
+                                      <ArrowLeftRight className="w-3.5 h-3.5" />
+                                    </button>
+                                    <select
+                                      value={dm.awayTeamId}
+                                      onChange={(e) =>
+                                        handleUpdateDraftMatch(dm.tempId, {
+                                          awayTeamId: e.target.value,
+                                        })
+                                      }
+                                      className="flex-1 min-w-0 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium"
+                                    >
+                                      {dm.awayTeamId.startsWith('TBD') && (
+                                        <option value={dm.awayTeamId}>{dm.awayTeamId}</option>
+                                      )}
+                                      {draftTeamOptions.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                          {t.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="date"
+                                      value={dm.date}
+                                      onChange={(e) =>
+                                        handleUpdateDraftMatch(dm.tempId, { date: e.target.value })
+                                      }
+                                      className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
+                                    />
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                      {WEEKDAY_SHORT_LABELS[getWeekdayName(dm.date)] || ''}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <select
+                                    value={dm.time}
+                                    onChange={(e) =>
+                                      handleUpdateDraftMatch(dm.tempId, { time: e.target.value })
+                                    }
+                                    className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
+                                  >
+                                    {hourChoices.map((hr) => (
+                                      <option key={hr} value={hr}>
+                                        {hr}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <select
+                                    value={dm.fieldId || ''}
+                                    onChange={(e) =>
+                                      handleUpdateDraftMatch(dm.tempId, {
+                                        fieldId: e.target.value,
+                                      })
+                                    }
+                                    className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 max-w-[150px]"
+                                  >
+                                    <option value="">Sin asignar</option>
+                                    {fields.map((f) => (
+                                      <option key={f.id} value={f.id}>
+                                        {f.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <select
+                                    value={dm.refereeId || ''}
+                                    onChange={(e) =>
+                                      handleUpdateDraftMatch(dm.tempId, {
+                                        refereeId: e.target.value,
+                                      })
+                                    }
+                                    className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 max-w-[140px]"
+                                  >
+                                    <option value="">Sin asignar</option>
+                                    {referees.map((r) => (
+                                      <option key={r.id} value={r.id}>
+                                        {r.fullName}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={100}
+                                    value={dm.roundNumber}
+                                    onChange={(e) =>
+                                      handleUpdateDraftMatch(dm.tempId, {
+                                        roundNumber: Math.max(1, Number(e.target.value) || 1),
+                                      })
+                                    }
+                                    className="w-14 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-center"
+                                  />
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveDraftMatch(dm.tempId)}
+                                    title="Quitar encuentro del borrador"
+                                    className="p-1 rounded text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {/* Conflict Detector Panel */}
       {conflicts.length > 0 && (
@@ -1456,16 +2269,16 @@ export function ScheduleGeneratorPage() {
           </div>
         </div>
 
-        {/* Round-level Modify & Delete Bar */}
+        {/* Round-level Modify, Shift Week & Delete Bar */}
         {activeCategory && categoryRoundsSummary.length > 0 && viewMode !== 'category' && (
           <div className="px-5 py-3 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 mr-1">
-              Jornadas creadas:
+              Semanas / Jornadas:
             </span>
             {categoryRoundsSummary.map((rnd) => (
               <div
                 key={rnd.roundNumber}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs"
               >
                 <span className="font-semibold text-navy-900 dark:text-white">
                   J{rnd.roundNumber}
@@ -1473,6 +2286,24 @@ export function ScheduleGeneratorPage() {
                 <span className="text-slate-500 dark:text-slate-400 font-mono">
                   ({rnd.matchCount}) · {rnd.firstDate}
                 </span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  title={`Recorrer Jornada ${rnd.roundNumber} una semana atrás (-7 días)`}
+                  onClick={() => handleShiftSavedRoundWeek(rnd.roundNumber, -7)}
+                  className="px-1 py-0.5 rounded text-[10px] font-mono text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  -7d
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  title={`Recorrer Jornada ${rnd.roundNumber} una semana adelante (+7 días)`}
+                  onClick={() => handleShiftSavedRoundWeek(rnd.roundNumber, 7)}
+                  className="px-1 py-0.5 rounded text-[10px] font-mono text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  +7d
+                </button>
                 <button
                   type="button"
                   disabled={busy}
@@ -1488,6 +2319,15 @@ export function ScheduleGeneratorPage() {
                   className="p-1 rounded text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50"
                 >
                   <Edit3 className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  title={`Regenerar Jornada ${rnd.roundNumber}`}
+                  onClick={() => handleGenerateClick(false, rnd.roundNumber)}
+                  className="p-1 rounded text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                >
+                  <RefreshCw className="w-3 h-3" />
                 </button>
                 <button
                   type="button"
@@ -1511,7 +2351,219 @@ export function ScheduleGeneratorPage() {
 
         {categoryMatches.length === 0 ? (
           <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
-            No hay encuentros generados para esta selección. Configura los parámetros arriba y presiona "Generar Roles Automáticamente" o agrega un partido manual.
+            No hay encuentros generados para esta selección. Configura los parámetros arriba y presiona "Generar Roles por Semana" o agrega un partido manual.
+          </div>
+        ) : viewMode === 'rounds' ? (
+          <div className="p-4 space-y-4">
+            {Array.from(new Set(categoryMatches.map((m) => m.roundNumber)))
+              .sort((a, b) => a - b)
+              .map((rn) => {
+                const roundList = categoryMatches.filter((m) => m.roundNumber === rn);
+                const firstDate = roundList[0]?.date || startDate;
+                const weekStart = getWeekStartMonday(firstDate);
+                const weekEnd = addDaysToIsoDate(weekStart, 6);
+                return (
+                  <div
+                    key={rn}
+                    className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden"
+                  >
+                    <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display font-bold text-sm text-navy-900 dark:text-white">
+                          Jornada {rn}
+                        </span>
+                        <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                          Semana del {weekStart} al {weekEnd} · {roundList.length} partido(s)
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => handleShiftSavedRoundWeek(rn, -7)}
+                          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                        >
+                          -7 días
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => handleShiftSavedRoundWeek(rn, 7)}
+                          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                        >
+                          +7 días
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setEditingRound({
+                              roundNumber: rn,
+                              currentDate: firstDate,
+                              matchCount: roundList.length,
+                            });
+                            setRoundNewDate(firstDate);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 font-medium"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          Cambiar fecha
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => handleGenerateClick(false, rn)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 font-medium"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Regenerar jornada
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-white dark:bg-slate-900 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                            <th className="py-2.5 px-4 text-left font-medium">#</th>
+                            <th className="py-2.5 px-4 text-left font-medium">Fecha y Hora</th>
+                            <th className="py-2.5 px-4 text-left font-medium">Local vs Visitante</th>
+                            <th className="py-2.5 px-4 text-left font-medium">Cancha</th>
+                            <th className="py-2.5 px-4 text-left font-medium">Árbitro</th>
+                            <th className="py-2.5 px-4 text-left font-medium">Estado</th>
+                            <th className="py-2.5 px-4 text-right font-medium">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {roundList.map((m) => (
+                            <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                              <td className="py-2.5 px-4 font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                                {m.matchNumber}
+                              </td>
+                              <td className="py-2.5 px-4 font-mono tabular-nums text-slate-800 dark:text-slate-200 whitespace-nowrap text-xs">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                  <span>
+                                    {WEEKDAY_SHORT_LABELS[getWeekdayName(m.date)] || ''} {m.date} ·{' '}
+                                    {m.time}
+                                  </span>
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-4 font-semibold text-slate-900 dark:text-slate-100">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <TeamCrest
+                                    name={teamMap.get(m.homeTeamId)?.name || m.homeTeamId}
+                                    shortCode={teamMap.get(m.homeTeamId)?.shortCode || 'LOC'}
+                                    primaryColor={teamMap.get(m.homeTeamId)?.primaryColor}
+                                    secondaryColor={teamMap.get(m.homeTeamId)?.secondaryColor}
+                                    crestUrl={teamMap.get(m.homeTeamId)?.crestUrl}
+                                    size="sm"
+                                  />
+                                  <span>{teamMap.get(m.homeTeamId)?.name || m.homeTeamId}</span>
+                                  <span className="text-xs font-normal text-slate-400 dark:text-slate-500">
+                                    vs
+                                  </span>
+                                  <TeamCrest
+                                    name={teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
+                                    shortCode={teamMap.get(m.awayTeamId)?.shortCode || 'VIS'}
+                                    primaryColor={teamMap.get(m.awayTeamId)?.primaryColor}
+                                    secondaryColor={teamMap.get(m.awayTeamId)?.secondaryColor}
+                                    crestUrl={teamMap.get(m.awayTeamId)?.crestUrl}
+                                    size="sm"
+                                  />
+                                  <span>{teamMap.get(m.awayTeamId)?.name || m.awayTeamId}</span>
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-4 text-xs">
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => openMatchEditor(m)}
+                                  title="Clic para cambiar la cancha de este partido"
+                                  className="group inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 hover:text-teal-700 dark:hover:text-teal-300 transition-colors cursor-pointer"
+                                >
+                                  <MapPin
+                                    className={`w-3.5 h-3.5 shrink-0 ${
+                                      m.fieldId
+                                        ? 'text-teal-600 dark:text-teal-400'
+                                        : 'text-slate-400 dark:text-slate-500'
+                                    }`}
+                                  />
+                                  <span>
+                                    {m.fieldId
+                                      ? fieldMap.get(m.fieldId)?.name || 'Sin asignar'
+                                      : 'Sin asignar'}
+                                  </span>
+                                </button>
+                              </td>
+                              <td className="py-2.5 px-4 text-xs">
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => openMatchEditor(m)}
+                                  title="Clic para asignar o cambiar el árbitro"
+                                  className="group inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-300 transition-colors cursor-pointer"
+                                >
+                                  <Flag
+                                    className={`w-3.5 h-3.5 shrink-0 ${
+                                      m.refereeId
+                                        ? 'text-amber-600 dark:text-amber-400'
+                                        : 'text-slate-400 dark:text-slate-500'
+                                    }`}
+                                  />
+                                  <span>
+                                    {m.refereeId
+                                      ? refMap.get(m.refereeId)?.fullName || 'Sin asignar'
+                                      : 'Sin asignar'}
+                                  </span>
+                                </button>
+                              </td>
+                              <td className="py-2.5 px-4 text-xs">
+                                <MatchStatusIndicator
+                                  status={m.status}
+                                  onClick={() => openMatchEditor(m)}
+                                  title="Clic para editar el estado del partido"
+                                />
+                              </td>
+                              <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                                <div className="inline-flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    title="Intercambiar Local ↔ Visitante"
+                                    onClick={() => handleQuickSwapSavedMatch(m)}
+                                    className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
+                                  >
+                                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => openMatchEditor(m)}
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-electric-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                    Modificar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => setDeletingTarget({ type: 'match', match: m })}
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Eliminar
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -1618,6 +2670,15 @@ export function ScheduleGeneratorPage() {
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          title="Intercambiar Local ↔ Visitante"
+                          onClick={() => handleQuickSwapSavedMatch(m)}
+                          className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
+                        >
+                          <ArrowLeftRight className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           type="button"
                           disabled={busy}
@@ -1860,7 +2921,7 @@ export function ScheduleGeneratorPage() {
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
                 disabled={busy}
@@ -1884,11 +2945,32 @@ export function ScheduleGeneratorPage() {
                   setFieldMode(chosenMode);
                   setSelectedFieldIds(chosenIds);
                   setFieldPromptModal(null);
-                  await executeGenerate(replace, chosenFields, chosenMode);
+                  await executeGenerate(replace, chosenFields, chosenMode, false);
+                }}
+                className="px-3.5 py-2 text-sm font-medium text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg disabled:opacity-50"
+              >
+                {busy ? 'Guardando...' : 'Guardar Directo'}
+              </button>
+              <button
+                type="button"
+                disabled={
+                  busy ||
+                  (fieldPromptModal.mode === 'specific' &&
+                    fieldPromptModal.pickedFieldIds.length === 0)
+                }
+                onClick={async () => {
+                  const chosenMode = fieldPromptModal.mode;
+                  const chosenIds = fieldPromptModal.pickedFieldIds;
+                  const replace = fieldPromptModal.replaceExisting;
+                  const chosenFields = fields.filter((f) => chosenIds.includes(f.id));
+                  setFieldMode(chosenMode);
+                  setSelectedFieldIds(chosenIds);
+                  setFieldPromptModal(null);
+                  await executeGenerate(replace, chosenFields, chosenMode, true);
                 }}
                 className="px-4 py-2 text-sm font-medium text-white bg-electric-500 hover:bg-electric-600 rounded-lg disabled:opacity-50"
               >
-                {busy ? 'Generando...' : 'Confirmar y Generar Rol'}
+                {busy ? 'Generando...' : 'Generar Borrador para Ajustar'}
               </button>
             </div>
           </div>
