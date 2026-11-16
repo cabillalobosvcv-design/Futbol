@@ -87,9 +87,7 @@ export function ScheduleGeneratorPage() {
   const [startDate, setStartDate] = useState('2026-11-21');
   const [endDate, setEndDate] = useState('2027-01-31');
   const [allowedWeekdays, setAllowedWeekdays] = useState<string[]>(['Sábado', 'Domingo']);
-  const [daysBetweenRounds, setDaysBetweenRounds] = useState(7);
   const [selectedTimes, setSelectedTimes] = useState<string[]>(['09:00', '11:00', '13:00', '15:00']);
-  const [minRestHours, setMinRestHours] = useState(24);
   const [formatOverride, setFormatOverride] = useState<TournamentFormat | ''>('');
   const [doubleRoundOverride, setDoubleRoundOverride] = useState(false);
 
@@ -208,9 +206,9 @@ export function ScheduleGeneratorPage() {
         matches.filter((m) => m.tournamentId === activeTournament?.id),
         fields,
         referees,
-        minRestHours
+        0
       ),
-    [matches, activeTournament?.id, fields, referees, minRestHours]
+    [matches, activeTournament?.id, fields, referees]
   );
 
   const validPlayDates = useMemo(
@@ -233,11 +231,11 @@ export function ScheduleGeneratorPage() {
       startDate,
       endDate,
       allowedWeekdays,
-      daysBetweenRounds: Number(daysBetweenRounds),
+      daysBetweenRounds: 1,
       defaultTimes: selectedTimes.length > 0 ? selectedTimes : ['09:00'],
       fields,
       referees,
-      minRestHours: Number(minRestHours),
+      minRestHours: 0,
     });
   }, [
     activeTournament,
@@ -248,11 +246,9 @@ export function ScheduleGeneratorPage() {
     startDate,
     endDate,
     allowedWeekdays,
-    daysBetweenRounds,
     selectedTimes,
     fields,
     referees,
-    minRestHours,
   ]);
 
   const toggleWeekday = (day: string) => {
@@ -308,11 +304,11 @@ export function ScheduleGeneratorPage() {
         startDate,
         endDate,
         allowedWeekdays,
-        daysBetweenRounds: Number(daysBetweenRounds),
+        daysBetweenRounds: 1,
         defaultTimes: selectedTimes,
         fields,
         referees,
-        minRestHours: Number(minRestHours),
+        minRestHours: 0,
       });
 
       await persistGeneratedSchedule({
@@ -618,7 +614,7 @@ export function ScheduleGeneratorPage() {
             Generador Automático de Roles y Calendario
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
-            Configura restricciones de descanso, disponibilidad de canchas/árbitros, detecta conflictos y publica roles oficiales.
+            Configura fechas, días de juego, horarios disponibles, disponibilidad de canchas/árbitros y publica roles oficiales.
           </p>
         </div>
 
@@ -684,8 +680,8 @@ export function ScheduleGeneratorPage() {
           )}
         </div>
 
-        {/* Torneo, Categoría, Modalidad, Intervalo y Descanso */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+        {/* Torneo, Categoría y Modalidad */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
           <div>
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
               Torneo
@@ -735,32 +731,6 @@ export function ScheduleGeneratorPage() {
               <option value="groups">Fase de grupos</option>
               <option value="mixed">Modalidad mixta</option>
             </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Días mín. entre jornadas
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={30}
-              value={daysBetweenRounds}
-              onChange={(e) => setDaysBetweenRounds(Number(e.target.value))}
-              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Descanso mínimo (horas)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={168}
-              value={minRestHours}
-              onChange={(e) => setMinRestHours(Number(e.target.value))}
-              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tabular-nums"
-            />
           </div>
         </div>
 
