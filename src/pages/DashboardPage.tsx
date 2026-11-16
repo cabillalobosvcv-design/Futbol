@@ -5,8 +5,9 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
+  Clock,
   Database,
-  Shield,
+  MapPin,
   Target,
   TrendingUp,
   Trophy,
@@ -27,6 +28,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { PageId } from '../components/Layout';
+import { MatchStatusIndicator } from '../components/SemanticIcons';
 import { TeamCrest } from '../components/TeamCrest';
 import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
@@ -281,9 +283,13 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
         </div>
       )}
 
-      {/* KPI Strip */}
+      {/* Interactive Color-Coded KPI Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex items-start justify-between">
+        <button
+          type="button"
+          onClick={() => onNavigate('tournaments')}
+          className="group text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500/70 rounded-xl p-5 flex items-start justify-between transition-colors cursor-pointer"
+        >
           <div>
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Torneos Registrados</p>
             <p className="text-3xl font-display font-bold text-navy-900 dark:text-white mt-1.5 tabular-nums">
@@ -293,12 +299,16 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               {categories.length} categorías · {sports.length} deportes
             </p>
           </div>
-          <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-electric-600 dark:text-blue-400">
+          <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 transition-transform duration-150 group-hover:scale-110">
             <Trophy className="w-5 h-5" />
           </div>
-        </div>
+        </button>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex items-start justify-between">
+        <button
+          type="button"
+          onClick={() => onNavigate('teams')}
+          className="group text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/70 rounded-xl p-5 flex items-start justify-between transition-colors cursor-pointer"
+        >
           <div>
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Equipos y Jugadores</p>
             <p className="text-3xl font-display font-bold text-navy-900 dark:text-white mt-1.5 tabular-nums">
@@ -308,12 +318,18 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               {players.length} jugadores inscritos
             </p>
           </div>
-          <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
+          <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 transition-transform duration-150 group-hover:scale-110">
             <Users className="w-5 h-5" />
           </div>
-        </div>
+        </button>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex items-start justify-between">
+        <button
+          type="button"
+          onClick={() =>
+            onNavigate(ROLE_PERMISSIONS.canGenerateSchedule(role) ? 'schedule' : 'public_portal')
+          }
+          className="group text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-violet-400 dark:hover:border-violet-500/70 rounded-xl p-5 flex items-start justify-between transition-colors cursor-pointer"
+        >
           <div>
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Encuentros Totales</p>
             <p className="text-3xl font-display font-bold text-navy-900 dark:text-white mt-1.5 tabular-nums">
@@ -323,12 +339,20 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               {fields.filter((f) => f.status === 'disponible').length} canchas disponibles
             </p>
           </div>
-          <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-navy-900 dark:text-slate-200">
-            <Shield className="w-5 h-5" />
+          <div className="p-2.5 rounded-lg bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 transition-transform duration-150 group-hover:scale-110">
+            <CalendarDays className="w-5 h-5" />
           </div>
-        </div>
+        </button>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex items-start justify-between">
+        <button
+          type="button"
+          onClick={() => onNavigate('results')}
+          className={`group text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex items-start justify-between transition-colors cursor-pointer ${
+            pendingValidationMatches.length > 0
+              ? 'hover:border-rose-400 dark:hover:border-rose-500/70'
+              : 'hover:border-emerald-400 dark:hover:border-emerald-500/70'
+          }`}
+        >
           <div>
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Actas por Validar</p>
             <p
@@ -345,15 +369,15 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             </p>
           </div>
           <div
-            className={`p-2.5 rounded-lg ${
+            className={`p-2.5 rounded-lg transition-transform duration-150 group-hover:scale-110 ${
               pendingValidationMatches.length > 0
-                ? 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400'
+                ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400'
                 : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
             }`}
           >
             <ClipboardCheck className="w-5 h-5" />
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Interactive Recharts Growth Section */}
@@ -691,19 +715,27 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               </div>
             ) : (
               pendingValidationMatches.map((m) => (
-                <div key={m.id} className="p-4 flex items-center justify-between gap-3">
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => onNavigate('results')}
+                  className="group w-full text-left p-4 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                >
                   <div className="min-w-0">
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Partido #{m.matchNumber} · {categoryMap.get(m.categoryId)?.name}
-                    </p>
+                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <span>
+                        Partido #{m.matchNumber} · {categoryMap.get(m.categoryId)?.name}
+                      </span>
+                      <MatchStatusIndicator status={m.status} />
+                    </div>
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate mt-0.5">
                       {teamMap.get(m.homeTeamId)?.name} vs {teamMap.get(m.awayTeamId)?.name}
                     </p>
                   </div>
-                  <span className="font-mono font-bold text-sm px-2.5 py-1 rounded bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-400 tabular-nums shrink-0">
+                  <span className="font-mono font-bold text-sm px-2.5 py-1 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 tabular-nums shrink-0 transition-transform duration-150 group-hover:scale-105">
                     {m.homeScore ?? 0} - {m.awayScore ?? 0}
                   </span>
-                </div>
+                </button>
               ))
             )}
           </div>
@@ -712,7 +744,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
         <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-electric-500" />
+              <CalendarDays className="w-4 h-4 text-violet-600 dark:text-violet-400" />
               <h2 className="font-display font-semibold text-base text-slate-900 dark:text-slate-100">
                 Agenda Próxima de Partidos
               </h2>
@@ -734,8 +766,12 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               upcomingMatches.map((m) => {
                 const home = teamMap.get(m.homeTeamId);
                 const away = teamMap.get(m.awayTeamId);
+                const assignedField = m.fieldId ? fields.find((f) => f.id === m.fieldId) : undefined;
                 return (
-                  <div key={m.id} className="p-4 flex items-center justify-between gap-4">
+                  <div
+                    key={m.id}
+                    className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                  >
                     <div className="flex items-center gap-3 min-w-0">
                       <TeamCrest
                         name={home?.name || m.homeTeamId}
@@ -748,14 +784,25 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                         <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
                           {home?.name || m.homeTeamId} vs {away?.name || m.awayTeamId}
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {categoryMap.get(m.categoryId)?.name} · Jornada {m.roundNumber}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          <span>
+                            {categoryMap.get(m.categoryId)?.name} · Jornada {m.roundNumber}
+                          </span>
+                          {assignedField && (
+                            <span className="inline-flex items-center gap-1 text-teal-700 dark:text-teal-400">
+                              <MapPin className="w-3 h-3 shrink-0" />
+                              {assignedField.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="text-right font-mono text-xs text-slate-700 dark:text-slate-200 tabular-nums shrink-0">
                       <span className="block font-semibold">{m.date}</span>
-                      <span className="text-slate-500 dark:text-slate-400">{m.time}</span>
+                      <span className="inline-flex items-center justify-end gap-1 text-blue-600 dark:text-blue-400">
+                        <Clock className="w-3 h-3 shrink-0" />
+                        {m.time}
+                      </span>
                     </div>
                   </div>
                 );

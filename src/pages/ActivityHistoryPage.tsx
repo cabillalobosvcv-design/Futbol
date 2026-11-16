@@ -9,6 +9,7 @@ import {
   Search,
   User,
 } from 'lucide-react';
+import { AuditActionIcon } from '../components/SemanticIcons';
 import { useSigdData } from '../context/SigdDataContext';
 import { exportToExcel, exportToPdf } from '../engines/exportEngine';
 import type { AuditLog } from '../types/sigd';
@@ -699,10 +700,11 @@ export function ActivityHistoryPage() {
 
                         <td className="py-2.5 px-4 text-xs whitespace-nowrap">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-md border font-medium ${getToneClasses(
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-medium ${getToneClasses(
                               meta.tone
                             )}`}
                           >
+                            <AuditActionIcon action={log.action} className="w-3.5 h-3.5" />
                             {meta.label}
                           </span>
                           <div className="text-[11px] font-mono text-slate-400 dark:text-slate-500 mt-0.5">

@@ -11,6 +11,11 @@ import {
   XCircle,
 } from 'lucide-react';
 import { exportMatchSheetPdf } from '../engines/exportEngine';
+import {
+  MATCH_EVENT_STYLE,
+  MatchEventIcon,
+  MatchStatusIndicator,
+} from '../components/SemanticIcons';
 import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
 import {
@@ -351,17 +356,10 @@ export function MatchResultsPage() {
                       <span className="font-mono">
                         #{m.matchNumber} · J{m.roundNumber}
                       </span>
-                      <span
-                        className={`font-medium ${
-                          m.status === 'Pendiente de validación'
-                            ? 'text-amber-700 dark:text-amber-400'
-                            : m.status === 'Finalizado'
-                              ? 'text-emerald-700 dark:text-emerald-400'
-                              : 'text-slate-600 dark:text-slate-300'
-                        }`}
-                      >
-                        {m.status}
-                      </span>
+                      <MatchStatusIndicator
+                        status={m.status}
+                        rejected={res?.validationStatus === 'rechazado'}
+                      />
                     </div>
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
                       {teamMap.get(m.homeTeamId)?.name || m.homeTeamId} vs{' '}
@@ -514,7 +512,7 @@ export function MatchResultsPage() {
                   <h3 className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                     Capturar Estadísticas e Incidencias Individuales
                   </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <select
                       value={evTeamId || activeMatch.homeTeamId}
                       onChange={(e) => {
@@ -546,21 +544,33 @@ export function MatchResultsPage() {
                         ))
                       )}
                     </select>
+                  </div>
 
-                    <select
-                      value={evType}
-                      onChange={(e) => setEvType(e.target.value as MatchEventType)}
-                      className="px-2.5 py-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                    >
-                      <option value="gol">Gol</option>
-                      <option value="penal">Gol de Penal</option>
-                      <option value="autogol">Autogol</option>
-                      <option value="asistencia">Asistencia</option>
-                      <option value="amarilla">Tarjeta Amarilla</option>
-                      <option value="roja">Tarjeta Roja</option>
-                      <option value="sustitucion">Sustitución</option>
-                      <option value="participacion">Participación / Minutos</option>
-                    </select>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(Object.keys(MATCH_EVENT_STYLE) as MatchEventType[]).map((typeKey) => {
+                      const style = MATCH_EVENT_STYLE[typeKey];
+                      const isSelected = evType === typeKey;
+                      return (
+                        <button
+                          key={typeKey}
+                          type="button"
+                          onClick={() => setEvType(typeKey)}
+                          aria-pressed={isSelected}
+                          className={`group inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                            isSelected
+                              ? style.activeBgClass
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          <MatchEventIcon
+                            eventType={typeKey}
+                            inheritColor={isSelected}
+                            className="w-3.5 h-3.5 transition-transform duration-150 group-hover:scale-115"
+                          />
+                          <span>{style.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-center">
@@ -671,8 +681,11 @@ export function MatchResultsPage() {
                           <span className="font-mono font-bold text-navy-900 dark:text-blue-400 tabular-nums">
                             {ev.minute}&apos;
                           </span>
-                          <span className="font-semibold uppercase text-electric-600 dark:text-blue-400">
-                            {ev.eventType}
+                          <span
+                            className={`inline-flex items-center gap-1 font-semibold ${MATCH_EVENT_STYLE[ev.eventType].colorClass}`}
+                          >
+                            <MatchEventIcon eventType={ev.eventType} className="w-3.5 h-3.5" />
+                            {MATCH_EVENT_STYLE[ev.eventType].label}
                           </span>
                           <span className="text-slate-900 dark:text-slate-100 font-medium">
                             {playerMap.get(ev.playerId)?.fullName || ev.playerId}

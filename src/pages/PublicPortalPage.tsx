@@ -3,6 +3,7 @@ import {
   Award,
   BarChart3,
   CalendarDays,
+  Clock,
   Crown,
   Filter,
   MapPin,
@@ -12,6 +13,7 @@ import {
   Trophy,
   Users,
 } from 'lucide-react';
+import { MatchStatusIndicator } from '../components/SemanticIcons';
 import { TeamCrest } from '../components/TeamCrest';
 import { useSigdData } from '../context/SigdDataContext';
 
@@ -160,14 +162,14 @@ export function PublicPortalPage() {
     return tournaments.filter((t) => t.status === 'finalizado' || Boolean(t.championTeamId));
   }, [tournaments]);
 
-  const tabs: { id: PublicTab; label: string; icon: typeof Trophy }[] = [
-    { id: 'resumen', label: 'Resumen', icon: Trophy },
-    { id: 'calendario', label: 'Próximos Partidos', icon: CalendarDays },
-    { id: 'resultados', label: 'Resultados', icon: Target },
-    { id: 'posiciones', label: 'Posiciones', icon: BarChart3 },
-    { id: 'goleadores', label: 'Goleadores', icon: Award },
-    { id: 'equipos', label: 'Equipos', icon: Shield },
-    { id: 'campeones', label: 'Campeones', icon: Crown },
+  const tabs: { id: PublicTab; label: string; icon: typeof Trophy; colorClass: string }[] = [
+    { id: 'resumen', label: 'Resumen', icon: Trophy, colorClass: 'text-amber-500 dark:text-amber-400' },
+    { id: 'calendario', label: 'Próximos Partidos', icon: CalendarDays, colorClass: 'text-blue-600 dark:text-blue-400' },
+    { id: 'resultados', label: 'Resultados', icon: Target, colorClass: 'text-emerald-600 dark:text-emerald-400' },
+    { id: 'posiciones', label: 'Posiciones', icon: BarChart3, colorClass: 'text-cyan-600 dark:text-cyan-400' },
+    { id: 'goleadores', label: 'Goleadores', icon: Award, colorClass: 'text-yellow-500 dark:text-yellow-400' },
+    { id: 'equipos', label: 'Equipos', icon: Shield, colorClass: 'text-teal-600 dark:text-teal-400' },
+    { id: 'campeones', label: 'Campeones', icon: Crown, colorClass: 'text-orange-500 dark:text-orange-400' },
   ];
 
   return (
@@ -311,13 +313,17 @@ export function PublicPortalPage() {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap shrink-0 transition-colors ${
+              className={`group inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap shrink-0 transition-colors ${
                 isActive
                   ? 'bg-navy-900 dark:bg-electric-500 text-white'
                   : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon
+                className={`w-4 h-4 transition-transform duration-150 group-hover:scale-110 ${
+                  isActive ? 'text-white' : tab.colorClass
+                }`}
+              />
               {tab.label}
             </button>
           );
@@ -596,7 +602,10 @@ export function PublicPortalPage() {
                         {m.matchNumber}
                       </td>
                       <td className="py-3 px-4 font-mono tabular-nums text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                        {m.date} · {m.time}
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                          {m.date} · {m.time}
+                        </span>
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
                         {categoryMap.get(m.categoryId)?.name || m.categoryId} · J{m.roundNumber}
@@ -606,10 +615,13 @@ export function PublicPortalPage() {
                         {teamMap.get(m.awayTeamId)?.name || m.awayTeamId}
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
-                        {m.fieldId ? fieldMap.get(m.fieldId)?.name || 'Por definir' : 'Por definir'}
+                        <span className="inline-flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+                          {m.fieldId ? fieldMap.get(m.fieldId)?.name || 'Por definir' : 'Por definir'}
+                        </span>
                       </td>
-                      <td className="py-3 px-4 text-xs font-medium text-electric-600 dark:text-blue-400">
-                        {m.status}
+                      <td className="py-3 px-4">
+                        <MatchStatusIndicator status={m.status} />
                       </td>
                     </tr>
                   ))}

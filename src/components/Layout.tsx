@@ -33,6 +33,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
 import { ROLE_LABELS, ROLE_PERMISSIONS } from '../types/sigd';
+import { NAV_ICON_COLOR_CLASSES, NotificationTypeIcon } from './SemanticIcons';
 
 export type PageId =
   | 'public_portal'
@@ -267,6 +268,7 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = item.id === activePage;
+            const iconColor = NAV_ICON_COLOR_CLASSES[item.id]?.sidebar || 'text-slate-300';
             return (
               <button
                 key={item.id}
@@ -275,13 +277,17 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
                   onNavigate(item.id);
                   setSidebarOpen(false);
                 }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                className={`group w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                   isActive
                     ? 'bg-electric-500 text-white shadow-sm'
                     : 'text-slate-300 hover:bg-navy-800 hover:text-white'
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
+                <Icon
+                  className={`w-4 h-4 shrink-0 transition-transform duration-150 group-hover:scale-110 ${
+                    isActive ? 'text-white' : iconColor
+                  }`}
+                />
                 <span className="truncate">{item.label}</span>
               </button>
             );
@@ -359,6 +365,13 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
                 SIGD
               </span>
               <span className="text-slate-300 dark:text-slate-600" aria-hidden="true">/</span>
+              {activeNav && (
+                <activeNav.icon
+                  className={`w-4 h-4 shrink-0 ${
+                    NAV_ICON_COLOR_CLASSES[activeNav.id]?.breadcrumb || 'text-electric-500'
+                  }`}
+                />
+              )}
               <span className="font-medium text-slate-700 dark:text-slate-200 truncate">
                 {activeNav?.label || 'Portal Público'}
               </span>
@@ -377,13 +390,17 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
                 onClick={() => setTheme('light')}
                 aria-pressed={theme === 'light'}
                 aria-label="Cambiar a modo claro"
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                className={`group inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                   theme === 'light'
                     ? 'bg-white text-navy-900 shadow-sm'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                <Sun className="w-3.5 h-3.5" />
+                <Sun
+                  className={`w-3.5 h-3.5 transition-transform duration-150 group-hover:scale-110 ${
+                    theme === 'light' ? 'text-amber-500' : 'text-amber-400/80'
+                  }`}
+                />
                 <span className="hidden sm:inline">Claro</span>
               </button>
               <button
@@ -391,13 +408,17 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
                 onClick={() => setTheme('dark')}
                 aria-pressed={theme === 'dark'}
                 aria-label="Cambiar a modo oscuro"
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                className={`group inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                   theme === 'dark'
                     ? 'bg-slate-900 text-white shadow-sm'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                <Moon className="w-3.5 h-3.5" />
+                <Moon
+                  className={`w-3.5 h-3.5 transition-transform duration-150 group-hover:scale-110 ${
+                    theme === 'dark' ? 'text-indigo-400' : 'text-indigo-500/80'
+                  }`}
+                />
                 <span className="hidden sm:inline">Oscuro</span>
               </button>
             </div>
@@ -407,10 +428,16 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
                 <button
                   type="button"
                   onClick={() => setNotifOpen((prev) => !prev)}
-                  className="relative inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap"
+                  className="group relative inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap"
                   aria-label="Notificaciones en tiempo real"
                 >
-                  <Bell className="w-4 h-4 text-navy-800 dark:text-blue-400" />
+                  <Bell
+                    className={`w-4 h-4 transition-transform duration-150 group-hover:scale-110 ${
+                      unreadCount > 0
+                        ? 'text-amber-500 dark:text-amber-400'
+                        : 'text-blue-600 dark:text-blue-400'
+                    }`}
+                  />
                   <span className="hidden sm:inline">Notificaciones</span>
                   {unreadCount > 0 && (
                     <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md bg-red-600 text-white text-[11px] font-mono font-semibold tabular-nums">
@@ -471,7 +498,10 @@ export function Layout({ activePage, onNavigate, children }: LayoutProps) {
                               }`}
                             >
                               <div className="flex items-start justify-between gap-2">
-                                <p className={`font-semibold ${accentColor}`}>{n.title}</p>
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <NotificationTypeIcon type={n.type} className="w-4 h-4 mt-0.5" />
+                                  <p className={`font-semibold ${accentColor}`}>{n.title}</p>
+                                </div>
                                 {!isRead && (
                                   <button
                                     type="button"

@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  CalendarDays,
   CheckCircle2,
   ClipboardEdit,
+  Clock,
   FileDown,
   Flag,
   Lock,
+  MapPin,
   Minus,
   Play,
   Plus,
@@ -15,6 +18,11 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { PageId } from '../components/Layout';
+import {
+  MATCH_EVENT_STYLE,
+  MatchEventIcon,
+  MatchStatusIndicator,
+} from '../components/SemanticIcons';
 import { TeamCrest } from '../components/TeamCrest';
 import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
@@ -598,21 +606,7 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                       <span className="font-mono tabular-nums">
                         #{m.matchNumber} · J{m.roundNumber}
                       </span>
-                      <span
-                        className={`font-medium ${
-                          isRejected
-                            ? 'text-rose-700 dark:text-rose-400'
-                            : m.status === 'En juego'
-                              ? 'text-electric-600 dark:text-blue-400'
-                              : m.status === 'Pendiente de validación'
-                                ? 'text-amber-700 dark:text-amber-400'
-                                : m.status === 'Finalizado'
-                                  ? 'text-emerald-700 dark:text-emerald-400'
-                                  : 'text-slate-600 dark:text-slate-300'
-                        }`}
-                      >
-                        {isRejected ? 'Por corregir' : m.status}
-                      </span>
+                      <MatchStatusIndicator status={m.status} rejected={isRejected} />
                     </div>
 
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1 truncate">
@@ -620,7 +614,8 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                     </p>
 
                     <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      <span className="font-mono tabular-nums">
+                      <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+                        <Clock className="w-3 h-3 text-blue-500 dark:text-blue-400 shrink-0" />
                         {m.date} · {m.time}
                       </span>
                       {res ? (
@@ -660,12 +655,20 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                     {teamMap.get(activeMatch.homeTeamId)?.name || activeMatch.homeTeamId} vs{' '}
                     {teamMap.get(activeMatch.awayTeamId)?.name || activeMatch.awayTeamId}
                   </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono tabular-nums">
-                    {activeMatch.date} {activeMatch.time} · Cancha:{' '}
-                    {activeMatch.fieldId ? fieldMap.get(activeMatch.fieldId)?.name : 'Por asignar'}
-                    {' · '}Árbitro:{' '}
-                    {activeMatch.refereeId ? refMap.get(activeMatch.refereeId)?.fullName : 'Sin asignar'}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mt-1.5 font-mono tabular-nums">
+                    <span className="inline-flex items-center gap-1">
+                      <CalendarDays className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      {activeMatch.date} {activeMatch.time}
+                    </span>
+                    <span className="inline-flex items-center gap-1 font-sans">
+                      <MapPin className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                      {activeMatch.fieldId ? fieldMap.get(activeMatch.fieldId)?.name : 'Por asignar'}
+                    </span>
+                    <span className="inline-flex items-center gap-1 font-sans">
+                      <Flag className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      {activeMatch.refereeId ? refMap.get(activeMatch.refereeId)?.fullName : 'Sin asignar'}
+                    </span>
+                  </div>
                 </div>
 
                 <button
@@ -745,13 +748,14 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                 </div>
 
                 {/* Center Match Status */}
-                <div className="text-center space-y-1">
+                <div className="text-center space-y-1.5 flex flex-col items-center">
                   <span className="block text-[11px] font-mono text-slate-500 dark:text-slate-400">
                     MARCADOR OFICIAL
                   </span>
-                  <span className="block text-xs font-semibold text-navy-900 dark:text-blue-300">
-                    Estado partido: {activeMatch.status}
-                  </span>
+                  <MatchStatusIndicator
+                    status={activeMatch.status}
+                    rejected={existingResult?.validationStatus === 'rechazado'}
+                  />
                   <span className="block text-[11px] text-slate-500 dark:text-slate-400">
                     Acta: {existingResult?.validationStatus || 'sin capturar'}
                   </span>
@@ -883,7 +887,7 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                     </h3>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <select
                       value={evTeamId || activeMatch.homeTeamId}
                       onChange={(e) => {
@@ -917,21 +921,39 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                         ))
                       )}
                     </select>
+                  </div>
 
-                    <select
-                      value={evType}
-                      onChange={(e) => setEvType(e.target.value as MatchEventType)}
-                      className="px-2.5 py-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                    >
-                      <option value="gol">Gol</option>
-                      <option value="penal">Gol de Penal</option>
-                      <option value="autogol">Autogol</option>
-                      <option value="asistencia">Asistencia</option>
-                      <option value="amarilla">Tarjeta Amarilla</option>
-                      <option value="roja">Tarjeta Roja</option>
-                      <option value="sustitucion">Sustitución</option>
-                      <option value="participacion">Participación / Minutos</option>
-                    </select>
+                  {/* Interactive Color-Coded Event Type Selector */}
+                  <div>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block mb-1.5">
+                      Tipo de incidencia (selecciona icono)
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(Object.keys(MATCH_EVENT_STYLE) as MatchEventType[]).map((typeKey) => {
+                        const style = MATCH_EVENT_STYLE[typeKey];
+                        const isSelected = evType === typeKey;
+                        return (
+                          <button
+                            key={typeKey}
+                            type="button"
+                            onClick={() => setEvType(typeKey)}
+                            aria-pressed={isSelected}
+                            className={`group inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                              isSelected
+                                ? style.activeBgClass
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            <MatchEventIcon
+                              eventType={typeKey}
+                              inheritColor={isSelected}
+                              className="w-3.5 h-3.5 transition-transform duration-150 group-hover:scale-115"
+                            />
+                            <span>{style.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end">
@@ -1052,14 +1074,23 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                   <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Incidencias en el Acta ({draftEvents.length})
                   </h3>
-                  <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono text-slate-500 dark:text-slate-400 tabular-nums">
-                    <span>Goles: {eventSummaryCounts.goals}</span>
-                    <span>·</span>
-                    <span>Amarillas: {eventSummaryCounts.yellows}</span>
-                    <span>·</span>
-                    <span>Rojas: {eventSummaryCounts.reds}</span>
-                    <span>·</span>
-                    <span>Cambios: {eventSummaryCounts.subs}</span>
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono text-slate-600 dark:text-slate-300 tabular-nums">
+                    <span className="inline-flex items-center gap-1">
+                      <MatchEventIcon eventType="gol" className="w-3.5 h-3.5" />
+                      Goles: {eventSummaryCounts.goals}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <MatchEventIcon eventType="amarilla" className="w-3.5 h-3.5" />
+                      Amarillas: {eventSummaryCounts.yellows}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <MatchEventIcon eventType="roja" className="w-3.5 h-3.5" />
+                      Rojas: {eventSummaryCounts.reds}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <MatchEventIcon eventType="sustitucion" className="w-3.5 h-3.5" />
+                      Cambios: {eventSummaryCounts.subs}
+                    </span>
                   </div>
                 </div>
 
@@ -1083,18 +1114,9 @@ export function RefereeCapturePage({ initialMatchId, onNavigate }: RefereeCaptur
                               {ev.minute}&apos;
                             </span>
                             <span
-                              className={`font-semibold ${
-                                ev.eventType === 'roja'
-                                  ? 'text-rose-700 dark:text-rose-400'
-                                  : ev.eventType === 'amarilla'
-                                    ? 'text-amber-700 dark:text-amber-300'
-                                    : ev.eventType === 'gol' ||
-                                        ev.eventType === 'penal' ||
-                                        ev.eventType === 'autogol'
-                                      ? 'text-emerald-700 dark:text-emerald-400'
-                                      : 'text-electric-600 dark:text-blue-400'
-                              }`}
+                              className={`inline-flex items-center gap-1 font-semibold ${MATCH_EVENT_STYLE[ev.eventType].colorClass}`}
                             >
+                              <MatchEventIcon eventType={ev.eventType} className="w-3.5 h-3.5" />
                               {EVENT_LABELS[ev.eventType]}
                             </span>
                             <span className="text-slate-900 dark:text-slate-100 font-medium">

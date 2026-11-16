@@ -20,6 +20,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { UserRoleIcon } from '../components/SemanticIcons';
 import { useAuth } from '../context/AuthContext';
 import { useSigdData } from '../context/SigdDataContext';
 import {
@@ -1057,24 +1058,27 @@ export function UsersPermissionsPage() {
                             {u.email}
                           </td>
                           <td className="py-3 px-4">
-                            {canManageUsers && !isSelf ? (
-                              <select
-                                disabled={busy}
-                                value={u.role}
-                                onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
-                                className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                              >
-                                {(Object.keys(ROLE_LABELS) as UserRole[]).map((rKey) => (
-                                  <option key={rKey} value={rKey}>
-                                    {ROLE_LABELS[rKey]}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                                {ROLE_LABELS[u.role]}
-                              </span>
-                            )}
+                            <div className="inline-flex items-center gap-2">
+                              <UserRoleIcon role={u.role} className="w-4 h-4" />
+                              {canManageUsers && !isSelf ? (
+                                <select
+                                  disabled={busy}
+                                  value={u.role}
+                                  onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
+                                  className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                                >
+                                  {(Object.keys(ROLE_LABELS) as UserRole[]).map((rKey) => (
+                                    <option key={rKey} value={rKey}>
+                                      {ROLE_LABELS[rKey]}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                  {ROLE_LABELS[u.role]}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-300">
                             {u.role === 'coordinador' ? (
@@ -1188,20 +1192,23 @@ export function UsersPermissionsPage() {
                           {inv.email}
                         </td>
                         <td className="py-3 px-4">
-                          <select
-                            disabled={busy}
-                            value={inv.role}
-                            onChange={(e) =>
-                              handleUpdateInvite(inv, e.target.value as UserRole, inv.active)
-                            }
-                            className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                          >
-                            {(Object.keys(ROLE_LABELS) as UserRole[]).map((rKey) => (
-                              <option key={rKey} value={rKey}>
-                                {ROLE_LABELS[rKey]}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="inline-flex items-center gap-2">
+                            <UserRoleIcon role={inv.role} className="w-4 h-4" />
+                            <select
+                              disabled={busy}
+                              value={inv.role}
+                              onChange={(e) =>
+                                handleUpdateInvite(inv, e.target.value as UserRole, inv.active)
+                              }
+                              className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                            >
+                              {(Object.keys(ROLE_LABELS) as UserRole[]).map((rKey) => (
+                                <option key={rKey} value={rKey}>
+                                  {ROLE_LABELS[rKey]}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-xs">
                           <button
@@ -1274,13 +1281,17 @@ export function UsersPermissionsPage() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
               <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
-                <p className="font-semibold text-navy-900 dark:text-white">Administrador General</p>
+                <p className="font-semibold text-navy-900 dark:text-white inline-flex items-center gap-1.5">
+                  <UserRoleIcon role="admin_general" />
+                  Administrador General
+                </p>
                 <p className="text-slate-600 dark:text-slate-300 mt-1">
                   Acceso total: torneos, alta y gestión de usuarios, disciplinas, reglamentos, reportes y auditoría.
                 </p>
               </div>
               <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
-                <p className="font-semibold text-navy-900 dark:text-white">
+                <p className="font-semibold text-navy-900 dark:text-white inline-flex items-center gap-1.5">
+                  <UserRoleIcon role="admin_deportivo" />
                   Administrador Deportivo
                 </p>
                 <p className="text-slate-600 dark:text-slate-300 mt-1">
@@ -1288,19 +1299,26 @@ export function UsersPermissionsPage() {
                 </p>
               </div>
               <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
-                <p className="font-semibold text-navy-900 dark:text-white">Coordinador</p>
+                <p className="font-semibold text-navy-900 dark:text-white inline-flex items-center gap-1.5">
+                  <UserRoleIcon role="coordinador" />
+                  Coordinador
+                </p>
                 <p className="text-slate-600 dark:text-slate-300 mt-1">
                   Categorías ({categories.length}), generación de roles, supervisión y aprobación oficial de actas.
                 </p>
               </div>
               <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
-                <p className="font-semibold text-navy-900 dark:text-white">Árbitro</p>
+                <p className="font-semibold text-navy-900 dark:text-white inline-flex items-center gap-1.5">
+                  <UserRoleIcon role="arbitro" />
+                  Árbitro
+                </p>
                 <p className="text-slate-600 dark:text-slate-300 mt-1">
                   Consulta de encuentros, captura de actas digitales e incidencias enviadas a validación.
                 </p>
               </div>
               <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
-                <p className="font-semibold text-navy-900 dark:text-white">
+                <p className="font-semibold text-navy-900 dark:text-white inline-flex items-center gap-1.5">
+                  <UserRoleIcon role="representante" />
                   Representante de Equipo
                 </p>
                 <p className="text-slate-600 dark:text-slate-300 mt-1">
@@ -1308,7 +1326,10 @@ export function UsersPermissionsPage() {
                 </p>
               </div>
               <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
-                <p className="font-semibold text-navy-900 dark:text-white">Público / Visitante</p>
+                <p className="font-semibold text-navy-900 dark:text-white inline-flex items-center gap-1.5">
+                  <UserRoleIcon role="publico" />
+                  Público / Visitante
+                </p>
                 <p className="text-slate-600 dark:text-slate-300 mt-1">
                   Solo lectura en Portal Público: calendarios, resultados, posiciones y estadísticas.
                 </p>
